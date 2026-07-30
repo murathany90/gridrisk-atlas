@@ -20,7 +20,7 @@
     },
     async detail(point,targetTime,signal){
       point=U.clampPoint(point);const vars=['pm10','pm10_wildfires'];
-      const params=new URLSearchParams({latitude:point.lat.toFixed(5),longitude:point.lon.toFixed(5),hourly:vars.join(','),past_hours:'24',forecast_hours:'96',timezone:'GMT',domains:'cams_europe'}),key=`smokedetail:${point.lat.toFixed(2)},${point.lon.toFixed(2)}`;
+      const params=new URLSearchParams({latitude:point.lat.toFixed(5),longitude:point.lon.toFixed(5),hourly:vars.join(','),past_hours:'24',forecast_hours:'96',timezone:'GMT',domains:'cams_europe'}),key=`smokedetail:${point.lat.toFixed(4)},${point.lon.toFixed(4)}`;
       try{const {data,meta}=await U.fetchJson(`${C.openMeteoAir}?${params}`,{signal,cacheKey:key,ttl:C.cacheTtl.air});const idx=U.nearestTimeIndex(data.hourly?.time,targetTime),values={};for(const v of vars){const n=Number(data.hourly?.[v]?.[idx]);values[v]=Number.isFinite(n)&&n>=0?n:null;}values.wildfire_share=values.pm10_wildfires!=null&&values.pm10>0?U.clamp(values.pm10_wildfires/values.pm10*100,0,100):null;const series=(data.hourly?.time||[]).map((t,i)=>{const wf=U.toNum(data.hourly?.pm10_wildfires?.[i]),tot=U.toNum(data.hourly?.pm10?.[i]);return{time:t+'Z',pm10_wildfires:wf,wildfire_share:wf!=null&&tot>0?U.clamp(wf/tot*100,0,100):null};});report('air',{state:'ok',latency:meta.cached?0:meta.latency,count:1,note:'Yangın kaynaklı PM10 nokta sorgusu'});return{lat:Number(data.latitude),lon:Number(data.longitude),validAt:idx>=0?data.hourly.time[idx]+'Z':null,values,units:data.hourly_units||{},series,source:'CAMS European Air Quality via Open-Meteo',resolutionKm:11,dataType:'forecast'};}catch(e){if(e.kind!=='ABORTED')report('air',{state:'error',note:e.kind||e.message});throw e;}
     },
     async health(signal){return this.detail({lat:39,lon:35},new Date(),signal);}
@@ -33,7 +33,7 @@
     },
     async detail(point,targetTime,signal){
       point=U.clampPoint(point);const vars=['wind_speed_10m','wind_direction_10m','wind_gusts_10m','temperature_2m','relative_humidity_2m','precipitation','wind_speed_850hPa','wind_direction_850hPa','wind_speed_700hPa','wind_direction_700hPa'];
-      const params=new URLSearchParams({latitude:point.lat.toFixed(5),longitude:point.lon.toFixed(5),hourly:vars.join(','),past_hours:'24',forecast_hours:'96',timezone:'GMT',wind_speed_unit:'kmh'}),key=`weatherdetail:${point.lat.toFixed(2)},${point.lon.toFixed(2)}`;
+      const params=new URLSearchParams({latitude:point.lat.toFixed(5),longitude:point.lon.toFixed(5),hourly:vars.join(','),past_hours:'24',forecast_hours:'96',timezone:'GMT',wind_speed_unit:'kmh'}),key=`weatherdetail:${point.lat.toFixed(4)},${point.lon.toFixed(4)}`;
       try{const {data,meta}=await U.fetchJson(`${C.openMeteoWeather}?${params}`,{signal,cacheKey:key,ttl:C.cacheTtl.weather});const idx=U.nearestTimeIndex(data.hourly?.time,targetTime),values={};for(const v of vars){const n=Number(data.hourly?.[v]?.[idx]);values[v]=Number.isFinite(n)?n:null;}report('weather',{state:'ok',latency:meta.cached?0:meta.latency,count:1,note:'Yüzey + 850/700 hPa'});return{lat:Number(data.latitude),lon:Number(data.longitude),validAt:idx>=0?data.hourly.time[idx]+'Z':null,values,units:data.hourly_units||{},source:'Open-Meteo Weather Forecast',dataType:'forecast'};}catch(e){if(e.kind!=='ABORTED')report('weather',{state:'error',note:e.kind||e.message});throw e;}
     },
     async health(signal){return this.detail({lat:39,lon:35},new Date(),signal);}
@@ -61,12 +61,16 @@
   A.FirePolygonAdapter={
     async load(signal){
       const started=performance.now(),cfg=C.firePolygons;
-      const cutoff=Date.now()-7*86400000; // son 7 gün
-      const url=cfg.url+`?where=${encodeURIComponent(`date >= ${cutoff}`)}&outFields=date,il,konum,area_ha,impact_b,impact_p,olu_sayi&returnGeometry=true&f=geojson&outSR=4326&resultRecordCount=500`;
-      let features=[];
+      const cutoff=Date.now()-7*86400000;
+      const baseParams=`where=${encodeURIComponent(`date >= ${cutoff}`)}&outFields=date,il,konum,area_ha,impact_b,impact_p,olu_sayi&returnGeometry=true&f=geojson&outSR=4326`;
+      let features=[],page=0,error=null;
+      const MAX_PAGES=50;
       try{
-        const {data}=await U.fetchJson(url,{signal,cacheKey:'firePolygons:current',ttl:C.cacheTtl.grid});
-        if(data?.features?.length){
+        while(page<MAX_PAGES){
+          if(signal?.aborted)break;
+          const url=`${cfg.url}?${baseParams}&resultRecordCount=500&resultOffset=${page*500}`;
+          const {data}=await U.fetchJson(url,{signal,cacheKey:page===0?'firePolygons:current':null,ttl:C.cacheTtl.grid});
+          if(!data?.features?.length)break;
           for(const f of data.features){
             const p=f.properties||{};
             f.properties={
@@ -80,10 +84,16 @@
             };
             delete f.id;
           }
-          features=data.features;
+          features.push(...data.features);
+          if(!data.exceededTransferLimit)break;
+          page++;
         }
-      }catch(e){if(e.kind!=='ABORTED')console.warn('FirePolygon:',e.message);}
-      report('firePolygon',{state:'ok',latency:Math.round(performance.now()-started),count:features.length,note:`${cfg.label} · ${cfg.source}`});
+      }catch(e){
+        if(e.kind==='ABORTED')throw e;
+        error=e.message||String(e);
+        if(!features.length){report('firePolygon',{state:'error',note:error});return{type:'FeatureCollection',features:[],_error:error};}
+      }
+      report('firePolygon',{state:features.length?'ok':'empty',latency:Math.round(performance.now()-started),count:features.length,note:features.length?`${cfg.label} · ${cfg.source}`:(error?'API hatası, veri yok':'Son 7 günde yangın alanı yok')});
       return{type:'FeatureCollection',features};
     }
   };

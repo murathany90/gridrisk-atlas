@@ -7,7 +7,15 @@
     assetKey(props,prefix='line'){return `${prefix}:${props?.id||props?.osmId||props?.osm_id||props?.name||props?.sourceId||JSON.stringify([props?.voltage,props?.operator]).slice(0,120)}`;}
     loadScriptFallback(key,cfg){
       if(window.AtmoGridData?.[key])return Promise.resolve(window.AtmoGridData[key]);
-      return new Promise((resolve,reject)=>{const id=`grid-fallback-${key}`;const existing=document.getElementById(id);if(existing){existing.addEventListener('load',()=>window.AtmoGridData?.[key]?resolve(window.AtmoGridData[key]):reject(new Error('Yerel grid scripti veri üretmedi')),{once:true});existing.addEventListener('error',()=>reject(new Error('Yerel grid scripti yüklenemedi')),{once:true});return;}const sc=document.createElement('script');sc.id=id;sc.src=cfg.file.replace(/\.geojson$/i,'.js')+`?v=${encodeURIComponent(C.appVersion)}`;sc.onload=()=>window.AtmoGridData?.[key]?resolve(window.AtmoGridData[key]):reject(new Error('Yerel grid scripti veri üretmedi'));sc.onerror=()=>reject(new Error('Yerel grid scripti yüklenemedi'));document.head.appendChild(sc);});
+      const id=`grid-fallback-${key}`;
+      const existing=document.getElementById(id);
+      if(existing){
+        const state=existing.dataset.state||'loading';
+        if(state==='loaded'){const d=window.AtmoGridData?.[key];return d?Promise.resolve(d):Promise.reject(new Error('Yerel grid scripti veri üretmedi'));}
+        if(state==='error')return Promise.reject(new Error('Yerel grid scripti yüklenemedi'));
+        return new Promise((resolve,reject)=>{const onLoad=()=>{const d=window.AtmoGridData?.[key];d?resolve(d):reject(new Error('Yerel grid scripti veri üretmedi'));};const onError=()=>reject(new Error('Yerel grid scripti yüklenemedi'));existing.addEventListener('load',onLoad,{once:true});existing.addEventListener('error',onError,{once:true});setTimeout(()=>{existing.removeEventListener('load',onLoad);existing.removeEventListener('error',onError);reject(new Error('Grid script timeout'));},10000);});
+      }
+      return new Promise((resolve,reject)=>{const sc=document.createElement('script');sc.id=id;sc.dataset.state='loading';sc.src=cfg.file.replace(/\.geojson$/i,'.js')+`?v=${encodeURIComponent(C.appVersion)}`;const timer=setTimeout(()=>{sc.dataset.state='error';reject(new Error('Grid script timeout'));},10000);sc.onload=()=>{clearTimeout(timer);sc.dataset.state='loaded';const d=window.AtmoGridData?.[key];d?resolve(d):reject(new Error('Yerel grid scripti veri üretmedi'));};sc.onerror=()=>{clearTimeout(timer);sc.dataset.state='error';reject(new Error('Yerel grid scripti yüklenemedi'));};document.head.appendChild(sc);});
     }
     async loadGroup(key){
       if(this.data.has(key))return this.data.get(key);if(this.loading.has(key))return this.loading.get(key);const cfg=C.gridSources[key];if(!cfg)throw new Error(`Bilinmeyen grid grubu: ${key}`);

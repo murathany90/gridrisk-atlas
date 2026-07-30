@@ -8,7 +8,7 @@
     setData(data,variable){this.data=(data||[]).filter(x=>Number.isFinite(x.value));this.variable=variable;this.redraw();}
     setOpacity(v){this.opacity=U.clamp(Number(v)||.8,.25,1);if(this._canvas)this._canvas.style.opacity=String(this.opacity);}
     redraw(){
-      if(!this._map||!this._canvas)return;const size=this._map.getSize(),topLeft=this._map.containerPointToLayerPoint([0,0]);L.DomUtil.setPosition(this._canvas,topLeft);this._canvas.width=Math.max(1,size.x);this._canvas.height=Math.max(1,size.y);this._canvas.style.width=`${size.x}px`;this._canvas.style.height=`${size.y}px`;this._canvas.style.opacity=String(this.opacity);const ctx=this._canvas.getContext('2d');ctx.clearRect(0,0,size.x,size.y);if(!this.data.length)return;
+      if(!this._map||!this._canvas)return;const size=this._map.getSize(),topLeft=this._map.containerPointToLayerPoint([0,0]);L.DomUtil.setPosition(this._canvas,topLeft);const dpr=window.devicePixelRatio||1;this._canvas.width=Math.max(1,size.x*dpr);this._canvas.height=Math.max(1,size.y*dpr);this._canvas.style.width=`${size.x}px`;this._canvas.style.height=`${size.y}px`;this._canvas.style.opacity=String(this.opacity);const ctx=this._canvas.getContext('2d');ctx.setTransform(dpr,0,0,dpr,0,0);ctx.clearRect(0,0,size.x,size.y);if(!this.data.length)return;
       const projected=this.data.map(p=>({p,pt:this._map.latLngToContainerPoint([p.lat,p.lon])})).filter(x=>x.pt.x>-180&&x.pt.y>-180&&x.pt.x<size.x+180&&x.pt.y<size.y+180);if(!projected.length)return;
       const n=projected.length,area=Math.max(1,size.x*size.y),spacing=Math.sqrt(area/Math.max(1,n)),radius=U.clamp(spacing*1.35,58,150);ctx.globalCompositeOperation='source-over';
       for(const {p,pt} of projected){const alpha=U.smokeAlpha(this.variable,p.value);if(alpha<=0)continue;const [r,g,b]=U.smokeColor(this.variable,p.value),gr=ctx.createRadialGradient(pt.x,pt.y,0,pt.x,pt.y,radius);gr.addColorStop(0,`rgba(${r},${g},${b},${alpha})`);gr.addColorStop(.38,`rgba(${r},${g},${b},${alpha*.72})`);gr.addColorStop(.72,`rgba(${r},${g},${b},${alpha*.30})`);gr.addColorStop(1,`rgba(${r},${g},${b},0)`);ctx.fillStyle=gr;ctx.fillRect(pt.x-radius,pt.y-radius,radius*2,radius*2);}
@@ -37,11 +37,11 @@
     renderFires(selectedTime){
       this.currentSelectedTime=new Date(selectedTime);this.fireLayer.clearLayers();if(this.frpHeat){this.map.removeLayer(this.frpHeat);this.frpHeat=null;}const end=Math.min(this.currentSelectedTime.getTime(),Date.now()+15*60e3),start=end-24*3600e3;this.fireVisible=this.fireAll.filter(f=>{const t=Date.parse(f.detectedAt);return t>=start&&t<=end;});const allEvents=U.clusterFires(this.fireVisible);this.fireEventsVisible=allEvents.filter(ev=>ev.maxFrp>=this.frpThreshold);
       if(this.zoom()<9){for(const ev of this.fireEventsVisible){const count=ev.count,radius=U.clamp(7+Math.sqrt(count)*2.2+Math.sqrt(Math.max(0,ev.maxFrp))*0.35,8,24),opacity=U.ageOpacity(ev.latestDetectedAt,new Date(end)),m=L.circleMarker([ev.lat,ev.lon],{pane:'firePane',renderer:this.renderer,radius,color:'#fff',weight:1.2,opacity,fillColor:U.frpColor(ev.maxFrp),fillOpacity:opacity*.92});m.bindTooltip(`<strong>Yangın olayı kümesi</strong><br>${count} FIRMS termal tespiti<br>Maks. FRP: ${U.round(ev.maxFrp,1)} MW<br>Son tespit: ${U.formatLocal(new Date(ev.latestDetectedAt))}<br><small>5 km / 6 saat kümelenmiş; yangın perimetresi değildir.</small>`);if(this.zoom()<7&&count>1)m.bindTooltip(m.getTooltip().getContent()+`<br><strong>● ${count}</strong>`);m.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:ev.lat,lon:ev.lon,fire:ev.representative,fireEvent:ev});});m.addTo(this.fireLayer);}}
-      else{for(const f of this.fireVisible.slice(0,5000)){if((f.frp||0)<this.frpThreshold)continue;const radius=U.clamp(4+Math.sqrt(Math.max(0,f.frp||0))*1.05,4,17),opacity=U.ageOpacity(f.detectedAt,new Date(end)),m=L.circleMarker([f.lat,f.lon],{pane:'firePane',renderer:this.renderer,radius,color:'#fff',weight:1,opacity,fillColor:U.frpColor(f.frp),fillOpacity:opacity*.9});m.bindTooltip(`<strong>NASA FIRMS termal tespiti</strong><br>${U.escapeHtml(f.product)}<br>FRP: ${f.frp??'—'} MW<br>${U.formatLocal(new Date(f.detectedAt))}<br><small>Hotspot = yangın perimetresi değildir.</small>`);m.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:f.lat,lon:f.lon,fire:f});});m.addTo(this.fireLayer);}}
+      else{const filtered=this.fireVisible.filter(f=>f.frp==null||f.frp>=this.frpThreshold).sort((a,b)=>Math.abs(b.frp||0)-Math.abs(a.frp||0)).slice(0,5000);for(const f of filtered){const radius=U.clamp(4+Math.sqrt(Math.max(0,f.frp||0))*1.05,4,17),opacity=U.ageOpacity(f.detectedAt,new Date(end)),m=L.circleMarker([f.lat,f.lon],{pane:'firePane',renderer:this.renderer,radius,color:'#fff',weight:1,opacity,fillColor:U.frpColor(f.frp),fillOpacity:opacity*.9});m.bindTooltip(`<strong>NASA FIRMS termal tespiti</strong><br>${U.escapeHtml(f.product)}<br>FRP: ${f.frp??'—'} MW<br>${U.formatLocal(new Date(f.detectedAt))}<br><small>Hotspot = yangın perimetresi değildir.</small>`);m.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:f.lat,lon:f.lon,fire:f});});m.addTo(this.fireLayer);}}
       A.Events.emit('firesRendered',{detections:this.fireVisible.length,events:this.fireEventsVisible.length,eventsTotal:allEvents.length});
     }
     toggleFires(show){if(show){if(!this.map.hasLayer(this.fireLayer))this.fireLayer.addTo(this.map);}else this.map.removeLayer(this.fireLayer);}
-    toggleHeat(show){if(!show){if(this.frpHeat)this.map.removeLayer(this.frpHeat);return;}const candidates=this.fireVisible.filter(f=>U.insideRegion(f)&&(f.frp||0)>=this.frpThreshold),vals=candidates.map(f=>f.frp).filter(Number.isFinite),max=Math.max(10,...vals),pts=candidates.map(f=>[f.lat,f.lon,U.clamp((f.frp||0)/max,0,1)]);if(this.frpHeat)this.map.removeLayer(this.frpHeat);this.frpHeat=L.heatLayer(pts,{radius:24,blur:20,maxZoom:11,max:1,pane:'riskPane'}).addTo(this.map);}
+    toggleHeat(show){if(!show){if(this.frpHeat)this.map.removeLayer(this.frpHeat);return;}const candidates=this.fireVisible.filter(f=>U.insideRegion(f)&&Number.isFinite(f.frp)&&f.frp>=this.frpThreshold);const vals=candidates.map(f=>f.frp).filter(Number.isFinite).sort((a,b)=>a-b);const p95Idx=Math.floor(vals.length*0.95),p95=vals.length?Math.max(1,vals[p95Idx]):1;const pts=candidates.map(f=>[f.lat,f.lon,U.clamp(Math.log1p(f.frp)/Math.log1p(p95),0,1)]);if(this.frpHeat)this.map.removeLayer(this.frpHeat);this.frpHeat=L.heatLayer(pts,{radius:24,blur:20,maxZoom:11,max:1,pane:'riskPane'}).addTo(this.map);}
     setFirePolygons(fc,show=true){
       this.firePolygonLayer.clearLayers();this.firePolygonMarkerLayer.clearLayers();
       if(this.map.hasLayer(this.firePolygonLayer))this.map.removeLayer(this.firePolygonLayer);
@@ -50,20 +50,21 @@
       if(!show||!fc?.features?.length)return;
       const cfg=C.firePolygons,features=fc.features.filter(f=>f.geometry?.coordinates?.length);
       for(const f of features){
-        const p=f.properties||{},coords=f.geometry.type==='MultiPolygon'?f.geometry.coordinates[0]:f.geometry.coordinates;
-        if(!coords?.length)continue;
-        const poly=L.polygon(coords[0],{pane:'riskPane',color:cfg.strokeColor,weight:cfg.strokeWeight,fillColor:cfg.fillColor,fillOpacity:cfg.fillOpacity,opacity:.7,interactive:true});
-        const areaKm2=p.areaHa?`${U.round(p.areaHa/100,2)} km²`:'—';
-        poly.bindTooltip(`<strong>${U.escapeHtml(p.konum||'Yangın alanı')}</strong><br>${U.escapeHtml(p.il||'')}<br>Alan: ${areaKm2} · ${p.areaHa} ha<br>Tarih: ${p.date?U.formatLocal(new Date(p.date)):'—'}<br>Etkilenen: ${p.affectedPeople} kişi / ${p.affectedBuildings} bina<br>Kayıp: ${p.fatalities}<br><small>${cfg.source}</small>`);
-        poly.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:e.latlng.lat,lon:e.latlng.lng,firePolygon:f});});
-        poly.addTo(this.firePolygonLayer);
+        const p=f.properties||{};
+        const poly=L.geoJSON(f,{pane:'riskPane',style:{color:cfg.strokeColor,weight:cfg.strokeWeight,fillColor:cfg.fillColor,fillOpacity:cfg.fillOpacity,opacity:.7},interactive:true,pointToLayer:()=>null});
+        poly.eachLayer(l=>{
+          l.bindTooltip((()=>{const areaKm2=p.areaHa?`${U.round(p.areaHa/100,2)} km²`:'—';return `<strong>${U.escapeHtml(p.konum||'Yangın alanı')}</strong><br>${U.escapeHtml(p.il||'')}<br>Alan: ${areaKm2} · ${p.areaHa} ha<br>Tarih: ${p.date?U.formatLocal(new Date(p.date)):'—'}<br>Etkilenen: ${p.affectedPeople} kişi / ${p.affectedBuildings} bina<br>Kayıp: ${p.fatalities}<br><small>${cfg.source}</small>`;
+          })());
+          l.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:e.latlng.lat,lon:e.latlng.lng,firePolygon:f});});
+        });
+        this.firePolygonLayer.addLayer(poly);
       }
       const centroidLayer=L.featureGroup();
       for(const f of features){
         if(!f.geometry?.coordinates?.length)continue;
-        const coords=f.geometry.type==='MultiPolygon'?f.geometry.coordinates[0][0]:f.geometry.coordinates[0];
-        if(!coords?.length)continue;
-        const cx=coords.reduce((s,c)=>s+c[0],0)/coords.length,cy=coords.reduce((s,c)=>s+c[1],0)/coords.length,p=f.properties||{};
+        const firstRing=((f.geometry.type==='MultiPolygon'?f.geometry.coordinates[0][0]:f.geometry.coordinates[0])||[]);
+        if(!firstRing.length)continue;
+        const cx=firstRing.reduce((s,c)=>s+c[0],0)/firstRing.length,cy=firstRing.reduce((s,c)=>s+c[1],0)/firstRing.length,p=f.properties||{};
         L.circleMarker([cy,cx],{pane:'riskPane',radius:6,color:cfg.markerColor,weight:2,fillColor:'#fff',fillOpacity:.8,interactive:true})
           .bindTooltip(`<strong>${U.escapeHtml(p.konum||'Yangın alanı')}</strong> · ${p.areaHa||'?'} ha<br>${p.date?U.formatLocal(new Date(p.date)):''}`)
           .addTo(this.firePolygonMarkerLayer).on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:cy,lon:cx,firePolygon:f});});

@@ -15,6 +15,8 @@ const cache=new Map();
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.geojson':'application/geo+json; charset=utf-8','.md':'text/markdown; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg'};
 const allowedSources=new Set(['VIIRS_NOAA21_NRT','VIIRS_NOAA20_NRT','VIIRS_SNPP_NRT','MODIS_NRT']);
 const BROWSER_UA='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0 Safari/537.36';
+const ALLOWED_ATHUB_HOSTS=new Set(['portal.atmohub.gr']);
+const PRIVATE_IPS=[/^127\./,/^10\./,/^172\.(1[6-9]|2\d|3[01])\./,/^192\.168\./,/^169\.254\./,/^0\./,/^224\./,/^::1$/,/^fc00:/,/^fe80:/];
 const tileProviders={
   satellite:{template:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',referer:'https://www.arcgis.com/'},
   osm:{template:'https://tile.openstreetmap.org/{z}/{x}/{y}.png',referer:'https://www.openstreetmap.org/'},
@@ -38,11 +40,37 @@ async function firmsProxy(req,res,url){
   const bbox=url.searchParams.get('bbox')||'',source=url.searchParams.get('source')||'VIIRS_NOAA21_NRT',days=Math.max(1,Math.min(5,Number(url.searchParams.get('days')||2)));
   if(!validTurkeyBbox(bbox))return send(res,400,JSON.stringify({error:'bbox must stay inside the Turkey operational extent'}),'application/json; charset=utf-8');if(!allowedSources.has(source))return send(res,400,JSON.stringify({error:'Invalid source'}),'application/json; charset=utf-8');
   const target=`https://firms.modaps.eosdis.nasa.gov/api/area/csv/${encodeURIComponent(FIRMS_MAP_KEY)}/${source}/${bbox}/${days}`,key=`firms:${source}:${bbox}:${days}`,hit=cache.get(key);if(hit&&Date.now()<hit.expires)return send(res,200,hit.text,'text/csv; charset=utf-8');
-  try{const r=await fetch(target,{headers:{Accept:'text/csv','User-Agent':'Turkey-Wildfire-Grid-Risk-Monitor/3.0'}}),text=await r.text();if(!r.ok)return send(res,r.status,text||`FIRMS HTTP ${r.status}`);cache.set(key,{text,expires:Date.now()+7*60*1000});return send(res,200,text,'text/csv; charset=utf-8');}catch(e){return send(res,502,JSON.stringify({error:'FIRMS upstream failed',detail:String(e.message||e)}),'application/json; charset=utf-8');}
+  for(let attempt=0;attempt<=2;attempt++){
+    const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort('timeout'),18000);
+    try{
+      const r=await fetch(target,{signal:ctrl.signal,headers:{Accept:'text/csv','User-Agent':'Turkey-Wildfire-Grid-Risk-Monitor/3.0'}});
+      if(r.status===429){const retryAfter=Number(r.headers.get('retry-after')||30);clearTimeout(timer);if(attempt<2&&retryAfter<60){await new Promise(r=>setTimeout(r,Math.min(retryAfter*1000,5000)+Math.random()*500));continue;}return send(res,429,JSON.stringify({error:'FIRMS rate limited',retryAfter}),'application/json; charset=utf-8');}
+      if(!r.ok&&attempt<2&&r.status>=500){clearTimeout(timer);await new Promise(r=>setTimeout(r,750*(attempt+1)+Math.random()*500));continue;}
+      const text=await r.text();if(!r.ok)return send(res,r.status,text||`FIRMS HTTP ${r.status}`);cache.set(key,{text,expires:Date.now()+7*60*1000});return send(res,200,text,'text/csv; charset=utf-8');
+    }catch(e){
+      clearTimeout(timer);
+      if(ctrl.signal.reason==='timeout'&&attempt<2){await new Promise(r=>setTimeout(r,1000*(attempt+1)));continue;}
+      return send(res,502,JSON.stringify({error:'FIRMS upstream failed',detail:String(e.message||e)}),'application/json; charset=utf-8');
+    }finally{clearTimeout(timer);}
+  }
 }
 function absUrl(base,src){try{return new URL(src,base).href;}catch{return null;}}
+function isPrivateHost(url){
+  if(PRIVATE_IPS.some(p=>p.test(url.hostname)))return true;
+  if(url.hostname==='localhost'||url.hostname==='localhost.localdomain'||url.hostname==='127.0.0.1'||url.hostname==='0.0.0.0')return true;
+  return false;
+}
+function validateUpstreamUrl(raw,allowedHosts=ALLOWED_ATHUB_HOSTS){
+  let url;try{url=new URL(raw);}catch{return null;}
+  if(url.protocol!=='https:'&&url.protocol!=='http:')return null;
+  if(url.username||url.password)return null;
+  if(isPrivateHost(url))return null;
+  if(allowedHosts&&!allowedHosts.has(url.hostname))return null;
+  return url.href;
+}
 async function fetchLimited(url,maxBytes=5_000_000,accept='text/html,application/javascript,text/css,*/*'){
-  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort(),12000);try{const r=await fetch(url,{signal:ctrl.signal,redirect:'follow',headers:{'User-Agent':BROWSER_UA,'Accept':accept,'Accept-Language':'en-US,en;q=0.9,el;q=0.8','Referer':'https://portal.atmohub.gr/'}});if(!r.ok)throw new Error(`HTTP ${r.status}`);const txt=await r.text();return{text:txt.slice(0,maxBytes),status:r.status,contentType:r.headers.get('content-type')||'',finalUrl:r.url};}finally{clearTimeout(timer);}}
+  const validated=validateUpstreamUrl(url);if(!validated)throw new Error('UPSTREAM_URL_REJECTED');
+  const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort('timeout'),15000);try{const r=await fetch(validated,{signal:ctrl.signal,redirect:'follow',headers:{'User-Agent':BROWSER_UA,'Accept':accept,'Accept-Language':'en-US,en;q=0.9,el;q=0.8','Referer':'https://portal.atmohub.gr/'}});if(!r.ok)throw new Error(`HTTP ${r.status}`);const ct=r.headers.get('content-type')||'',finalUrl=r.url;if(r.redirected&&finalUrl!==validated&&!validateUpstreamUrl(finalUrl,null))throw new Error('UPSTREAM_REDIRECT_REJECTED');const reader=r.body.getReader();let total=0,chunks=[];while(true){const {done,value}=await reader.read();if(done)break;total+=value.byteLength;if(total>maxBytes){reader.cancel();throw new Error('UPSTREAM_RESPONSE_TOO_LARGE');}chunks.push(value);}const txt=Buffer.concat(chunks).toString('utf-8');return{text:txt,status:r.status,contentType:ct,finalUrl};}finally{clearTimeout(timer);}}
 function classifyCandidate(url){const u=String(url).toLowerCase();if(/wms|geoserver|service=wms|getmap/.test(u))return'WMS';if(/wmts|tile|\{z\}|\{x\}|\{y\}/.test(u))return'TILE';if(/smoke|wildfire|forest.?fire|fire_smoke|biomass/.test(u))return'SMOKE/FIRE';if(/\.json(?:\?|$)|geojson|\/api\//.test(u))return'DATA/API';if(/\.png|\.webp|\.jpg|\.tif|\.tiff|\.nc(?:\?|$)/.test(u))return'RASTER/FILE';return'ENDPOINT';}
 function extractCandidates(text,sourceUrl){
   const found=new Map(),push=(raw)=>{if(!raw)return;let v=String(raw).trim().replaceAll('\\/','/').replace(/&amp;/g,'&');if(v.length<4||v.length>900)return;if(/^(data:|blob:|javascript:|#)/i.test(v))return;let url=null;try{if(/^https?:\/\//i.test(v))url=new URL(v).href;else if(/^\/\//.test(v))url='https:'+v;else if(/^(\/|\.\/|\.\.\/)/.test(v))url=new URL(v,sourceUrl).href;else if(/^(api|geoserver|wms|wmts|tiles?|forecast|smoke|wildfire|fire)[\/_-]/i.test(v))url=new URL(v,sourceUrl).href;}catch{}if(!url)return;if(!/^https?:\/\//i.test(url))return;const low=url.toLowerCase();if(!/(api|wms|wmts|geoserver|tile|smoke|wildfire|forest|fire|forecast|pm10|pm2|aerosol|\.json|\.geojson|\.png|\.webp|\.tif|\.tiff|\.nc)/i.test(low))return;found.set(url,{url,kind:classifyCandidate(url),source:sourceUrl});};
