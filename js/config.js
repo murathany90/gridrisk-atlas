@@ -29,6 +29,7 @@ window.AtmoApp = window.AtmoApp || {};
     openMeteoWeather: 'https://api.open-meteo.com/v1/forecast',
     openMeteoGeocode: 'https://geocoding-api.open-meteo.com/v1/search',
     firmsBase: 'https://firms.modaps.eosdis.nasa.gov/api/area/csv',
+    firmsMapKey: '__FIRMS_MAP_KEY__',
     effisWms: 'https://maps.effis.emergency.copernicus.eu/effis',
     effisFwiLayer: 'ecmwf007.fwi',
     atmoHubPortal: 'https://portal.atmohub.gr/',
