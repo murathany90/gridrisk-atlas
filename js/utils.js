@@ -20,6 +20,67 @@
     if(s==='low'||s==='l')return .45;
     const n=Number(v);return Number.isFinite(n)?Math.max(0,Math.min(1,n/100)):.6;
   }
+  function normalizeFireDetection(raw, defaults = {}) {
+    const lat = Number(raw.lat ?? raw.latitude);
+    const lon = Number(raw.lon ?? raw.longitude);
+    const detectedAt = raw.detectedAt || raw.acq_date ? (
+      raw.detectedAt || (() => {
+        const hhmm = String(raw.acq_time || '').padStart(4, '0');
+        return `${raw.acq_date}T${hhmm.slice(0, 2)}:${hhmm.slice(2)}:00Z`;
+      })()
+    ) : null;
+    const frp = Number(raw.frp ?? raw.FRP ?? raw.brightness);
+    return {
+      id: raw.id || null,
+      source: raw.source || defaults.source || null,
+      product: raw.product || defaults.product || null,
+      satellite: raw.satellite || defaults.satellite || null,
+      sensor: raw.sensor || defaults.sensor || null,
+      lat: Number.isFinite(lat) ? lat : null,
+      lon: Number.isFinite(lon) ? lon : null,
+      detectedAt: detectedAt || null,
+      frp: Number.isFinite(frp) ? frp : null,
+      confidence: raw.confidence != null ? raw.confidence : null,
+      dayNight: raw.dayNight || raw.daynight || null,
+      brightTi4: raw.brightTi4 != null ? Number(raw.brightTi4) : null,
+      brightTi5: raw.brightTi5 != null ? Number(raw.brightTi5) : null,
+      scan: raw.scan != null ? Number(raw.scan) : null,
+      track: raw.track != null ? Number(raw.track) : null,
+      sourceUrl: raw.sourceUrl || null
+    };
+  }
+
+  function detectionIdentityKey(d) {
+    const p = d.product || '';
+    const s = d.satellite || '';
+    const t = d.detectedAt ? d.detectedAt.slice(0, 16) : '';
+    const lat = d.lat != null ? Number(d.lat).toFixed(4) : '';
+    const lon = d.lon != null ? Number(d.lon).toFixed(4) : '';
+    return `${p}:${s}:${t}:${lat}:${lon}`;
+  }
+
+  function deduplicateDetections(detections) {
+    const seen = new Map();
+    const out = [];
+    for (const d of detections) {
+      const key = detectionIdentityKey(d);
+      if (!key) continue;
+      if (seen.has(key)) {
+        const existing = seen.get(key);
+        existing.sources = existing.sources || [existing.source];
+        if (d.source && !existing.sources.includes(d.source)) existing.sources.push(d.source);
+        if (d.frp != null && (existing.frp == null || d.frp > existing.frp)) existing.frp = d.frp;
+        if (d.confidence != null && existing.confidence == null) existing.confidence = d.confidence;
+        continue;
+      }
+      const copy = { ...d };
+      copy.sources = [d.source];
+      seen.set(key, copy);
+      out.push(copy);
+    }
+    return out;
+  }
+
   A.Utils = {
     clamp(v,min,max){return Math.min(max,Math.max(min,v));},
     round(v,d=2){const p=10**d;return Math.round(v*p)/p;},
@@ -61,6 +122,23 @@
       while(rows*cols>maxPoints){if(cols>=rows&&cols>3)cols--;else if(rows>3)rows--;else break;}
       const pts=[];for(let r=0;r<rows;r++)for(let c=0;c<cols;c++){const p={lat:b.south+latSpan*r/(rows-1),lon:b.west+lonSpan*c/(cols-1)};if(this.insideRegion(p))pts.push(p);}return pts;
     },
+    convexHull2D(points){
+      const arr=[...points].filter(p=>Number.isFinite(p.lat)&&Number.isFinite(p.lon));
+      if(arr.length<3)return arr.map(p=>({lat:p.lat,lon:p.lon}));
+      const sorted=[...arr].sort((a,b)=>a.lon-b.lon||a.lat-b.lat);
+      const cross=(o,a,b)=>(a.lon-o.lon)*(b.lat-o.lat)-(a.lat-o.lat)*(b.lon-o.lon);
+      const lower=[],upper=[];
+      for(const p of sorted){
+        while(lower.length>=2&&cross(lower[lower.length-2],lower[lower.length-1],p)<=0)lower.pop();
+        lower.push(p);
+      }
+      for(const p of sorted.reverse()){
+        while(upper.length>=2&&cross(upper[upper.length-2],upper[upper.length-1],p)<=0)upper.pop();
+        upper.push(p);
+      }
+      lower.pop();upper.pop();
+      return lower.concat(upper).map(p=>({lat:p.lat,lon:p.lon}));
+    },
     clusterFires(fires,radiusKm=C().fireClustering.radiusKm,timeHours=C().fireClustering.timeHours){
       const arr=(fires||[]).filter(f=>this.insideRegion(f)&&Number.isFinite(Date.parse(f.detectedAt)));const n=arr.length;if(!n)return[];
       const maxMs=timeHours*3600000;
@@ -93,7 +171,11 @@
         const earliest=sorted[0].detectedAt.replace(/[T:Z-]/g,'').slice(0,8);
         const clat=Math.round(lat*100)/100,clon=Math.round(lon*100)/100;
         const hash=((Math.abs(clat*1000+clon*1000)%89999)+10000).toString(36);
-        return{id:`fire-${earliest}-${String(clat).replace('.','')}-${hash}`,lat,lon,members,count:members.length,representative,maxFrp:Math.max(...members.map(f=>Number(f.frp)||0)),sumFrp:members.reduce((s,f)=>s+(Number(f.frp)||0),0),latestDetectedAt:latest.detectedAt,earliestDetectedAt:earliest+'Z',confidence:Math.max(...members.map(f=>confidenceWeight(f.confidence)))};
+        const sourceBreakdown={};
+        for(const m of members){const src=m.source||'unknown';sourceBreakdown[src]=(sourceBreakdown[src]||0)+1;}
+        const products=[...new Set(members.map(m=>m.product).filter(Boolean))];
+        const satellites=[...new Set(members.map(m=>m.satellite).filter(Boolean))];
+        return{id:`fire-${earliest}-${String(clat).replace('.','')}-${hash}`,lat,lon,members,count:members.length,representative,maxFrp:Math.max(...members.map(f=>Number(f.frp)||0)),sumFrp:members.reduce((s,f)=>s+(Number(f.frp)||0),0),latestDetectedAt:latest.detectedAt,earliestDetectedAt:earliest+'Z',confidence:Math.max(...members.map(f=>confidenceWeight(f.confidence))),sourceBreakdown,products,satellites};
       }).sort((a,b)=>Date.parse(b.latestDetectedAt)-Date.parse(a.latestDetectedAt));
     },
     nearestPoint(point,points){let best=null,dist=Infinity;for(const p of points||[]){const d=this.haversineKm(point,p);if(d<dist){dist=d;best=p;}}return best?{point:best,distanceKm:dist}:null;},
@@ -113,6 +195,9 @@
     frpColor(v){const n=Number(v)||0;return n>=100?'#7f001b':n>=50?'#c51b30':n>=20?'#ef5b3d':n>=5?'#ff9f43':'#ffd166';},
     smokeColor(variable,v){const x=Number(v)||0;if(variable==='pm10_wildfires'){return x>=30?[98,0,117]:x>=15?[152,37,133]:x>=8?[203,71,119]:x>=3?[239,138,98]:x>=1?[254,204,92]:[235,238,242];}if(variable==='wildfire_share'){return x>=75?[92,27,136]:x>=50?[145,39,143]:x>=30?[200,66,126]:x>=15?[238,121,106]:x>=5?[252,183,91]:[236,240,242];}return [220,226,230];},
     smokeAlpha(variable,v){const x=Number(v)||0;if(variable==='pm10_wildfires')return x<=0?.0:this.clamp(.12+Math.log1p(x)/4,.16,.72);if(variable==='wildfire_share')return x<=0?.0:this.clamp(.10+x/145,.12,.68);return x<=.02?0:this.clamp(.10+x*.42,.12,.58);},
-    riskColor(level){return({critical:'#ff1744',high:'#ff7043',medium:'#ffb020',watch:'#f7df52',low:'#8a9aaa'})[level]||'#8a9aaa';}
+    riskColor(level){return({critical:'#ff1744',high:'#ff7043',medium:'#ffb020',watch:'#f7df52',low:'#8a9aaa'})[level]||'#8a9aaa';},
+    normalizeFireDetection,
+    detectionIdentityKey,
+    deduplicateDetections
   };
 })(window.AtmoApp);

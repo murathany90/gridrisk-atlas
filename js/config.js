@@ -2,7 +2,7 @@ window.AtmoApp = window.AtmoApp || {};
 (function(A){
   A.CONFIG = {
     appName: 'Türkiye Wildfire Grid Risk Monitor',
-    appVersion: '3.2.0',
+    appVersion: '3.3.0',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
     mapMinZoom: 2,
@@ -32,11 +32,15 @@ window.AtmoApp = window.AtmoApp || {};
     firmsMapKey: '__FIRMS_MAP_KEY__',
     effisWms: 'https://maps.effis.emergency.copernicus.eu/effis',
     effisFwiLayer: 'ecmwf007.fwi',
+    effisBurntAreaLayer: 'effis.nrt.ba.poly',
     atmoHubPortal: 'https://portal.atmohub.gr/',
     atmoHubDiscovery: '/api/atmohub/discover',
     timeline: { minHours: -24, maxHours: 72, playStepHours: 3, playIntervalMs: 1500 },
     cacheTtl: { air: 30*60*1000, weather: 20*60*1000, geocode: 60*60*1000, firms: 7*60*1000, grid: 24*60*60*1000 },
     firmsSources: ['VIIRS_NOAA21_NRT','VIIRS_NOAA20_NRT','VIIRS_SNPP_NRT','MODIS_NRT'],
+    gfwApiKey: '__GFW_API_KEY__',
+    eumetsatConsumerKey: '__EUMETSAT_CONSUMER_KEY__',
+    eumetsatConsumerSecret: '__EUMETSAT_CONSUMER_SECRET__',
     baseMaps: {
       satellite: {
         label:'Uydu · Esri World Imagery',
@@ -85,6 +89,7 @@ window.AtmoApp = window.AtmoApp || {};
       '850hPa': {label:'850 hPa rüzgârı',speed:'wind_speed_850hPa',direction:'wind_direction_850hPa'},
       '700hPa': {label:'700 hPa rüzgârı',speed:'wind_speed_700hPa',direction:'wind_direction_700hPa'}
     },
+    firePolygonRange: { start: Date.now()-7*86400000, end: Date.now() },
     firePolygons: {
       url: 'https://admin.ihtiyacharitasi.org/server/rest/services/Hosted/yangin_alan2024_view/FeatureServer/2/query',
       label: 'Güncel Yangın Alanları',

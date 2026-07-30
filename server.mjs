@@ -6,7 +6,7 @@ import { gzipSync } from 'node:zlib';
 import { spawn } from 'node:child_process';
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
-const APP_VERSION='3.2.0';
+const APP_VERSION='3.3.0';
 const PREFERRED_PORT=Number(process.env.PORT||8890);
 let ACTIVE_PORT=PREFERRED_PORT;
 const FIRMS_MAP_KEY=process.env.FIRMS_MAP_KEY||'';
@@ -96,8 +96,34 @@ async function atmohubDiscovery(req,res,url){
     const candidates=[...candidateMap.values()].sort((a,b)=>{const score=x=>/SMOKE|FIRE/.test(x.kind)?0:/WMS|DATA/.test(x.kind)?1:/TILE|RASTER/.test(x.kind)?2:3;return score(a)-score(b);}).slice(0,120),verified=await validateAtmoHubCandidates(candidates);const data={portalStatus:pages.length?'reachable':'unreachable',pages,pagesScanned:pages.length,assets,assetsScanned:assets.length,candidates,verified,errors,verifiedPublicDataApi:verified.some(x=>['DATA/API','WMS','SMOKE/FIRE'].includes(x.kind)),note:verified.length?'Aday servisler HTTP/içerik düzeyinde doğrulandı; veri şeması, lisans ve kullanım koşulları ayrıca incelenmelidir.':'Portal ve bundle varlıkları tarandı; public smoke/fire veri servisi kesin olarak doğrulanmadı.'};cache.set(key,{data,expires:Date.now()+15*60*1000});return send(res,200,JSON.stringify(data),'application/json; charset=utf-8');
   }catch(e){return send(res,502,JSON.stringify({portalStatus:'unreachable',pages,assets,candidates:[],verified:[],errors:[...errors,{url:'discovery',error:String(e.message||e)}],verifiedPublicDataApi:false,error:String(e.message||e)}),'application/json; charset=utf-8');}
 }
+async function mtgProxy(req,res,url){
+  const consumerKey=process.env.EUMETSAT_CONSUMER_KEY||'';
+  const consumerSecret=process.env.EUMETSAT_CONSUMER_SECRET||'';
+  if(!consumerKey||!consumerSecret){
+    return send(res,501,JSON.stringify({error:'EUMETSAT credentials not configured',note:'Set EUMETSAT_CONSUMER_KEY and EUMETSAT_CONSUMER_SECRET env vars'}),'application/json; charset=utf-8');
+  }
+  const bbox=url.searchParams.get('bbox')||'';
+  try{
+    const tokenRes=await fetch('https://api.eumetsat.int/token',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:`grant_type=client_credentials&client_id=${encodeURIComponent(consumerKey)}&client_secret=${encodeURIComponent(consumerSecret)}`});
+    if(!tokenRes.ok)return send(res,502,JSON.stringify({error:'EUMETSAT token request failed',detail:`HTTP ${tokenRes.status}`}),'application/json; charset=utf-8');
+    const token=await tokenRes.json();
+    const accessToken=token.access_token;
+    if(!accessToken)return send(res,502,JSON.stringify({error:'No access_token in EUMETSAT response'}),'application/json; charset=utf-8');
+    const target=`https://api.eumetsat.int/data-access/v1/products/EO:EUM:DAT:1156/collections/FIRE-PRODUCTS?format=Geometry&bbox=${encodeURIComponent(bbox)}`;
+    const key=`mtg:${bbox}`,hit=cache.get(key);
+    if(hit&&Date.now()<hit.expires)return send(res,200,JSON.stringify(hit.data),'application/json; charset=utf-8');
+    const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort('timeout'),20000);
+    try{
+      const r=await fetch(target,{signal:ctrl.signal,headers:{'Authorization':`Bearer ${accessToken}`,'User-Agent':BROWSER_UA,'Accept':'application/json'}});
+      if(!r.ok)return send(res,r.status,JSON.stringify({error:'MTG data API error',detail:`HTTP ${r.status}`}),'application/json; charset=utf-8');
+      const data=await r.json();
+      cache.set(key,{data,expires:Date.now()+10*60*1000});
+      return send(res,200,JSON.stringify(data),'application/json; charset=utf-8');
+    }finally{clearTimeout(timer);}
+  }catch(e){return send(res,502,JSON.stringify({error:'MTG proxy failed',detail:String(e.message||e)}),'application/json; charset=utf-8');}
+}
 async function staticFile(req,res,url){let rel=decodeURIComponent(url.pathname);if(rel==='/')rel='/index.html';const target=path.normalize(path.join(__dirname,rel));if(!target.startsWith(__dirname))return send(res,403,'Forbidden');try{const data=await fs.readFile(target),ext=path.extname(target),type=mime[ext]||'application/octet-stream',cacheControl='no-store';if((ext==='.geojson'||ext==='.js'||ext==='.css')&&String(req.headers['accept-encoding']||'').includes('gzip')&&data.length>4096){const gz=gzipSync(data);res.writeHead(200,{'Content-Type':type,'Content-Encoding':'gzip','Cache-Control':cacheControl,'Vary':'Accept-Encoding'});return res.end(gz);}res.writeHead(200,{'Content-Type':type,'Cache-Control':cacheControl});res.end(data);}catch(e){send(res,e.code==='ENOENT'?404:500,e.code==='ENOENT'?'Not found':'Server error');}}
-const server=http.createServer(async(req,res)=>{const url=new URL(req.url,`http://${req.headers.host||'localhost'}`);if(url.pathname==='/api/health')return send(res,200,JSON.stringify({ok:true,app:'Türkiye Wildfire Grid Risk Monitor',version:APP_VERSION,port:ACTIVE_PORT,firmsProxy:!!FIRMS_MAP_KEY}),'application/json; charset=utf-8');if(url.pathname==='/api/firms')return firmsProxy(req,res,url);if(url.pathname==='/api/atmohub/discover')return atmohubDiscovery(req,res,url);if(url.pathname.startsWith('/api/tiles/'))return tileProxy(req,res,url);return staticFile(req,res,url);});
+const server=http.createServer(async(req,res)=>{const url=new URL(req.url,`http://${req.headers.host||'localhost'}`);if(url.pathname==='/api/health')return send(res,200,JSON.stringify({ok:true,app:'Türkiye Wildfire Grid Risk Monitor',version:APP_VERSION,port:ACTIVE_PORT,firmsProxy:!!FIRMS_MAP_KEY}),'application/json; charset=utf-8');if(url.pathname==='/api/firms')return firmsProxy(req,res,url);if(url.pathname==='/api/atmohub/discover')return atmohubDiscovery(req,res,url);if(url.pathname==='/api/mtg/active_fires')return mtgProxy(req,res,url);if(url.pathname.startsWith('/api/tiles/'))return tileProxy(req,res,url);return staticFile(req,res,url);});
 function openBrowser(url){if(process.env.AUTO_OPEN!=='1')return;try{if(process.platform==='win32'){const c=spawn('cmd',['/c','start','',url],{detached:true,stdio:'ignore'});c.unref();}else if(process.platform==='darwin'){const c=spawn('open',[url],{detached:true,stdio:'ignore'});c.unref();}else{const c=spawn('xdg-open',[url],{detached:true,stdio:'ignore'});c.unref();}}catch(e){console.warn('Tarayıcı otomatik açılamadı:',e.message);}}
 function listen(port,attempt=0){
   ACTIVE_PORT=port;

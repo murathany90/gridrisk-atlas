@@ -1,7 +1,7 @@
 (function(A){
   const U=A.Utils,C=A.CONFIG;
   class UIManager{
-    constructor(){this.services={basemap:{name:'Harita Altlığı',state:'idle'},atmohub:{name:'AtmoHub',state:'idle'},firms:{name:'NASA FIRMS',state:'idle'},air:{name:'CAMS Wildfire PM10',state:'idle'},effis:{name:'Copernicus EFFIS',state:'idle'},weather:{name:'Open-Meteo Weather',state:'idle'},grid:{name:'OSM İletim Şebekesi',state:'idle'},geocode:{name:'Geocoding',state:'idle'}};this.chart=null;this.sortKey=null;this.sortDir=1;}
+    constructor(){this.services={basemap:{name:'Harita Altlığı',state:'idle'},atmohub:{name:'AtmoHub',state:'idle'},firms:{name:'NASA FIRMS',state:'idle'},air:{name:'CAMS Wildfire PM10',state:'idle'},effis:{name:'Copernicus EFFIS FWI',state:'idle'},effisBurntArea:{name:'EFFIS Yanmış Alan',state:'idle'},weather:{name:'Open-Meteo Weather',state:'idle'},grid:{name:'OSM İletim Şebekesi',state:'idle'},geocode:{name:'Geocoding',state:'idle'}};this.chart=null;this.sortKey=null;this.sortDir=1;}
     init(){
       document.querySelectorAll('.navBtn').forEach(b=>b.addEventListener('click',()=>this.showView(b.dataset.view)));document.querySelector('.collapseBtn')?.addEventListener('click',e=>{const body=document.getElementById('layerPanelBody');body.classList.toggle('hidden');e.currentTarget.textContent=body.classList.contains('hidden')?'+':'−';});
       document.getElementById('legendToggleBtn')?.addEventListener('click',e=>{const stack=document.getElementById('legendStack'),hidden=stack.classList.toggle('legendsHidden');e.currentTarget.textContent=hidden?'◫ Lejantları Göster':'◫ Lejantları Gizle';});

@@ -3,7 +3,7 @@
   class Application{
     constructor(){
       this.ui=new A.UIManager();this.map=new A.MapManager();this.grid=new A.GridRepository();
-      this.state={selectedTime:new Date(),smokeVariable:'pm10_wildfires',smokeData:[],wildfireSummaryData:[],fireData:[],fireEvents:[],fireImpacts:[],windData:[],windEnabled:false,windLevel:'10m',fwiEnabled:false,firesEnabled:true,heatEnabled:false,impactEnabled:true,downwindEnabled:true,smokePoints:false,gridMaster:true,selectedPoint:null,frpThreshold:50,firePolygonsEnabled:false,firePolygonData:null};
+      this.state={selectedTime:new Date(),smokeVariable:'pm10_wildfires',smokeData:[],wildfireSummaryData:[],fireData:[],fireEvents:[],fireImpacts:[],windData:[],windEnabled:false,windLevel:'10m',fwiEnabled:false,effisBurntAreaEnabled:false,firesEnabled:true,heatEnabled:false,impactEnabled:true,downwindEnabled:true,smokePoints:false,gridMaster:true,selectedPoint:null,frpThreshold:50,firePolygonsEnabled:false,firePolygonData:null};
       this.controllers={air:null,wind:null,firms:null,detail:null,firePolygon:null};this.reqSeq={air:0,wind:0,firms:0,detail:0,firePolygon:0};this.moveTimer=null;this.timeTimer=null;this.playTimer=null;this.lastApiCall=0;
     }
     async init(){
@@ -35,11 +35,21 @@
       document.getElementById('layerWind').addEventListener('change',e=>{this.state.windEnabled=e.target.checked;this.map.toggleWind(e.target.checked);if(e.target.checked)this.loadWindGrid(true);});
       document.getElementById('windLevel').addEventListener('change',e=>{this.state.windLevel=e.target.value;localStorage.setItem('windLevel',this.state.windLevel);this.loadWindGrid(true);if(this.state.selectedPoint)this.selectPoint(this.state.selectedPoint,true);});
       document.getElementById('layerFwi').addEventListener('change',e=>{this.state.fwiEnabled=e.target.checked;this.map.toggleFwi(e.target.checked,this.state.selectedTime);});
+      document.getElementById('layerEffisBurntArea').addEventListener('change',e=>{this.state.effisBurntAreaEnabled=e.target.checked;this.map.toggleEffisBurntArea(e.target.checked,this.state.selectedTime);});
+      const rangeSelect=document.getElementById('firePolygonRange');
+      if(rangeSelect)rangeSelect.addEventListener('change',e=>{
+        const days=Number(e.target.value);
+        const end=Date.now();
+        const start=end-days*86400000;
+        A.FirePolygonAdapter.setDateRange(start,end);
+        A.Cache.clear('firePolygons:');
+        if(this.state.firePolygonsEnabled)this.loadFirePolygons();
+      });
       document.getElementById('layerGridMaster').addEventListener('change',e=>this.toggleGridMaster(e.target.checked));document.querySelectorAll('.gridLayer').forEach(el=>el.addEventListener('change',()=>{if(this.state.gridMaster)this.refreshGridLayers();}));
       document.getElementById('timeSlider').addEventListener('input',e=>this.setTimeOffset(Number(e.target.value),false));document.getElementById('timeSlider').addEventListener('change',()=>this.scheduleTimeReload(0));
       document.getElementById('nowBtn').addEventListener('click',()=>{document.getElementById('timeSlider').value='0';this.setTimeOffset(0,true);});document.getElementById('stepBackBtn').addEventListener('click',()=>this.shiftTime(-3));document.getElementById('stepForwardBtn').addEventListener('click',()=>this.shiftTime(3));document.getElementById('playBtn').addEventListener('click',()=>this.togglePlay());
       document.getElementById('citySearchBtn').addEventListener('click',()=>this.searchCity());let searchTimer;document.getElementById('citySearch').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>this.searchCity(),280);});document.getElementById('citySearch').addEventListener('keydown',e=>{if(e.key==='Enter'){clearTimeout(searchTimer);this.searchCity();}});
-      document.getElementById('firmsSource').addEventListener('change',e=>{A.FirmsAdapter.setSource(e.target.value);A.Cache.clear('firms:');this.loadFirms();});
+      document.getElementById('firmsSource').addEventListener('change',e=>{A.FirmsAdapter.setSource(e.target.value);A.Cache.clear('firms:');this.loadFirms();});const autoNote=document.getElementById('firmsSourceNote');if(autoNote)autoNote.textContent=A.FirmsAdapter.isAuto()?'AUTO: 3 VIIRS ürünü paralel → birleştir → tekilleştir':'';
       document.getElementById('atmoHubDiscoverBtn').addEventListener('click',()=>this.discoverAtmoHub());document.getElementById('healthCheckBtn').addEventListener('click',()=>this.healthCheck(true));
       document.getElementById('refreshAllBtn').addEventListener('click',()=>{A.Cache.clear();this.loadSmokeGrid();this.loadWindGrid(true);if(C.firmsMapKey&&C.firmsMapKey!=='__FIRMS_MAP_KEY__')this.loadFirms();this.ui.toast('Önbellek temizlendi; gerçek kaynaklar yeniden isteniyor.');});
       document.getElementById('exportCsvBtn').addEventListener('click',()=>A.ExportManager.csv(this.state));document.getElementById('exportJsonBtn').addEventListener('click',()=>A.ExportManager.json(this.state));document.getElementById('exportGeoJsonBtn').addEventListener('click',()=>A.ExportManager.geojson(this.state));
@@ -48,7 +58,7 @@
     async refreshGridLayers(){const selected=new Set([...document.querySelectorAll('.gridLayer:checked')].map(x=>x.dataset.grid));for(const key of Object.keys(C.gridSources)){try{if(selected.has(key)){const data=await this.grid.loadGroup(key);await this.map.setGridGroup(key,data,true);}else if(this.map.gridLayers.has(key)){await this.map.setGridGroup(key,this.grid.data.get(key),false);}}catch(e){this.ui.toast(`Şebeke katmanı ${key}: ${e.message}`,'error');}}}
     setTimeOffset(hours,reload){const d=new Date(Date.now()+hours*3600e3);d.setUTCMinutes(0,0,0);this.state.selectedTime=d;this.ui.setTime(d);this.map.renderFires(d);this.state.fireEvents=this.map.fireEventsVisible;if(this.state.heatEnabled)this.map.toggleHeat(true);if(this.state.fwiEnabled)this.map.toggleFwi(true,d);this.updateImpact();this.ui.renderExportSummary(this.state);if(reload)this.scheduleTimeReload(0);else this.scheduleTimeReload(300);}
     shiftTime(delta){const s=document.getElementById('timeSlider'),v=U.clamp(Number(s.value)+delta,Number(s.min),Number(s.max));s.value=String(v);this.setTimeOffset(v,true);}
-    togglePlay(){const b=document.getElementById('playBtn');if(this.playTimer){clearInterval(this.playTimer);this.playTimer=null;b.textContent='▶';return;}b.textContent='⏸';this.playTimer=setInterval(()=>{const s=document.getElementById('timeSlider');let v=Number(s.value)+C.timeline.playStepHours;if(v>Number(s.max))v=Number(s.min);s.value=String(v);this.setTimeOffset(v,true);},C.timeline.playIntervalMs);}
+    togglePlay(){const b=document.getElementById('playBtn');if(this.playTimer){clearInterval(this.playTimer);this.playTimer=null;b.textContent='▶';return;}b.textContent='⏸';this._playbackApiThrottle=0;this.playTimer=setInterval(()=>{const s=document.getElementById('timeSlider');let v=Number(s.value)+C.timeline.playStepHours;if(v>Number(s.max))v=Number(s.min);s.value=String(v);const now=Date.now();const slowReload=now-this._playbackApiThrottle>C.timeline.playIntervalMs*4;this.setTimeOffset(v,slowReload);if(slowReload)this._playbackApiThrottle=now;},C.timeline.playIntervalMs);}
     scheduleTimeReload(ms){clearTimeout(this.timeTimer);this.timeTimer=setTimeout(()=>{this.loadSmokeGrid();this.loadWindGrid(true);if(this.state.selectedPoint)this.selectPoint(this.state.selectedPoint,true);},ms);}
     async loadSmokeGrid(){
       if(!this.state.smokeVariable)return;this.controllers.air?.abort();const ctrl=new AbortController();this.controllers.air=ctrl;const seq=++this.reqSeq.air,pts=U.adaptiveGrid(this.map.bounds(),this.map.zoom(),120),variable=this.state.smokeVariable;
