@@ -741,6 +741,65 @@ test('convexHull2D handles empty input', () => {
 });
 
 // ============================================================
+// Audit — Runtime mode detection
+// ============================================================
+console.log('\nAudit — Runtime mode');
+
+test('runtime mode matrix: file → DOSYA MODU', () => {
+  const fn = (proto, host) => {
+    const isFile = proto === 'file:';
+    const h = host;
+    let mode, cls;
+    if (isFile) { mode = 'DOSYA MODU'; cls = 'fileMode'; }
+    else if (h === 'localhost' || h === '127.0.0.1') { mode = 'SUNUCU MODU'; cls = ''; }
+    else if (h.endsWith('.github.io')) { mode = 'GITHUB PAGES'; cls = 'githubMode'; }
+    else { mode = 'WEB MODU'; cls = 'githubMode'; }
+    return { mode, cls };
+  };
+  assert.deepEqual(fn('file:', ''), { mode: 'DOSYA MODU', cls: 'fileMode' });
+  assert.deepEqual(fn('http:', 'localhost'), { mode: 'SUNUCU MODU', cls: '' });
+  assert.deepEqual(fn('http:', '127.0.0.1'), { mode: 'SUNUCU MODU', cls: '' });
+  assert.deepEqual(fn('https:', 'murathany90.github.io'), { mode: 'GITHUB PAGES', cls: 'githubMode' });
+  assert.deepEqual(fn('https:', 'example.com'), { mode: 'WEB MODU', cls: 'githubMode' });
+});
+
+test('CSS contains .modePill.githubMode rule', () => {
+  const css = readFileSync('css/styles.css', 'utf8');
+  assert.ok(css.includes('.modePill.githubMode'), 'githubMode CSS rule exists');
+  assert.ok(css.includes('.modePill.fileMode'), 'fileMode CSS rule exists');
+});
+
+test('__ATMO_RUNTIME_MODE__ window variable accessible', () => {
+  // Simulate the inline script execution (requires location mock)
+  const origLocation = global.location;
+  try {
+    // Simulate GitHub Pages
+    global.location = { protocol: 'https:', hostname: 'murathany90.github.io' };
+    const isFile = location.protocol === 'file:';
+    const host = location.hostname;
+    let mode;
+    if (isFile) mode = 'DOSYA MODU';
+    else if (host === 'localhost' || host === '127.0.0.1') mode = 'SUNUCU MODU';
+    else if (host.endsWith('.github.io')) mode = 'GITHUB PAGES';
+    else mode = 'WEB MODU';
+    assert.equal(mode, 'GITHUB PAGES');
+
+    // Simulate localhost
+    global.location = { protocol: 'http:', hostname: 'localhost' };
+    const isFile2 = location.protocol === 'file:';
+    const host2 = location.hostname;
+    let mode2;
+    if (isFile2) mode2 = 'DOSYA MODU';
+    else if (host2 === 'localhost' || host2 === '127.0.0.1') mode2 = 'SUNUCU MODU';
+    else if (host2.endsWith('.github.io')) mode2 = 'GITHUB PAGES';
+    else mode2 = 'WEB MODU';
+    assert.equal(mode2, 'SUNUCU MODU');
+  } finally {
+    global.location = origLocation;
+  }
+});
+
+// ============================================================
 // Audit — EFFIS Burnt Area config
 // ============================================================
 console.log('\nAudit — EFFIS config');

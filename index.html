@@ -187,10 +187,17 @@
 <script>
 (function(){
   const isFile=location.protocol==='file:';
+  const host=location.hostname;
+  let mode,cls;
+  if(isFile){mode='DOSYA MODU';cls='fileMode';}
+  else if(host==='localhost'||host==='127.0.0.1'){mode='SUNUCU MODU';cls='';}
+  else if(host.endsWith('.github.io')){mode='GITHUB PAGES';cls='githubMode';}
+  else{mode='WEB MODU';cls='githubMode';}
   window.__ATMO_DIRECT_FILE_MODE__=isFile;
+  window.__ATMO_RUNTIME_MODE__=mode;
   window.addEventListener('DOMContentLoaded',()=>{
     const el=document.getElementById('runtimeMode');
-    if(el){el.textContent=isFile?'DOSYA MODU':'SUNUCU MODU';el.classList.toggle('fileMode',isFile);}
+    if(el){el.textContent=mode;el.classList.toggle('fileMode',cls==='fileMode');el.classList.toggle('githubMode',cls==='githubMode');}
   });
 })();
 </script>
