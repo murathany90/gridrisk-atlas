@@ -65,7 +65,7 @@
     }
     async loadFirePolygons(){
       this.controllers.firePolygon?.abort();const ctrl=new AbortController();this.controllers.firePolygon=ctrl;const seq=++this.reqSeq.firePolygon;
-      try{const fc=await A.FirePolygonAdapter.load(ctrl.signal);if(seq!==this.reqSeq.firePolygon)return;this.state.firePolygonData=fc;this.map.setFirePolygons(fc,this.state.firePolygonsEnabled);}catch(e){if(e.kind!=='ABORTED')this.ui.toast(`Yangın alanı katmanı: ${e.kind||e.message}`,'error');}
+      try{const fc=await A.FirePolygonAdapter.load(ctrl.signal);if(seq!==this.reqSeq.firePolygon)return;if(fc._stale){this.map.setFirePolygons(fc,this.state.firePolygonsEnabled);this.ui.toast('Yangın alanı katmanı güncellenemedi; son başarılı veri gösteriliyor.','warn');return;}if(fc._error&&!fc.features.length){this.ui.toast('Yangın alanı katmanı: '+fc._error,'error');return;}this.state.firePolygonData=fc;this.map.setFirePolygons(fc,this.state.firePolygonsEnabled);}catch(e){if(e.kind!=='ABORTED')this.ui.toast(`Yangın alanı katmanı: ${e.kind||e.message}`,'error');}
     }
     updateImpact(){if(!this.grid.loadedCore)return;this.state.fireEvents=this.map.fireEventsVisible||[];this.state.fireImpacts=this.grid.analyzeEvents(this.state.fireEvents,25,this.state.selectedTime,this.state.windData);this.map.setFireImpacts(this.state.fireImpacts,this.state.impactEnabled);this.map.setDownwindCorridors(this.state.fireImpacts,this.state.downwindEnabled);this.ui.renderImpact(this.state.fireImpacts);this.ui.renderExportSummary(this.state);}
     async selectPoint(p,silent=false){

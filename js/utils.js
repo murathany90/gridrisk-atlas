@@ -64,10 +64,9 @@
     clusterFires(fires,radiusKm=C().fireClustering.radiusKm,timeHours=C().fireClustering.timeHours){
       const arr=(fires||[]).filter(f=>this.insideRegion(f)&&Number.isFinite(Date.parse(f.detectedAt)));const n=arr.length;if(!n)return[];
       const maxMs=timeHours*3600000;
-      const cellSize=radiusKm/85; // ~0.05° at 40°N
-      const cells=new Map();
+      const kmPerLat=111.32;const cells=new Map();
       for(let i=0;i<n;i++){
-        const f=arr[i],ck=`${Math.floor(f.lon/cellSize)},${Math.floor(f.lat/cellSize)}`;
+        const f=arr[i];const cosLat=Math.max(0.01,Math.min(1,Math.cos(f.lat*Math.PI/180)));const lonCell=radiusKm/(kmPerLat*cosLat);const latCell=radiusKm/kmPerLat;const ck=`${Math.floor(f.lon/lonCell)},${Math.floor(f.lat/latCell)}`;
         if(!cells.has(ck))cells.set(ck,[]);
         cells.get(ck).push(i);
       }

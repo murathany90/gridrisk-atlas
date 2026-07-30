@@ -59,6 +59,8 @@
   A.EffisAdapter={wmsUrl:C.effisWms,layer:C.effisFwiLayer,metadata(){return{source:'Copernicus EFFIS',service:'WMS',layer:C.effisFwiLayer,requiresTime:true,dataType:'forecast'};}};
 
   A.FirePolygonAdapter={
+    lastGood:null,
+    lastSuccessfulAt:null,
     async load(signal){
       const started=performance.now(),cfg=C.firePolygons;
       const cutoff=Date.now()-7*86400000;
@@ -91,7 +93,18 @@
       }catch(e){
         if(e.kind==='ABORTED')throw e;
         error=e.message||String(e);
-        if(!features.length){report('firePolygon',{state:'error',note:error});return{type:'FeatureCollection',features:[],_error:error};}
+        if(!features.length){
+          if(this.lastGood){
+            report('firePolygon',{state:'stale',latency:Math.round(performance.now()-started),count:this.lastGood.features.length,note:`${cfg.label} · son başarılı: ${this.lastSuccessfulAt?U.formatLocal(new Date(this.lastSuccessfulAt)):'—'} (API: ${error})`});
+            return{...this.lastGood,_stale:true,_error:error};
+          }
+          report('firePolygon',{state:'error',note:error});
+          return{type:'FeatureCollection',features:[],_error:error};
+        }
+      }
+      if(features.length){
+        this.lastGood={type:'FeatureCollection',features};
+        this.lastSuccessfulAt=Date.now();
       }
       report('firePolygon',{state:features.length?'ok':'empty',latency:Math.round(performance.now()-started),count:features.length,note:features.length?`${cfg.label} · ${cfg.source}`:(error?'API hatası, veri yok':'Son 7 günde yangın alanı yok')});
       return{type:'FeatureCollection',features};
