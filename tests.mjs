@@ -152,6 +152,18 @@ test('two close fires in adjacent cells cluster together', () => {
   assert.equal(r[0].maxFrp, 50);
 });
 
+test('two close fires in same spatial cell cluster together', () => {
+  const fires = [
+    { lat: 39.000, lon: 33.000, detectedAt: '2026-07-30T12:00:00Z', frp: 50 },
+    { lat: 39.002, lon: 33.001, detectedAt: '2026-07-30T12:30:00Z', frp: 30 },
+  ];
+  const dist = U.haversineKm(fires[0], fires[1]);
+  assert.ok(dist <= 5, `distance ${dist} km <= 5 km`);
+  const r = U.clusterFires(fires);
+  assert.equal(r.length, 1, 'same cell fires cluster together');
+  assert.equal(r[0].count, 2);
+});
+
 test('two distant fires produce separate clusters', () => {
   const fires = [
     { lat: 39.0, lon: 33.0, detectedAt: '2026-07-30T12:00:00Z', frp: 50 },
@@ -193,6 +205,18 @@ test('deterministic event ID preservation', () => {
   const r1 = U.clusterFires(fires);
   const r2 = U.clusterFires(fires);
   assert.equal(r1[0].id, r2[0].id, 'same input produces same event ID');
+});
+
+test('earliestDetectedAt is valid ISO date', () => {
+  const fires = [
+    { lat: 39.0, lon: 33.0, detectedAt: '2026-07-30T10:00:00Z', frp: 50 },
+    { lat: 39.01, lon: 33.01, detectedAt: '2026-07-30T12:00:00Z', frp: 30 },
+  ];
+  const r = U.clusterFires(fires);
+  assert.equal(r.length, 1);
+  const d = new Date(r[0].earliestDetectedAt);
+  assert.ok(Number.isFinite(d.getTime()), 'earliestDetectedAt parses as valid Date');
+  assert.equal(r[0].earliestDetectedAt, '2026-07-30T10:00:00Z');
 });
 
 test('cluster fires latest sort order', () => {
@@ -288,6 +312,20 @@ test('failure+lastGood→stale', async () => {
   assert.ok(r._stale, 'marked as stale');
   assert.ok(r._error, 'has error');
   assert.equal(r.features.length, 1, 'stale returns lastGood data');
+});
+
+test('partial pagination does not update lastGood', async () => {
+  await resetAdapter();
+  FPA.setDateRange(Date.now()-30*86400000, Date.now());
+  let call=0;
+  global.fetch = async (url) => {
+    call++;
+    if(call===1) return { ok:true, json:async()=>({type:'FeatureCollection',features:[{type:'Feature',properties:{date:'2026-07-01',il:'Antalya',area_ha:100},geometry:{type:'Polygon',coordinates:[[[0,0],[1,0],[1,1],[0,1],[0,0]]]}}],exceededTransferLimit:true}) };
+    throw new Error('NETWORK_ERROR');
+  };
+  const r = await FPA.load(new AbortController().signal);
+  assert.ok(r._partial, 'result has _partial flag');
+  assert.equal(FPA._lastGoodMap.size, 0, 'partial pagination does not store lastGood');
 });
 
 test('failure+noLastGood→error', async () => {

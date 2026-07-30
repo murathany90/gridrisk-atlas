@@ -142,9 +142,10 @@
     clusterFires(fires,radiusKm=C().fireClustering.radiusKm,timeHours=C().fireClustering.timeHours){
       const arr=(fires||[]).filter(f=>this.insideRegion(f)&&Number.isFinite(Date.parse(f.detectedAt)));const n=arr.length;if(!n)return[];
       const maxMs=timeHours*3600000;
-      const kmPerLat=111.32;const cells=new Map();
+      const REF_LAT=39;const kmPerDeg=111.32;const cosRef=Math.cos(REF_LAT*Math.PI/180);
+      const cells=new Map();
       for(let i=0;i<n;i++){
-        const f=arr[i];const cosLat=Math.max(0.01,Math.min(1,Math.cos(f.lat*Math.PI/180)));const lonCell=radiusKm/(kmPerLat*cosLat);const latCell=radiusKm/kmPerLat;const ck=`${Math.floor(f.lon/lonCell)},${Math.floor(f.lat/latCell)}`;
+        const f=arr[i];const xKm=f.lon*kmPerDeg*cosRef;const yKm=f.lat*kmPerDeg;const ck=`${Math.floor(xKm/radiusKm)},${Math.floor(yKm/radiusKm)}`;
         if(!cells.has(ck))cells.set(ck,[]);
         cells.get(ck).push(i);
       }
@@ -153,8 +154,12 @@
       const join=(a,b)=>{a=find(a);b=find(b);if(a!==b)parent[b]=a;};
       for(const [ck,indices] of cells){
         const [cx,cy]=ck.split(',').map(Number);
+        for(let a=0;a<indices.length;a++)for(let b=a+1;b<indices.length;b++){
+          if(Math.abs(Date.parse(arr[indices[a]].detectedAt)-Date.parse(arr[indices[b]].detectedAt))>maxMs)continue;
+          if(this.haversineKm(arr[indices[a]],arr[indices[b]])<=radiusKm)join(indices[a],indices[b]);
+        }
         for(let di=-1;di<=1;di++)for(let dj=-1;dj<=1;dj++){
-          const nk=`${cx+di},${cy+dj}`;if(nk<=ck)continue; // avoid double-processing
+          const nk=`${cx+di},${cy+dj}`;if(nk<=ck)continue;
           const ni=cells.get(nk);if(!ni)continue;
           for(const i of indices)for(const j of ni){
             if(Math.abs(Date.parse(arr[i].detectedAt)-Date.parse(arr[j].detectedAt))>maxMs)continue;
@@ -168,14 +173,14 @@
         const representative=sorted.reduce((best,f)=>(f.frp||0)>(best.frp||0)?f:best,sorted[0]);
         const latest=sorted.reduce((last,f)=>Date.parse(f.detectedAt)>Date.parse(last.detectedAt)?f:last,sorted[0]);
         const weightSum=members.reduce((s,f)=>s+Math.max(1,Number(f.frp)||1),0),lat=members.reduce((s,f)=>s+f.lat*Math.max(1,Number(f.frp)||1),0)/weightSum,lon=members.reduce((s,f)=>s+f.lon*Math.max(1,Number(f.frp)||1),0)/weightSum;
-        const earliest=sorted[0].detectedAt.replace(/[T:Z-]/g,'').slice(0,8);
+        const dayKey=sorted[0].detectedAt.slice(0,10).replaceAll('-','');
         const clat=Math.round(lat*100)/100,clon=Math.round(lon*100)/100;
         const hash=((Math.abs(clat*1000+clon*1000)%89999)+10000).toString(36);
         const sourceBreakdown={};
         for(const m of members){const src=m.source||'unknown';sourceBreakdown[src]=(sourceBreakdown[src]||0)+1;}
         const products=[...new Set(members.map(m=>m.product).filter(Boolean))];
         const satellites=[...new Set(members.map(m=>m.satellite).filter(Boolean))];
-        return{id:`fire-${earliest}-${String(clat).replace('.','')}-${hash}`,lat,lon,members,count:members.length,representative,maxFrp:Math.max(...members.map(f=>Number(f.frp)||0)),sumFrp:members.reduce((s,f)=>s+(Number(f.frp)||0),0),latestDetectedAt:latest.detectedAt,earliestDetectedAt:earliest+'Z',confidence:Math.max(...members.map(f=>confidenceWeight(f.confidence))),sourceBreakdown,products,satellites};
+        return{id:`fire-${dayKey}-${String(clat).replace('.','')}-${hash}`,lat,lon,members,count:members.length,representative,maxFrp:Math.max(...members.map(f=>Number(f.frp)||0)),sumFrp:members.reduce((s,f)=>s+(Number(f.frp)||0),0),latestDetectedAt:latest.detectedAt,earliestDetectedAt:sorted[0].detectedAt,confidence:Math.max(...members.map(f=>confidenceWeight(f.confidence))),sourceBreakdown,products,satellites};
       }).sort((a,b)=>Date.parse(b.latestDetectedAt)-Date.parse(a.latestDetectedAt));
     },
     nearestPoint(point,points){let best=null,dist=Infinity;for(const p of points||[]){const d=this.haversineKm(point,p);if(d<dist){dist=d;best=p;}}return best?{point:best,distanceKm:dist}:null;},

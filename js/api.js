@@ -90,6 +90,7 @@
       const sources = VIIRS_PRODUCTS;
       const results = await Promise.allSettled(sources.map(s => {
         const ctrl = new AbortController();
+        if(signal){if(signal.aborted)ctrl.abort(signal.reason);else{const h=()=>ctrl.abort(signal.reason);signal.addEventListener('abort',h,{once:true});ctrl.signal.addEventListener('abort',()=>signal.removeEventListener('abort',h));}}
         const timer = setTimeout(() => ctrl.abort('timeout'), 20000);
         const sKey = key;
         return this.loadSingle(s, bbox, days, ctrl.signal, sKey).finally(() => clearTimeout(timer));
@@ -103,8 +104,9 @@
         }
       }
       const deduped = U.deduplicateDetections(all);
+      const full=successCount===sources.length,fail=successCount===0;
       report('firms',{
-        state: successCount > 0 ? 'ok' : 'error',
+        state: full?'ok':fail?'error':'warn',
         latency: Math.round(performance.now() - started),
         count: deduped.length,
         note: `${successCount}/${sources.length} VIIRS ürünü başarılı · ${deduped.length} benzersiz tespit (${all.length} hamdan)`
@@ -157,17 +159,16 @@
   A.MtgAdapter={
     sourceLabel:'Meteosat Third Generation — FCI Fire Products',
     status:'NOT_CONFIGURED',
-    note:'Gerçek EUMETSAT Data Store credentials gerektirir (EO:EUM:DAT:1156). Feature-flagged; credentials olmadan çalışmaz.',
+    note:'EUMETSAT Data Store credentials sunucuda yapılandırılmamış. Server /api/mtg/active_fires → 501.',
     async load(signal){
       const started=performance.now();
-      const key=C.eumetsatConsumerKey;
-      if(!key||key==='__EUMETSAT_CONSUMER_KEY__'){
-        report('mtg',{state:'warn',note:'EUMETSAT consumer key eksik · MTG pasif'});
-        return[];
-      }
       try{
         const bbox=U.regionBboxString();
         const {data}=await U.fetchJson(`/api/mtg/active_fires?bbox=${encodeURIComponent(bbox)}`,{signal,cacheKey:`mtg:${bbox}`,ttl:C.cacheTtl.firms});
+        if(data?.error==='EUMETSAT credentials not configured'||data?.status==='NOT_CONFIGURED'){
+          report('mtg',{state:'warn',note:'EUMETSAT credentials sunucuda yapılandırılmamış · MTG pasif'});
+          return[];
+        }
         const features=data?.features||[];
         const out=features.map(f=>{
           const p=f.properties||{},c=f.geometry?.coordinates||[];
@@ -206,7 +207,7 @@
       const rk=this._rangeKey(range);
       const cutoff=Math.min(range.start,range.end);
       const baseParams=`where=${encodeURIComponent(`date >= ${cutoff}`)}&outFields=date,il,konum,area_ha,impact_b,impact_p,olu_sayi&returnGeometry=true&f=geojson&outSR=4326`;
-      let features=[],page=0,error=null;
+      let features=[],page=0,error=null,paginationComplete=true;
       const MAX_PAGES=50;
       try{
         while(page<MAX_PAGES){
@@ -241,6 +242,7 @@
         }
       }catch(e){
         if(e.kind==='ABORTED')throw e;
+        paginationComplete=false;
         error=e.message||String(e);
         if(!features.length){
           const lg=this._lastGood(range);
@@ -252,13 +254,14 @@
           return{type:'FeatureCollection',features:[],_error:error,_rangeKey:rk};
         }
       }
-      if(features.length){
+      if(features.length&&paginationComplete){
         const fc={type:'FeatureCollection',features};
         this._setLastGood(range,fc);
       }
       const rangeNote=range.start!==Date.now()-7*86400000||range.end!==Date.now()?` · aralık: ${rk}`:'';
-      report('firePolygon',{state:features.length?'ok':'empty',latency:Math.round(performance.now()-started),count:features.length,note:features.length?`${cfg.label} · ${cfg.source}${rangeNote}`:(error?'API hatası, veri yok':'Son 7 günde yangın alanı yok')});
-      return{type:'FeatureCollection',features,_rangeKey:rk};
+      const partial=paginationComplete?'':`, ${page+1} sayfadan ${page+1}. sayfada hata (kısmi veri)`;
+      report('firePolygon',{state:features.length?'ok':'empty',latency:Math.round(performance.now()-started),count:features.length,note:features.length?`${cfg.label} · ${cfg.source}${rangeNote}${partial}`:(error?'API hatası, veri yok':'Son 7 günde yangın alanı yok')});
+      return{type:'FeatureCollection',features,_rangeKey:rk,_partial:!paginationComplete};
     }
   };
 })(window.AtmoApp);

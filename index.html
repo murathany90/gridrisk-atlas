@@ -56,6 +56,9 @@
               <label><input id="layerFrpHeat" type="checkbox"/> FRP yoğunluğu</label>
               <label class="rangeLine">Min. FRP filtresi <input id="frpThreshold" type="range" min="0" max="200" step="5" value="50"/><span id="frpThresholdValue">≥50 MW</span></label>
               <span id="frpCount" class="layerHint" style="display:block;margin-top:2px">— olay gösteriliyor</span>
+              <label><input id="layerFootprint" type="checkbox"/> Piksel ayak izi (scan×track)</label>
+              <label><input id="layerThermalEnvelope" type="checkbox"/> Tahmini termal yayılım</label>
+              <label><input id="layerEventEvolution" type="checkbox"/> Olay evrim izi</label>
               <p class="layerHint">Zoom &lt;9: 5 km / 6 saat olay kümeleri. Zoom ≥9: tekil FIRMS hotspotları. Hotspot yangın perimetresi değildir.</p>
             </div>
             <div class="layerGroup"><h3>🌫 Yangın Dumanı</h3>
@@ -71,6 +74,7 @@
               <select id="windLevel"><option value="10m">10 m yüzey</option><option value="850hPa">850 hPa</option><option value="700hPa">700 hPa</option></select>
               <label><input id="layerFwi" type="checkbox"/> Fire Weather Index — EFFIS</label>
               <label><input id="layerEffisBurntArea" type="checkbox"/> EFFIS Yanmış Alanlar — DOĞRULAMA</label>
+              <label><input id="layerGfw" type="checkbox"/> GFW Orman Bozulma Uyarıları</label>
             </div>
             <div class="layerGroup"><h3>⚠ Şebeke Etki Analizi</h3>
               <label><input id="layerFireGridImpact" type="checkbox" checked/> Öncelik halkaları + riskli varlık vurgusu</label>
@@ -121,7 +125,7 @@
 
     <section id="view-settings" class="view settingsView">
       <div class="settingsGrid">
-        <article class="card"><h2>NASA FIRMS</h2><label class="fieldLabel">Ürün</label><select id="firmsSource"><option value="AUTO">AUTO — 3 VIIRS NRT + MODIS (önerilir)</option><option value="VIIRS_NOAA21_NRT">VIIRS NOAA-21 NRT</option><option value="VIIRS_NOAA20_NRT">VIIRS NOAA-20 NRT</option><option value="VIIRS_SNPP_NRT">VIIRS Suomi-NPP NRT</option><option value="MODIS_NRT">MODIS NRT (Terra/Aqua)</option></select><p class="hint">AUTO modu tüm VIIRS NRT ürünlerini paralel yükler ve birleştirir. MODIS manuel seçimde kullanılır. MAP_KEY GitHub Actions → Pages build sırasında otomatik gömülür.</p></article>
+        <article class="card"><h2>NASA FIRMS</h2><label class="fieldLabel">Ürün</label><select id="firmsSource"><option value="AUTO">AUTO — 3 VIIRS NRT (önerilir)</option><option value="VIIRS_NOAA21_NRT">VIIRS NOAA-21 NRT</option><option value="VIIRS_NOAA20_NRT">VIIRS NOAA-20 NRT</option><option value="VIIRS_SNPP_NRT">VIIRS Suomi-NPP NRT</option><option value="MODIS_NRT">MODIS NRT (Terra/Aqua)</option></select><p class="hint">AUTO modu tüm VIIRS NRT ürünlerini paralel yükler ve birleştirir. MODIS manuel seçimde kullanılır. MAP_KEY GitHub Actions → Pages build sırasında otomatik gömülür.</p></article>
         <article class="card"><h2>AtmoHub Yöntem 1 — Ağ / Bundle Keşfi</h2><p class="hint">Node sunucusu portal HTML ve istemci bundle'larında smoke/fire/forecast/API/WMS işaretlerini arar; uygun mutlak adayları sınırlı biçimde HTTP/content-type açısından test eder. Schema/auth/CORS doğrulanmayan adaylar veri katmanı yapılmaz.</p><div class="inlineActions"><button id="atmoHubDiscoverBtn">AtmoHub keşfini çalıştır</button><a class="linkBtn" href="https://portal.atmohub.gr/" target="_blank" rel="noopener">Portal ↗</a></div><div id="atmoHubDiscoveryResult" class="discoveryBox">Henüz çalıştırılmadı.</div><p class="hint">Doğrulanmış public AtmoHub smoke/fire API yoksa gerçek CAMS wildfire PM10 fallback kullanılır.</p></article>
         <article class="card wide"><div class="cardHeader"><h2>Veri Kaynağı Durumu</h2><button id="healthCheckBtn" class="tinyBtn">Bağlantıları Test Et</button></div><div class="tableWrap"><table class="statusTable"><thead><tr><th>Kaynak</th><th>Durum</th><th>Son başarılı</th><th>Latency</th><th>Kayıt</th><th>Not</th></tr></thead><tbody id="serviceStatusBody"></tbody></table></div></article>
         <article class="card"><h2>OSM Şebeke Veri Seti</h2><div id="gridMetadata" class="metricList"><p>Yükleniyor…</p></div></article>

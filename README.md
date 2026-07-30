@@ -1,14 +1,14 @@
-# Türkiye Wildfire Grid Risk Monitor v3.2.0
+# Türkiye Wildfire Grid Risk Monitor v3.3.1
 
-> **Harita serbesttir; veri Türkiye ile sınırlıdır.** SUNUCU MODU, altlıkları yerel tile proxy üzerinden sunar.
+> **Harita serbesttir; veri Türkiye ile sınırlıdır.** GitHub Pages'te GITHUB PAGES modunda çalışır.
 
 
-- `start_windows.bat` artık sabit eski localhost oturumlarını adresini önceden açmaz. Önce yeni Node sunucusunu başlatır, 8890 doluysa otomatik boş port seçer ve yalnız sonra doğru sürümü tarayıcıda açar.
-- Statik dosyalarda tarayıcı cache'i kapatılmıştır; eski JS/CSS karışması önlenir.
-- `index.html` doğrudan (`file://`) açıldığında 400/154 kV ve TM dahil şebeke GeoJSON'ları `.js` fallback dosyalarından yüklenir. Bu modda AtmoHub keşif proxy'si ve FIRMS Node proxy çalışmaz; bunlar için BAT önerilir.
-- Üst çubukta `v3.2.0` ve `SUNUCU MODU / DOSYA MODU` görünür. Harita serbesttir; `VERİ: Türkiye` rozeti veri sorgu alanını ifade eder.
+- **v3.3** Multi-source fire data fusion: AUTO Multi-VIIRS (NOAA-21/NOAA-20/S-NPP paralel + dedup), pixel footprint, thermal envelope, event evolution trail, EFFIS Burnt Area WMS, FirePolygon range-aware cache (1/3/7/30 gün).
+- GFW Integrated Disturbance Alerts ve EUMETSAT MTG adapter'ları (feature-flagged, credentials gerektirir).
+- Runtime mode detection: `file:` → DOSYA MODU, `localhost`/`127.0.0.1` → SUNUCU MODU, GitHub Pages → GITHUB PAGES, diğer HTTPS → WEB MODU.
+- `index.html` doğrudan (`file://`) açıldığında şebeke GeoJSON'ları `.js` fallback dosyalarından yüklenir. Bu modda AtmoHub keşif proxy'si ve FIRMS Node proxy çalışmaz.
 
-# Türkiye Wildfire Grid Risk Monitor v3
+# Türkiye Wildfire Grid Risk Monitor v3.3.1
 
 Türkiye içindeki orman yangını termal tespitlerini, yangın kaynaklı yüzey PM10 model bileşenini, rüzgârı, EFFIS Fire Weather Index katmanını ve kullanıcı tarafından sağlanan OpenStreetMap iletim şebekesi verisini aynı haritada birleştiren yerel web uygulaması.
 

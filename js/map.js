@@ -16,11 +16,11 @@
   }
 
   class MapManager{
-    constructor(){this.map=null;this.renderer=null;this.baseLayer=null;this.baseKey=null;this.fireLayer=null;this.fireAll=[];this.fireVisible=[];this.fireEventsVisible=[];this.currentSelectedTime=new Date();this.frpHeat=null;this.smokeLayer=null;this.airPointLayer=null;this.airData=[];this.airVariable='pm10_wildfires';this.windLayer=null;this.windData=[];this.riskLayer=null;this.riskAssetLayer=null;this.downwindLayer=null;this.windVectorLayer=null;this.gridLayers=new Map();this.fwiLayer=null;this.effisBurntAreaLayer=null;this.onPointClick=null;this.frpThreshold=50;this._renderTimer=null;this.firePolygonLayer=null;this.firePolygonMarkerLayer=null;this.footprintLayer=null;this.thermalEnvelopeLayer=null;this.evolutionLayer=null;}
+    constructor(){this.map=null;this.renderer=null;this.baseLayer=null;this.baseKey=null;this.fireLayer=null;this.fireAll=[];this.fireVisible=[];this.fireEventsVisible=[];this.currentSelectedTime=new Date();this.frpHeat=null;this.smokeLayer=null;this.airPointLayer=null;this.airData=[];this.airVariable='pm10_wildfires';this.windLayer=null;this.windData=[];this.riskLayer=null;this.riskAssetLayer=null;this.downwindLayer=null;this.windVectorLayer=null;this.gridLayers=new Map();this.fwiLayer=null;this.effisBurntAreaLayer=null;this.onPointClick=null;this.frpThreshold=50;this._renderTimer=null;this.firePolygonLayer=null;this.firePolygonMarkerLayer=null;this.footprintLayer=null;this.thermalEnvelopeLayer=null;this.evolutionLayer=null;this.gfwLayer=null;}
     init(onPointClick){
       this.onPointClick=onPointClick;this.map=L.map('map',{zoomControl:true,minZoom:C.mapMinZoom||2,worldCopyJump:true,preferCanvas:true}).setView(C.defaultCenter,C.defaultZoom);this.renderer=L.canvas({padding:.4});
       this.map.createPane('airPane');this.map.getPane('airPane').style.zIndex=320;this.map.createPane('fwiPane');this.map.getPane('fwiPane').style.zIndex=330;this.map.createPane('gridPane');this.map.getPane('gridPane').style.zIndex=410;this.map.createPane('riskPane');this.map.getPane('riskPane').style.zIndex=445;this.map.createPane('firePane');this.map.getPane('firePane').style.zIndex=460;this.map.createPane('windPane');this.map.getPane('windPane').style.zIndex=480;
-      this.setBaseMap(localStorage.getItem('baseMap')||'satellite');this.fireLayer=L.layerGroup([], {pane:'firePane'}).addTo(this.map);this.airPointLayer=L.layerGroup([], {pane:'airPane'}).addTo(this.map);this.smokeLayer=new SmokeCanvasLayer().addTo(this.map);this.windLayer=L.layerGroup([], {pane:'windPane'});this.riskLayer=L.layerGroup([], {pane:'riskPane'}).addTo(this.map);this.riskAssetLayer=L.layerGroup([], {pane:'riskPane'}).addTo(this.map);this.downwindLayer=L.layerGroup([], {pane:'riskPane'});this.windVectorLayer=L.layerGroup([], {pane:'windPane'}).addTo(this.map);      this.borderLayer=L.polygon(C.regionPolygon,{pane:'gridPane',color:'#60a5fa',weight:1.5,fill:false,dashArray:'4 4',opacity:.55,interactive:false}).addTo(this.map);this.firePolygonLayer=L.layerGroup([],{pane:'riskPane'});this.firePolygonMarkerLayer=L.layerGroup([],{pane:'riskPane'});this.footprintLayer=L.layerGroup([],{pane:'riskPane'});this.thermalEnvelopeLayer=L.layerGroup([],{pane:'firePane'});this.evolutionLayer=L.layerGroup([],{pane:'riskPane'});
+      this.setBaseMap(localStorage.getItem('baseMap')||'satellite');this.fireLayer=L.layerGroup([], {pane:'firePane'}).addTo(this.map);this.airPointLayer=L.layerGroup([], {pane:'airPane'}).addTo(this.map);this.smokeLayer=new SmokeCanvasLayer().addTo(this.map);this.windLayer=L.layerGroup([], {pane:'windPane'});this.riskLayer=L.layerGroup([], {pane:'riskPane'}).addTo(this.map);this.riskAssetLayer=L.layerGroup([], {pane:'riskPane'}).addTo(this.map);this.downwindLayer=L.layerGroup([], {pane:'riskPane'});this.windVectorLayer=L.layerGroup([], {pane:'windPane'}).addTo(this.map);      this.borderLayer=L.polygon(C.regionPolygon,{pane:'gridPane',color:'#60a5fa',weight:1.5,fill:false,dashArray:'4 4',opacity:.55,interactive:false}).addTo(this.map);this.firePolygonLayer=L.layerGroup([],{pane:'riskPane'});this.firePolygonMarkerLayer=L.layerGroup([],{pane:'riskPane'});this.footprintLayer=L.layerGroup([],{pane:'riskPane'});this.thermalEnvelopeLayer=L.layerGroup([],{pane:'firePane'});this.evolutionLayer=L.layerGroup([],{pane:'riskPane'});this.gfwLayer=L.layerGroup([],{pane:'firePane'});
       this.map.on('click',e=>{const p={lat:e.latlng.lat,lon:e.latlng.lng};if(U.insideRegion(p))this.onPointClick?.(p);else A.Events.emit('outsideDataRegion',p);});this.map.on('zoomend moveend',()=>{if(this._renderTimer)return;const t=this.currentSelectedTime;this._renderTimer=setTimeout(()=>{this._renderTimer=null;this.renderFires(t);},60);});setTimeout(()=>this.map.invalidateSize(true),60);return this.map;
     }
     setBaseMap(key,mode='auto'){
@@ -122,7 +122,7 @@
       this.effisBurntAreaLayer.on('tileload',()=>A.Events.emit('service',{id:'effisBurntArea',state:'ok',note:`WMS ${C.effisBurntAreaLayer} · TIME=${U.dateOnlyUtc(d)}`}));
       this.effisBurntAreaLayer.on('tileerror',()=>A.Events.emit('service',{id:'effisBurntArea',state:'error',note:'Yanmış alan WMS tile yüklenemedi'}));
       this.effisBurntAreaLayer.addTo(this.map);
-      this.makeLegend('burntArea','EFFIS Yanmış Alanlar',`<div class="sourceNote">GWIS NRT yanmış alan poligonları (VIIRS termal anomali kümelerinden türetilmiştir). Resmî yangın perimetresi olarak kullanılabilir. EFFIS / Copernicus. ${U.dateOnlyUtc(d)}</div>`);
+      this.makeLegend('burntArea','EFFIS Yanmış Alanlar',`<div class="sourceNote">EFFIS/GWIS NRT VIIRS-tabanlı algoritmik yanmış alan/yangın poligonu. Resmî saha perimetresi değildir. EFFIS / Copernicus. ${U.dateOnlyUtc(d)}</div>`);
     }
     setFootprint(events, show=true){
       this.footprintLayer.clearLayers();
@@ -131,7 +131,8 @@
       for(const ev of events){
         if(!ev.members?.length)continue;
         for(const m of ev.members){
-          const scan=m.scan||1, track=m.track||1;
+          if(!Number.isFinite(m.scan)||!Number.isFinite(m.track)||m.scan<=0||m.track<=0)continue;
+          const scan=m.scan, track=m.track;
           const kmPerLat=110.574, kmPerLon=111.32*Math.cos(m.lat*Math.PI/180);
           const halfLon=Math.max(0.0005,scan/2/kmPerLon);
           const halfLat=Math.max(0.0005,track/2/kmPerLat);
@@ -154,12 +155,11 @@
       for(const ev of events){
         const members=(ev.members||[]).filter(m=>Number.isFinite(m.lat)&&Number.isFinite(m.lon));
         if(members.length<2)continue;
-        const validTemps=members.filter(m=>m.brightTi4!=null||m.brightTi5!=null);
-        const maxTi=validTemps.reduce((mx,m)=>Math.max(mx,m.brightTi5??m.brightTi4??0),0);
+        const maxTi=members.reduce((mx,m)=>Math.max(mx,Number(m.brightTi4)||0,Number(m.brightTi5)||0),0);
         if(maxTi<=0)continue;
         const hull=U.convexHull2D(members);
         if(hull.length<3)continue;
-        const hue=U.clamp(30-(maxTi-290)*2,0,30);
+        const hue=maxTi>360?30:maxTi>320?15:0;
         const light=U.clamp(55+(maxTi-300)*0.3,35,75);
         const coords=hull.map(p=>[p.lat,p.lon]);
         coords.push(coords[0]);
@@ -170,7 +170,7 @@
       }
       if(count){
         this.thermalEnvelopeLayer.addTo(this.map);
-        this.makeLegend('thermal','Tahmini Termal Yayılım',`<div class="legendLine"><i style="background:hsl(30,90%,65%);opacity:0.5"></i><span>Yüksek parlama (&gt;360 K)</span></div><div class="legendLine"><i style="background:hsl(15,90%,55%);opacity:0.5"></i><span>Orta (320-360 K)</span></div><div class="legendLine"><i style="background:hsl(0,90%,45%);opacity:0.5"></i><span>Düşük (&lt;320 K)</span></div><div class="sourceNote">Uydu termal tespitlerinden türetilen yaklaşık alandır. Resmî yangın perimetresi değildir. BRIGHT_TI4/TI5 parlaklık sıcaklığına göre renklendirilmiştir. Geometri piksel boyutundan (scan×track) değil tespit konumları dışbükey zarfından hesaplanır.</div>`);
+        this.makeLegend('thermal','Tahmini Termal Yayılım',`<div class="legendLine"><i style="background:hsl(0,90%,45%);opacity:0.5"></i><span>Düşük (&lt;320 K)</span></div><div class="legendLine"><i style="background:hsl(15,90%,55%);opacity:0.5"></i><span>Orta (320-360 K)</span></div><div class="legendLine"><i style="background:hsl(30,90%,65%);opacity:0.5"></i><span>Yüksek parlama (&gt;360 K)</span></div><div class="sourceNote">Uydu termal tespitlerinden türetilen yaklaşık alandır. Resmî yangın perimetresi değildir. BRIGHT_TI4/TI5 parlaklık sıcaklığına göre renklendirilmiştir. Geometri piksel boyutundan (scan×track) değil tespit konumları dışbükey zarfından hesaplanır.</div>`);
       }
     }
     toggleThermalEnvelope(show){
@@ -202,6 +202,18 @@
     toggleEventEvolution(show){
       if(show){if(!this.map.hasLayer(this.evolutionLayer))this.evolutionLayer.addTo(this.map);}else{if(this.map.hasLayer(this.evolutionLayer))this.map.removeLayer(this.evolutionLayer);}
     }
+    setGfwMarkers(data){
+      this.gfwLayer.clearLayers();this.map.removeLayer(this.gfwLayer);
+      if(!data?.length)return;
+      for(const d of data){
+        if(!U.insideRegion(d))continue;
+        L.circleMarker([d.lat,d.lon],{pane:'firePane',radius:4,color:'#7c3aed',weight:1.5,fillColor:'#a78bfa',fillOpacity:0.5,interactive:true})
+          .bindTooltip(`<strong>GFW Uyarısı</strong><br>Tarih: ${d.detectedAt||'—'}<br>Güven: ${d.confidence||'high'}<br>Kaynak: Global Forest Watch`)
+          .addTo(this.gfwLayer);
+      }
+      this.gfwLayer.addTo(this.map);
+    }
+    clearGfwMarkers(){this.gfwLayer.clearLayers();this.map.removeLayer(this.gfwLayer);}
     substationIcon(props){const raw=String(props?.voltage||'').split(/[;,]/).map(Number).filter(Number.isFinite),max=Math.max(0,...raw);const cls=max>=300000?'tm400':max>=66000?'tm154':'tmOther';return L.divIcon({className:'tmIconWrap',html:`<span class="tmIcon ${cls}">◆</span>`,iconSize:[18,18],iconAnchor:[9,9]});}
     async setGridGroup(key,data,show){if(this.gridLayers.has(key)){const layer=this.gridLayers.get(key);if(show&&!this.map.hasLayer(layer))layer.addTo(this.map);if(!show&&this.map.hasLayer(layer))this.map.removeLayer(layer);this.updateGridLegend();return;}if(!show)return;const cfg=C.gridSources[key],trFilter=f=>{if(key==='substations'){const c=f.geometry?.coordinates;return c&&U.insideRegion({lat:c[1],lon:c[0]});}const coords=f.geometry?.type==='LineString'?[f.geometry.coordinates]:f.geometry?.type==='MultiLineString'?f.geometry.coordinates:[];return coords.some(line=>line.some(c=>U.insideRegion({lat:c[1],lon:c[0]})));};let layer;if(key==='substations')layer=L.geoJSON(data,{filter:trFilter,pane:'gridPane',pointToLayer:(f,latlng)=>L.marker(latlng,{pane:'gridPane',icon:this.substationIcon(f.properties)}),onEachFeature:(f,l)=>{l.bindTooltip(this.gridTooltip(f.properties,true));l.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:e.latlng.lat,lon:e.latlng.lng,gridFeature:{kind:'substation',properties:f.properties,geometry:f.geometry}});});}});else layer=L.geoJSON(data,{filter:trFilter,pane:'gridPane',style:()=>({pane:'gridPane',renderer:this.renderer,color:cfg.color,weight:cfg.weight,opacity:(key==='400'?0.82:0.76)}),onEachFeature:(f,l)=>{l.bindTooltip(this.gridTooltip(f.properties,false),{sticky:true});l.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:e.latlng.lat,lon:e.latlng.lng,gridFeature:{kind:'line',group:key,properties:f.properties,geometry:f.geometry}});});}});this.gridLayers.set(key,layer);layer.addTo(this.map);this.updateGridLegend();}
     gridTooltip(p,isSub){return `<strong>${isSub?'Trafo Merkezi':'İletim Hattı'}</strong><br>${U.escapeHtml(p.name||'Adsız OSM elemanı')}<br>Gerilim: ${U.escapeHtml(p.voltage||p.voltageGroup||'bilinmiyor')}<br>${U.escapeHtml(p.operator||'Operatör bilgisi yok')}<br><small>OSM / ODbL</small>`;}

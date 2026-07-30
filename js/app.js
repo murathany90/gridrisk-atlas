@@ -3,8 +3,8 @@
   class Application{
     constructor(){
       this.ui=new A.UIManager();this.map=new A.MapManager();this.grid=new A.GridRepository();
-      this.state={selectedTime:new Date(),smokeVariable:'pm10_wildfires',smokeData:[],wildfireSummaryData:[],fireData:[],fireEvents:[],fireImpacts:[],windData:[],windEnabled:false,windLevel:'10m',fwiEnabled:false,effisBurntAreaEnabled:false,firesEnabled:true,heatEnabled:false,impactEnabled:true,downwindEnabled:true,smokePoints:false,gridMaster:true,selectedPoint:null,frpThreshold:50,firePolygonsEnabled:false,firePolygonData:null};
-      this.controllers={air:null,wind:null,firms:null,detail:null,firePolygon:null};this.reqSeq={air:0,wind:0,firms:0,detail:0,firePolygon:0};this.moveTimer=null;this.timeTimer=null;this.playTimer=null;this.lastApiCall=0;
+      this.state={selectedTime:new Date(),smokeVariable:'pm10_wildfires',smokeData:[],wildfireSummaryData:[],fireData:[],fireEvents:[],fireImpacts:[],windData:[],windEnabled:false,windLevel:'10m',fwiEnabled:false,effisBurntAreaEnabled:false,firesEnabled:true,heatEnabled:false,impactEnabled:true,downwindEnabled:true,smokePoints:false,gridMaster:true,selectedPoint:null,frpThreshold:50,firePolygonsEnabled:false,firePolygonData:null,gfwData:null};
+      this.controllers={air:null,wind:null,firms:null,detail:null,firePolygon:null,gfw:null};this.reqSeq={air:0,wind:0,firms:0,detail:0,firePolygon:0,gfw:0};this.moveTimer=null;this.timeTimer=null;this.playTimer=null;this.lastApiCall=0;
     }
     async init(){
       this.ui.init();this.map.init(p=>this.selectPoint(p));this.bindUI();this.restoreSettings();this.ui.setTime(this.state.selectedTime);this.ui.setUpdated();
@@ -12,6 +12,7 @@
       this.grid.loadCore().then(()=>{this.updateImpact();this.toggleGridMaster(true);}).catch(e=>this.ui.toast(`Şebeke core veri yüklenemedi: ${e.message}. start_windows.bat / localhost kullanın.`,'error'));
       this.healthCheck(false);this.loadSmokeGrid();this.loadWindGrid(true);
       if(A.CONFIG.firmsMapKey&&A.CONFIG.firmsMapKey!=='__FIRMS_MAP_KEY__')this.loadFirms();else A.Events.emit('service',{id:'firms',state:'warn',note:'MAP_KEY eksik; FIRMS katmanı pasif'});
+      if(document.getElementById('layerGfw')?.checked)this.loadGfw();
       this.map.map.on('moveend',()=>{clearTimeout(this.moveTimer);this.moveTimer=setTimeout(()=>{const now=Date.now();if(now-this.lastApiCall<4000)return;this.lastApiCall=now;this.loadSmokeGrid();setTimeout(()=>this.loadWindGrid(true),600);},2000);});
     }
     restoreSettings(){
@@ -36,6 +37,10 @@
       document.getElementById('windLevel').addEventListener('change',e=>{this.state.windLevel=e.target.value;localStorage.setItem('windLevel',this.state.windLevel);this.loadWindGrid(true);if(this.state.selectedPoint)this.selectPoint(this.state.selectedPoint,true);});
       document.getElementById('layerFwi').addEventListener('change',e=>{this.state.fwiEnabled=e.target.checked;this.map.toggleFwi(e.target.checked,this.state.selectedTime);});
       document.getElementById('layerEffisBurntArea').addEventListener('change',e=>{this.state.effisBurntAreaEnabled=e.target.checked;this.map.toggleEffisBurntArea(e.target.checked,this.state.selectedTime);});
+      document.getElementById('layerFootprint').addEventListener('change',e=>{this.map.toggleFootprint(e.target.checked);if(e.target.checked&&this.state.fireEvents.length)this.map.setFootprint(this.state.fireEvents,true);});
+      document.getElementById('layerThermalEnvelope').addEventListener('change',e=>{this.map.toggleThermalEnvelope(e.target.checked);if(e.target.checked&&this.state.fireEvents.length)this.map.setThermalEnvelope(this.state.fireEvents,true);});
+      document.getElementById('layerEventEvolution').addEventListener('change',e=>{this.map.toggleEventEvolution(e.target.checked);if(e.target.checked&&this.state.fireEvents.length)this.map.setEventEvolution(this.state.fireEvents,true);});
+      document.getElementById('layerGfw').addEventListener('change',e=>{if(e.target.checked)this.loadGfw();else this.removeGfw();});
       const rangeSelect=document.getElementById('firePolygonRange');
       if(rangeSelect)rangeSelect.addEventListener('change',e=>{
         const days=Number(e.target.value);
@@ -56,7 +61,7 @@
     }
     async toggleGridMaster(show){this.state.gridMaster=show;document.getElementById('gridSublayers').classList.toggle('disabledBlock',!show);if(!show){this.map.hideAllGrid();return;}await this.refreshGridLayers();}
     async refreshGridLayers(){const selected=new Set([...document.querySelectorAll('.gridLayer:checked')].map(x=>x.dataset.grid));for(const key of Object.keys(C.gridSources)){try{if(selected.has(key)){const data=await this.grid.loadGroup(key);await this.map.setGridGroup(key,data,true);}else if(this.map.gridLayers.has(key)){await this.map.setGridGroup(key,this.grid.data.get(key),false);}}catch(e){this.ui.toast(`Şebeke katmanı ${key}: ${e.message}`,'error');}}}
-    setTimeOffset(hours,reload){const d=new Date(Date.now()+hours*3600e3);d.setUTCMinutes(0,0,0);this.state.selectedTime=d;this.ui.setTime(d);this.map.renderFires(d);this.state.fireEvents=this.map.fireEventsVisible;if(this.state.heatEnabled)this.map.toggleHeat(true);if(this.state.fwiEnabled)this.map.toggleFwi(true,d);this.updateImpact();this.ui.renderExportSummary(this.state);if(reload)this.scheduleTimeReload(0);else this.scheduleTimeReload(300);}
+    setTimeOffset(hours,reload){const d=new Date(Date.now()+hours*3600e3);d.setUTCMinutes(0,0,0);this.state.selectedTime=d;this.ui.setTime(d);this.map.renderFires(d);this.state.fireEvents=this.map.fireEventsVisible;if(this.state.heatEnabled)this.map.toggleHeat(true);if(this.state.fwiEnabled)this.map.toggleFwi(true,d);this.updateImpact();this.ui.renderExportSummary(this.state);this.renderFireLayers();if(reload)this.scheduleTimeReload(0);else this.scheduleTimeReload(300);}
     shiftTime(delta){const s=document.getElementById('timeSlider'),v=U.clamp(Number(s.value)+delta,Number(s.min),Number(s.max));s.value=String(v);this.setTimeOffset(v,true);}
     togglePlay(){const b=document.getElementById('playBtn');if(this.playTimer){clearInterval(this.playTimer);this.playTimer=null;b.textContent='▶';return;}b.textContent='⏸';this._playbackApiThrottle=0;this.playTimer=setInterval(()=>{const s=document.getElementById('timeSlider');let v=Number(s.value)+C.timeline.playStepHours;if(v>Number(s.max))v=Number(s.min);s.value=String(v);const now=Date.now();const slowReload=now-this._playbackApiThrottle>C.timeline.playIntervalMs*4;this.setTimeOffset(v,slowReload);if(slowReload)this._playbackApiThrottle=now;},C.timeline.playIntervalMs);}
     scheduleTimeReload(ms){clearTimeout(this.timeTimer);this.timeTimer=setTimeout(()=>{this.loadSmokeGrid();this.loadWindGrid(true);if(this.state.selectedPoint)this.selectPoint(this.state.selectedPoint,true);},ms);}
@@ -71,7 +76,18 @@
       try{const data=await A.OpenMeteoWeather.grid(pts,this.state.selectedTime,this.state.windLevel,ctrl.signal);if(seq!==this.reqSeq.wind)return;this.state.windData=data;this.map.setWind(data,this.state.windLevel);this.map.toggleWind(this.state.windEnabled);this.updateImpact();this.ui.updateEnvironmentalKpis(this.state.wildfireSummaryData,this.state.windData);this.ui.renderExportSummary(this.state);}catch(e){if(e.kind!=='ABORTED')this.ui.toast(`Rüzgâr katmanı: ${e.kind||e.message}`,'error');}
     }
     async loadFirms(){
-      this.controllers.firms?.abort();const ctrl=new AbortController();this.controllers.firms=ctrl;const seq=++this.reqSeq.firms;try{const data=await A.FirmsAdapter.load(ctrl.signal);if(seq!==this.reqSeq.firms)return;this.state.fireData=data;this.map.setFires(data,this.state.selectedTime);this.map.toggleFires(this.state.firesEnabled);this.state.fireEvents=this.map.fireEventsVisible;if(this.state.heatEnabled)this.map.toggleHeat(true);this.updateImpact();this.ui.renderExportSummary(this.state);this.ui.setUpdated();}catch(e){if(e.kind==='ABORTED')return;if(e.kind==='AUTH_REQUIRED'){document.getElementById('kpiFireEvents').textContent='KEY';document.getElementById('kpiDetectionsNote').textContent='NASA FIRMS MAP_KEY eksik';this.ui.toast('GitHub Secret\'a FIRMS_MAP_KEY ekleyin.','warn');return;}this.ui.toast(`FIRMS: ${e.kind||e.message}`,'warn');}
+      this.controllers.firms?.abort();const ctrl=new AbortController();this.controllers.firms=ctrl;const seq=++this.reqSeq.firms;try{const data=await A.FirmsAdapter.load(ctrl.signal);if(seq!==this.reqSeq.firms)return;this.state.fireData=data;this.map.setFires(data,this.state.selectedTime);this.map.toggleFires(this.state.firesEnabled);this.state.fireEvents=this.map.fireEventsVisible;if(this.state.heatEnabled)this.map.toggleHeat(true);this.updateImpact();this.ui.renderExportSummary(this.state);this.ui.setUpdated();this.renderFireLayers();}catch(e){if(e.kind==='ABORTED')return;if(e.kind==='AUTH_REQUIRED'){document.getElementById('kpiFireEvents').textContent='KEY';document.getElementById('kpiDetectionsNote').textContent='NASA FIRMS MAP_KEY eksik';this.ui.toast('GitHub Secret\'a FIRMS_MAP_KEY ekleyin.','warn');return;}this.ui.toast(`FIRMS: ${e.kind||e.message}`,'warn');}
+    }
+    async loadGfw(){
+      this.controllers.gfw?.abort();const ctrl=new AbortController();this.controllers.gfw=ctrl;const seq=++this.reqSeq.gfw;
+      try{const data=await A.GfwAdapter.load(ctrl.signal);if(seq!==this.reqSeq.gfw)return;this.state.gfwData=data;this.map.setGfwMarkers(data);}catch(e){if(e.kind!=='ABORTED')this.ui.toast(`GFW: ${e.kind||e.message}`,'warn');}
+    }
+    removeGfw(){this.state.gfwData=null;this.map.clearGfwMarkers();}
+    renderFireLayers(){
+      const ev=this.state.fireEvents;
+      if(document.getElementById('layerFootprint')?.checked)this.map.setFootprint(ev,true);
+      if(document.getElementById('layerThermalEnvelope')?.checked)this.map.setThermalEnvelope(ev,true);
+      if(document.getElementById('layerEventEvolution')?.checked)this.map.setEventEvolution(ev,true);
     }
     async loadFirePolygons(){
       this.controllers.firePolygon?.abort();const ctrl=new AbortController();this.controllers.firePolygon=ctrl;const seq=++this.reqSeq.firePolygon;
