@@ -1,0 +1,10 @@
+TURKEY WILDFIRE GRID RISK MONITOR v3.2.0
+
+1) ZIP'i tamamen cikarin.
+2) start_windows.bat dosyasini calistirin.
+3) Tarayicida SUNUCU MODU ve v3.2.0 rozetlerini kontrol edin.
+4) Harita serbest pan/zoom yapar. Veri sorgulari sadece Turkiye alaninda calisir.
+5) Harita altligi localhost tile proxy uzerinden gelir.
+6) Ayarlar / Kaynaklar > AtmoHub Yontem 1 butonu her tiklamada canli portal + tematik sayfa + bundle taramasi yapar.
+
+FIRMS aktif termal tespitleri icin NASA FIRMS MAP_KEY gerekir.

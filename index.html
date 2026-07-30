@@ -1,0 +1,204 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <meta name="color-scheme" content="dark" />
+  <title>Türkiye Wildfire Grid Risk Monitor</title>
+  <link rel="preconnect" href="https://unpkg.com" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="css/styles.css?v=3.2.0" />
+</head>
+<body>
+<div id="appShell">
+  <header class="topbar">
+    <div class="brandBlock"><div class="brandIcon">🔥</div><div><h1>Türkiye Wildfire Grid Risk Monitor</h1><div class="subtitle">Orman yangını · duman taşınım bağlamı · 154/400 kV iletim şebekesi ve trafo merkezi etkisi</div></div></div>
+    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span class="domainPill">🇹🇷 VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.2.0</span><span id="lastUpdated">Son güncelleme: —</span></div>
+  </header>
+
+  <nav class="mainNav">
+    <button class="navBtn active" data-view="map">🗺 Harita</button>
+    <button class="navBtn" data-view="impact">⚡ Etki Analizi</button>
+    <button class="navBtn" data-view="settings">⚙ Ayarlar / Kaynaklar</button>
+    <button class="navBtn" data-view="info">ℹ Bilgi</button>
+    <div class="spacer"></div><button id="refreshAllBtn" class="ghostBtn">↻ Gerçek Veriyi Yenile</button>
+  </nav>
+
+  <section class="kpiBar">
+    <article class="kpiCard"><span>🔥 Yangın Olayı · 24 sa</span><strong id="kpiFireEvents">—</strong><small id="kpiDetectionsNote">FIRMS tespitleri kümelenir</small></article>
+    <article class="kpiCard dangerKpi"><span>🚨 Kritik Şebeke Olayı</span><strong id="kpiCriticalEvents">—</strong><small>öncelik skoru ≥75</small></article>
+    <article class="kpiCard"><span>⚡ Risk Altındaki Hat</span><strong id="kpiRiskLines">—</strong><small>≤10 km · benzersiz hat</small></article>
+    <article class="kpiCard"><span>🏭 Risk Altındaki TM</span><strong id="kpiRiskSubstations">—</strong><small>≤10 km · benzersiz TM</small></article>
+    <article class="kpiCard"><span>🌫 Maks. Wildfire PM10</span><strong id="kpiWildfirePm10">—</strong><small>CAMS Europe · yüzeye yakın</small></article>
+    <article class="kpiCard"><span>💨 Maks. Rüzgâr</span><strong id="kpiWind">—</strong><small>Open-Meteo · seçili seviye</small></article>
+  </section>
+
+  <main>
+    <section id="view-map" class="view active">
+      <div class="mapWorkspace">
+        <div class="searchBox panelFloating"><input id="citySearch" type="search" placeholder="Türkiye içinde konum ara: İzmir, Muğla, Antalya..." autocomplete="off"/><button id="citySearchBtn">⌕</button><div id="searchResults" class="searchResults hidden"></div></div>
+        <button id="legendToggleBtn" class="legendToggleBtn panelFloating">◫ Lejantları Gizle</button>
+
+        <aside class="layerPanel panelFloating">
+          <div class="panelHeader"><strong>Katmanlar</strong><button class="collapseBtn">−</button></div>
+          <div id="layerPanelBody" class="panelBody">
+            <div class="layerGroup"><h3>🗺 Harita Altlığı</h3><p class="layerHint">Harita dünya üzerinde serbest pan/zoom. Yangın, duman, meteoroloji ve şebeke verileri yalnız Türkiye alanından sorgulanır.</p>
+              <select id="baseMapSelect">
+                <option value="satellite">Uydu · Esri World Imagery</option>
+                <option value="osm">OpenStreetMap Standard</option>
+                <option value="positron">CARTO Positron</option>
+                <option value="dark">CARTO Dark Matter</option>
+                <option value="topo">OpenTopoMap</option>
+              </select>
+            </div>
+            <div class="layerGroup"><h3>🔥 Yangın</h3>
+              <label><input id="layerFires" type="checkbox" checked/> FIRMS termal tespit / yangın olayları</label>
+              <label><input id="layerFrpHeat" type="checkbox"/> FRP yoğunluğu</label>
+              <label class="rangeLine">Min. FRP filtresi <input id="frpThreshold" type="range" min="0" max="200" step="5" value="50"/><span id="frpThresholdValue">≥50 MW</span></label>
+              <span id="frpCount" class="layerHint" style="display:block;margin-top:2px">— olay gösteriliyor</span>
+              <p class="layerHint">Zoom &lt;9: 5 km / 6 saat olay kümeleri. Zoom ≥9: tekil FIRMS hotspotları. Hotspot yangın perimetresi değildir.</p>
+            </div>
+            <div class="layerGroup"><h3>🌫 Yangın Dumanı</h3>
+              <label><input class="smokeLayer" data-var="pm10_wildfires" type="radio" name="smokeLayer" checked/> Yangın kaynaklı PM10 plume <em>yüzey</em></label>
+              <label><input class="smokeLayer" data-var="wildfire_share" type="radio" name="smokeLayer"/> Yangın PM10 payı (%) <em>türetilmiş</em></label>
+              <label><input id="layerSmokePoints" type="checkbox"/> Model örnekleme noktalarını göster</label>
+              <label class="rangeLine">Duman görünümü <input id="smokeOpacity" type="range" min="0.25" max="1" step="0.05" value="0.80"/><span id="smokeOpacityValue">%80</span></label>
+              <button id="clearSmokeLayer" class="tinyBtn">Duman katmanını kapat</button>
+              <p class="layerHint">AtmoHub benzeri yumuşak plume görünümü yalnız gerçek CAMS <strong>PM10 caused by wildfires</strong> gridini görsel olarak enterpole eder. ~11 km bilimsel çözünürlük artmaz; sıfır/veri-yok alanında duman üretilmez.</p>
+            </div>
+            <div class="layerGroup"><h3>💨 Meteoroloji</h3>
+              <label><input id="layerWind" type="checkbox"/> Rüzgâr vektörlerini göster</label>
+              <select id="windLevel"><option value="10m">10 m yüzey</option><option value="850hPa">850 hPa</option><option value="700hPa">700 hPa</option></select>
+              <label><input id="layerFwi" type="checkbox"/> Fire Weather Index — EFFIS</label>
+            </div>
+            <div class="layerGroup"><h3>⚠ Şebeke Etki Analizi</h3>
+              <label><input id="layerFireGridImpact" type="checkbox" checked/> Öncelik halkaları + riskli varlık vurgusu</label>
+              <label><input id="layerDownwindCorridor" type="checkbox" checked/> Rüzgâr bazlı izleme koridoru</label>
+              <label><input id="layerFirePolygons" type="checkbox"/> Güncel yangın alanları · İhtiyaç Haritası</label>
+              <p class="layerHint">Koridor gerçek duman modeli değildir; mevcut rüzgâr alanıyla aşağı-rüzgâr şebeke taramasını destekler.</p>
+            </div>
+            <div class="layerGroup gridGroup"><h3>⚡ İletim Şebekesi <span class="defaultOff">varsayılan kapalı</span></h3>
+              <label class="masterLayer"><input id="layerGridMaster" type="checkbox"/> Şebeke katmanını aç</label>
+              <div id="gridSublayers" class="subLayers disabledBlock">
+                <label><input class="gridLayer" data-grid="400" type="checkbox" checked/> <i class="lineSwatch s400"></i> 400 kV sınıfı</label>
+                <label><input class="gridLayer" data-grid="154" type="checkbox" checked/> <i class="lineSwatch s154"></i> 154 kV sınıfı</label>
+                <label><input class="gridLayer" data-grid="substations" type="checkbox" checked/> ◆ Trafo merkezleri</label>
+                <label><input class="gridLayer" data-grid="33" type="checkbox"/> <i class="lineSwatch s33"></i> 20–66 kV</label>
+                <label><input class="gridLayer" data-grid="unknown" type="checkbox"/> <i class="lineSwatch sunk"></i> Gerilimi bilinmeyen</label>
+              </div>
+              <p class="layerHint">Risk çekirdeği görünürlükten bağımsız 400/154 kV hatları ve TM'leri kullanır. Haritada yalnız hatlar + TM gösterilir.</p>
+            </div>
+          </div>
+        </aside>
+
+        <div id="map"></div><div id="legendStack" class="legendStack"></div>
+
+        <section class="timelinePanel panelFloating">
+          <div class="timelineTop"><button id="playBtn" class="timelineBtn">▶</button><button id="stepBackBtn" class="timelineBtn">−3 sa</button><div class="timeReadout"><strong id="selectedTimeLocal">—</strong><span id="selectedTimeUtc">—</span></div><button id="nowBtn" class="timelineBtn">ŞİMDİ</button><button id="stepForwardBtn" class="timelineBtn">+3 sa</button></div>
+          <div class="timelineDomains"><span>UYDU GÖZLEMİ / GEÇMİŞ</span><span>MODEL TAHMİNİ</span></div>
+          <input id="timeSlider" type="range" min="-24" max="72" step="1" value="0"/>
+          <div class="timelineLabels"><span>−24 sa</span><span>−12 sa</span><span>Şimdi</span><span>+24 sa</span><span>+48 sa</span><span>+72 sa</span></div>
+          <div id="nearestTimeNote" class="nearestNote">FIRMS gözlem zamanı ile CAMS/Open-Meteo tahmin zamanı ayrı kaynak zamanlarıdır.</div>
+        </section>
+
+        <aside id="detailPanel" class="detailPanel"><div class="detailHeader"><div><small>SEÇİLİ KONUM / YANGIN / ŞEBEKE</small><h2 id="detailTitle">Haritadan bir nokta seçin</h2></div><button id="closeDetailBtn" class="ghostBtn">×</button></div><div id="detailContent" class="detailContent emptyState">Yangın olayı, hat veya trafo merkezi seçerek duman, rüzgâr ve şebeke etkisini inceleyin.</div></aside>
+      </div>
+    </section>
+
+    <section id="view-impact" class="view analysisView">
+      <div class="analysisGrid">
+        <article class="card"><h2>Operasyonel Risk Özeti</h2><div id="impactSummary" class="metricList"><p>FIRMS ve şebeke verisi yükleniyor.</p></div></article>
+        <article class="card"><h2>Şebeke Veri Özeti</h2><div id="gridSummary" class="metricList"><p>OSM core grid hazırlanıyor.</p></div></article>
+        <article class="card wide"><div class="cardHeader"><h2>Yangın Olayı → Şebeke Öncelik Tablosu</h2><span class="badge analysis">OPERASYONEL ÖN-ELEME</span></div><div class="tableWrap"><table class="riskTable" id="impactTable"><thead><tr><th data-sort="riskScore">Skor <span class="sortArrow"></span></th><th data-sort="count">Yangın olayı <span class="sortArrow"></span></th><th data-sort="maxFrp">Maks. FRP <span class="sortArrow"></span></th><th data-sort="asset">En yakın varlık <span class="sortArrow"></span></th><th data-sort="distance">Mesafe <span class="sortArrow"></span></th><th data-sort="voltage">Gerilim <span class="sortArrow"></span></th><th data-sort="wind">Rüzgâr <span class="sortArrow"></span></th><th data-sort="latest">Son tespit <span class="sortArrow"></span></th></tr></thead><tbody id="impactTableBody"><tr><td colspan="8">FIRMS MAP_KEY girildiğinde gerçek termal tespitler olaylara kümelenerek analiz edilir.</td></tr></tbody></table></div></article>
+        <article class="card wide"><div class="cardHeader"><h2>Seçili Konum — Yangın Dumanı Zaman Serisi</h2><span class="badge forecast">CAMS MODEL</span></div><canvas id="aqChart" height="105"></canvas><div id="chartEmpty" class="emptyState">Haritada bir yangın olayı, hat veya trafo merkezi seçin.</div></article>
+        <article class="card"><h2>Seçili Varlık / Konum</h2><div id="analysisPointSummary" class="metricList"><p>Henüz seçim yok.</p></div></article>
+        <article class="card"><h2>Export</h2><div class="exportBtns"><button id="exportCsvBtn" class="tinyBtn">CSV</button><button id="exportJsonBtn" class="tinyBtn">JSON</button><button id="exportGeoJsonBtn" class="tinyBtn">GeoJSON</button></div><div id="exportSummary" class="metricList"></div></article>
+        <article class="card wide caution"><h2>Bilimsel / operasyonel sınırlar</h2><p>FIRMS termal tespiti gerçek yangın çevresi değildir. CAMS <strong>PM10 caused by wildfires</strong> yüzeye yakın model bileşenidir. Genel hava kalitesi ve yangına özgü olmayan AOD katmanları bu sürümde çıkarılmıştır. Plume görünümü yalnız görsel interpolasyondur. Rüzgâr koridoru duman yörüngesi değildir. Risk skoru; mesafe, FRP, tespit yaşı, şebeke varlığının gerilim/tür önemi ve mevcutsa rüzgâr doğrultusunu birleştiren <strong>operasyonel önceliklendirme endeksidir; arıza olasılığı değildir.</strong></p></article>
+      </div>
+    </section>
+
+    <section id="view-settings" class="view settingsView">
+      <div class="settingsGrid">
+        <article class="card"><h2>NASA FIRMS</h2><label class="fieldLabel">Ürün</label><select id="firmsSource"><option>VIIRS_NOAA21_NRT</option><option>VIIRS_NOAA20_NRT</option><option>VIIRS_SNPP_NRT</option><option>MODIS_NRT</option></select><label class="fieldLabel">MAP_KEY — yalnız bu oturumda</label><div class="inlineField"><input id="firmsKey" type="password" placeholder="NASA FIRMS MAP_KEY"/><button id="saveFirmsKeyBtn">Kaydet</button></div><label class="checkLine"><input id="useProxy" type="checkbox"/> Yerel Node proxy kullan</label><p class="hint">Proxy modunda MAP_KEY server ortam değişkeninde tutulur. Harita uygulaması yalnız Türkiye bbox ister.</p></article>
+        <article class="card"><h2>AtmoHub Yöntem 1 — Ağ / Bundle Keşfi</h2><p class="hint">Node sunucusu portal HTML ve istemci bundle'larında smoke/fire/forecast/API/WMS işaretlerini arar; uygun mutlak adayları sınırlı biçimde HTTP/content-type açısından test eder. Schema/auth/CORS doğrulanmayan adaylar veri katmanı yapılmaz.</p><div class="inlineActions"><button id="atmoHubDiscoverBtn">AtmoHub keşfini çalıştır</button><a class="linkBtn" href="https://portal.atmohub.gr/" target="_blank" rel="noopener">Portal ↗</a></div><div id="atmoHubDiscoveryResult" class="discoveryBox">Henüz çalıştırılmadı.</div><p class="hint">Doğrulanmış public AtmoHub smoke/fire API yoksa gerçek CAMS wildfire PM10 fallback kullanılır.</p></article>
+        <article class="card wide"><div class="cardHeader"><h2>Veri Kaynağı Durumu</h2><button id="healthCheckBtn" class="tinyBtn">Bağlantıları Test Et</button></div><div class="tableWrap"><table class="statusTable"><thead><tr><th>Kaynak</th><th>Durum</th><th>Son başarılı</th><th>Latency</th><th>Kayıt</th><th>Not</th></tr></thead><tbody id="serviceStatusBody"></tbody></table></div></article>
+        <article class="card"><h2>OSM Şebeke Veri Seti</h2><div id="gridMetadata" class="metricList"><p>Yükleniyor…</p></div></article>
+        <article class="card"><h2>Gerçek veri mimarisi</h2><div class="architecture"><div>NASA FIRMS <b>→</b> termal anomali / FRP / zaman</div><div>CAMS Europe / Open-Meteo <b>→</b> wildfire PM10 + yangın PM10 payı</div><div>Open-Meteo Weather <b>→</b> 10 m + 850/700 hPa rüzgâr</div><div>Copernicus EFFIS <b>→</b> FWI WMS</div><div>OSM Grid <b>→</b> 400/154 kV hat + TM</div><div>AtmoHub <b>→</b> yalnız public servis gerçekten doğrulanırsa</div></div></article>
+      </div>
+    </section>
+
+    <section id="view-info" class="view settingsView">
+      <div class="analysisGrid">
+        <article class="card wide"><div class="cardHeader"><h2>🔥 Teknik Terimler ve Kısaltmalar</h2><span class="badge analysis">BİLGİ</span></div><div class="metricGrid" style="grid-template-columns:1fr 1fr;gap:8px">
+          <div class="metric"><small>FIRMS</small><strong>Fire Information for Resource Management System</strong><small>NASA'nın uydu tabanlı termal anomali/aktif yangın tespit sistemi. MODIS ve VIIRS sensörlerinden elde edilen verileri sunar. Tespitler hotspot (termal anomali) olup gerçek yangın perimetresi değildir.</small></div>
+          <div class="metric"><small>FRP</small><strong>Fire Radiative Power (MW)</strong><small>Yangının anlık ısıl gücü. Bir yangının ne kadar yoğun yandığını gösterir. Yüksek FRP daha yoğun yanma ve potansiyel olarak daha hızlı yayılma anlamına gelir. Uygulamada 50+ MW eşik değer olarak kullanılır.</small></div>
+          <div class="metric"><small>VIIRS</small><strong>Visible Infrared Imaging Radiometer Suite</strong><small>Suomi NPP, NOAA-20 ve NOAA-21 uydularındaki sensör. 375 m ve 750 m çözünürlükte termal tespit yapar. MODIS'ten daha yüksek çözünürlüklüdür.</small></div>
+          <div class="metric"><small>MODIS</small><strong>Moderate Resolution Imaging Spectroradiometer</strong><small>Terra ve Aqua uydularındaki sensör. 1 km çözünürlükte günde 2-4 geçiş yapar. Daha düşük çözünürlük ama daha uzun veri geçmişi.</small></div>
+          <div class="metric"><small>CAMS</small><strong>Copernicus Atmosphere Monitoring Service</strong><small>Avrupa Orta Vadeli Hava Tahminleri Merkezi (ECMWF) tarafından işletilen atmosfer bileşimi modeli. Yangın kaynaklı PM10 ve diğer aerosolleri ~11 km çözünürlükte tahmin eder.</small></div>
+          <div class="metric"><small>PM10</small><strong>Particulate Matter &lt;10 µm</strong><small>Çapı 10 mikrometreden küçük partikül madde. Yangın dumanının ana bileşenidir. Solunum yoluyla akciğerlere ulaşır. Yüksek konsantrasyonlar sağlık riski oluşturur.</small></div>
+          <div class="metric"><small>Open-Meteo</small><strong>Açık kaynak hava durumu API'si</strong><small>CAMS ve ECMWF verilerine ücretsiz erişim sağlayan API. Bu uygulama CAMS wildfire PM10 ve Open-Meteo rüzgâr/meteoroloji verilerini bu servis üzerinden alır.</small></div>
+          <div class="metric"><small>EFFIS / FWI</small><strong>European Forest Fire Information System / Fire Weather Index</strong><small>Copernicus Acil Durum Yönetimi Servisi tarafından sağlanan yangın hava durumu indeksi. Sıcaklık, nem, rüzgâr ve yağış verilerini birleştirerek yangın tehlikesini gösterir.</small></div>
+          <div class="metric"><small>OSM Power Grid</small><strong>OpenStreetMap İletim Şebekesi</strong><small>OpenStreetMap topluluğu tarafından gönüllü olarak haritalanan elektrik iletim hatları ve trafo merkezleri. ODbL 1.0 lisansı ile kullanılmaktadır. Gerilim sınıfları: 400 kV, 154 kV, 20-66 kV.</small></div>
+          <div class="metric"><small>TM</small><strong>Trafo Merkezi (Substation)</strong><small>Elektrik iletim sisteminde gerilim seviyelerinin değiştirildiği, anahtarlama ve dağıtım yapılan tesis. Yüksek gerilim hatlarının birleşim/ayrışım noktalarıdır. Şebeke açısından kritik öneme sahiptir.</small></div>
+          <div class="metric"><small>Hotspot</small><strong>FIRMS Termal Anomali Tespiti</strong><small>Uydu görüntülerinde çevresine göre anormal derecede sıcak piksel. Yangın perimetresi değildir. Bulut örtüsü, yoğun duman veya gece geçişlerinde tespit edilemeyebilir.</small></div>
+          <div class="metric"><small>Küme / Cluster</small><strong>5 km / 6 saat uzamsal-zamansal kümeleme</strong><small>Birden çok FIRMS tespitinin aynı yangın olayına ait olacak şekilde gruplanması. 5 km yarıçap ve 6 saatlik zaman penceresi kullanılır. FRP ağırlıklı merkez hesaplanır.</small></div>
+        </div></article>
+        <article class="card wide"><div class="cardHeader"><h2>📊 Analiz Metrikleri ve Skorlama</h2><span class="badge analysis">METODOLOJİ</span></div><div class="metricGrid" style="grid-template-columns:1fr 1fr;gap:8px">
+          <div class="metric"><small>Risk Skoru (0-100)</small><strong>Operasyonel Önceliklendirme Endeksi</strong><small>Yangın olayının şebeke varlıklarına olan potansiyel etkisini ölçen bileşik skor. Mesafe + FRP + tespit yaşı + gerilim/TM önemi + rüzgâr doğrultusu (varsa) bileşenlerinden oluşur. <strong>Arıza olasılığı değildir.</strong></small></div>
+          <div class="metric"><small>Mesafe Bileşeni (0-50 puan)</small><strong>Yangın-şebeke yakınlık skoru</strong><small>≤1 km: 50 puan, ≤3 km: 42 puan, ≤10 km: 28 puan, ≤25 km: 12 puan, &gt;25 km: 0 puan.</small></div>
+          <div class="metric"><small>FRP Bileşeni (0-20 puan)</small><strong>Yangın yoğunluğu skoru</strong><small>maxFRP'ye bağlı: √(maxFRP) × 2, maksimum 20 puan. Yüksek FRP daha yoğun yangın anlamına gelir.</small></div>
+          <div class="metric"><small>Yaş Bileşeni (0-15 puan)</small><strong>Tespit güncellik skoru</strong><small>Son 3 saat: 15 puan, 3-6 saat: 12 puan, 6-12 saat: 8 puan, 12-24 saat: 4 puan, &gt;24 saat: 1 puan.</small></div>
+          <div class="metric"><small>Varlık Bileşeni (0-10 puan)</small><strong>Şebeke önemi skoru</strong><small>Trafo merkezi: 10 puan, 400 kV hattı: 10 puan, 154 kV hattı: 7 puan.</small></div>
+          <div class="metric"><small>Rüzgâr Bileşeni (0-10 puan)</small><strong>Doğrultu uyum skoru</strong><small>Yangından en yakın varlığa doğru rüzgâr: 10 puan, çapraz: 5 puan, koridorda varlık varsa: 4 puan. Rüzgâr verisi yoksa: 0 puan.</small></div>
+          <div class="metric"><small>Risk Kategorileri</small><strong>Kritik / Yüksek / Orta / İzleme</strong><small>Kritik (75+): acil müdahale gerektirebilir. Yüksek (55-74): yakın takip. Orta (35-54): izleme. İzleme (0-34): düşük öncelik.</small></div>
+          <div class="metric"><small>Yakınlık Bandı</small><strong>Fiziksel mesafe kategorisi</strong><small>Kritik (≤1 km): çok yakın. Yüksek (≤3 km): yakın. Orta (≤10 km): orta. İzleme (≤25 km): uzak.</small></div>
+          <div class="metric"><small>Rüzgâr Koridoru</small><strong>50 km / ±22° sektör taraması</strong><small>Yangından rüzgâr yönünde 50 km mesafeye ve ±22° açıya kadar şebeke varlığı taraması. Gerçek duman yörüngesi değildir; operasyonel ön-değerlendirme amaçlıdır.</small></div>
+          <div class="metric"><small>Duman Görselleştirme</small><strong>Canvas tabanlı plume interpolasyonu</strong><small>CAMS PM10 grid noktaları arasında radyal gradient ile yumuşak duman görünümü. Bilimsel çözünürlük (~11 km) değişmez; yalnız görsel enterpolasyondur.</small></div>
+        </div></article>
+        <article class="card wide caution"><h2>⚠ Önemli Sınırlamalar</h2><div class="metricGrid" style="grid-template-columns:1fr 1fr;gap:8px">
+          <div class="metric"><small>Hotspot ≠ Yangın Perimetresi</small><strong>FIRMS tespitleri gerçek yangın sınırını göstermez.</strong><small>Her tespit bir pikselin çevresine göre sıcak olduğunu belirtir. Yangının gerçek büyüklüğü, şekli ve yayılma hızı hakkında bilgi vermez.</small></div>
+          <div class="metric"><small>Koridor ≠ Duman Yörüngesi</small><strong>Rüzgâr koridoru gerçek duman modeli değildir.</strong><small>Basitleştirilmiş geometrik sektör taramasıdır. Gerçek duman taşınımı topografya, atmosferik kararlılık ve üst seviye rüzgâr profillerinden etkilenir.</small></div>
+          <div class="metric"><small>Risk Skoru ≠ Arıza Olasılığı</small><strong>Skor operasyonel önceliklendirme içindir.</strong><small>Yangının şebekeye zarar verme olasılığını veya yangın davranışını modellemez. Saha koşulları, ekipman durumu ve müdahale kapasitesini dikkate almaz.</small></div>
+          <div class="metric"><small>Uydu Boşlukları</small><strong>Tespitler gecikmeli ve kesintili olabilir.</strong><small>Bulut örtüsü, yoğun duman ve uydu geçiş zamanlaması nedeniyle bazı yangınlar tespit edilemeyebilir. En güncel veri için doğrudan resmî kaynaklara başvurun.</small></div>
+          <div class="metric"><small>Veri Gecikmesi</small><small>FIRMS: ~15-60 dk, CAMS: saatlik, Open-Meteo: 30-60 dk. Gerçek zamanlı değildir.</small></div>
+          <div class="metric"><small>Şebeke Kapsamı</small><small>Yalnız OSM'de bulunan 400/154 kV hatlar ve TM'ler. Özel şebeke varlıkları, dağıtım hatları ve SCADA verisi dahil değildir.</small></div>
+        </div></article>
+        <article class="card wide"><div class="cardHeader"><h2>🔗 Veri Kaynakları ve Referanslar</h2><span class="badge forecast">KAYNAK</span></div><div class="metricGrid" style="grid-template-columns:1fr 1fr;gap:8px">
+          <div class="metric"><small>NASA FIRMS</small><strong>firms.modaps.eosdis.nasa.gov</strong><small>MODIS ve VIIRS termal anomali verileri. MAP_KEY ile erişim. Ücretsiz kayıt gerektirir.</small></div>
+          <div class="metric"><small>CAMS / Open-Meteo</small><strong>open-meteo.com</strong><small>Open-Meteo üzerinden CAMS European Air Quality verileri. Wildfire PM10 ve PM10 payı. Ücretsiz API.</small></div>
+          <div class="metric"><small>Open-Meteo Weather</small><strong>open-meteo.com</strong><small>ECMWF tabanlı hava tahmini. Rüzgâr (10m/850/700 hPa), sıcaklık, nem. Ücretsiz API.</small></div>
+          <div class="metric"><small>Copernicus EFFIS</small><strong>effis.emergency.copernicus.eu</strong><small>Fire Weather Index WMS katmanı. Avrupa çapında yangın tehlike haritası. Resmî WMS servisi.</small></div>
+          <div class="metric"><small>OpenStreetMap</small><strong>openstreetmap.org</strong><small>Gönüllü haritalama topluluğu. Power grid verisi (power=line, power=substation). ODbL 1.0 lisansı.</small></div>
+          <div class="metric"><small>Katkıda Bulunanlar</small><strong>OSM Türkiye Topluluğu</strong><small>Türkiye iletim şebekesi verisinin haritalanmasına katkıda bulunan tüm OSM gönüllülerine teşekkürler.</small></div>
+        </div></article>
+      </div>
+    </section>
+  </main>
+
+  <footer class="provenanceBar"><strong>Yangın:</strong> NASA FIRMS <strong>Duman:</strong> CAMS Europe / Open-Meteo wildfire PM10 <strong>Rüzgâr:</strong> Open-Meteo <strong>Tehlike:</strong> EFFIS <strong>Şebeke:</strong> OpenStreetMap / ODbL <span>Bağımsız prototip; resmî acil durum/SCADA sistemi değildir.</span></footer>
+</div>
+<div id="toastHost" class="toastHost"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+<script>
+(function(){
+  const isFile=location.protocol==='file:';
+  window.__ATMO_DIRECT_FILE_MODE__=isFile;
+  window.addEventListener('DOMContentLoaded',()=>{
+    const el=document.getElementById('runtimeMode');
+    if(el){el.textContent=isFile?'DOSYA MODU':'SUNUCU MODU';el.classList.toggle('fileMode',isFile);}
+  });
+})();
+</script>
+<script src="js/config.js?v=3.2.0"></script>
+<script src="js/utils.js?v=3.2.0"></script>
+<script src="js/api.js?v=3.2.0"></script>
+<script src="js/grid.js?v=3.2.0"></script>
+<script src="js/map.js?v=3.2.0"></script>
+<script src="js/export.js?v=3.2.0"></script>
+<script src="js/ui.js?v=3.2.0"></script>
+<script src="js/app.js?v=3.2.0"></script>
+</body>
+</html>
