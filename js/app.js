@@ -3,13 +3,13 @@
   class Application{
     constructor(){
       this.ui=new A.UIManager();this.map=new A.MapManager();this.grid=new A.GridRepository();
-      this.state={selectedTime:new Date(),smokeVariable:'pm10_wildfires',smokeData:[],wildfireSummaryData:[],fireData:[],fireEvents:[],fireImpacts:[],windData:[],windEnabled:false,windLevel:'10m',fwiEnabled:false,firesEnabled:true,heatEnabled:false,impactEnabled:true,downwindEnabled:true,smokePoints:false,gridMaster:false,selectedPoint:null,frpThreshold:50,firePolygonsEnabled:false,firePolygonData:null};
+      this.state={selectedTime:new Date(),smokeVariable:'pm10_wildfires',smokeData:[],wildfireSummaryData:[],fireData:[],fireEvents:[],fireImpacts:[],windData:[],windEnabled:false,windLevel:'10m',fwiEnabled:false,firesEnabled:true,heatEnabled:false,impactEnabled:true,downwindEnabled:true,smokePoints:false,gridMaster:true,selectedPoint:null,frpThreshold:50,firePolygonsEnabled:false,firePolygonData:null};
       this.controllers={air:null,wind:null,firms:null,detail:null,firePolygon:null};this.reqSeq={air:0,wind:0,firms:0,detail:0,firePolygon:0};this.moveTimer=null;this.timeTimer=null;this.playTimer=null;this.lastApiCall=0;
     }
     async init(){
       this.ui.init();this.map.init(p=>this.selectPoint(p));this.bindUI();this.restoreSettings();this.ui.setTime(this.state.selectedTime);this.ui.setUpdated();
       A.Events.on('focusRisk',a=>{if(!a?.event)return;this.map.setView(a.event.lat,a.event.lon,10);this.selectPoint({lat:a.event.lat,lon:a.event.lon,fire:a.event.representative,fireEvent:a.event});});A.Events.on('basemapStatus',x=>A.Events.emit('service',{id:'basemap',state:'ok',note:`${x.key} · ${x.mode==='proxy'?'yerel tile proxy':'doğrudan tile'}`}));A.Events.on('basemapError',x=>{A.Events.emit('service',{id:'basemap',state:'error',note:x.note||'Altlık tile hatası'});this.ui.toast(x.note||'Harita altlığı yüklenemedi; OSM altlığına geçiliyor.','warn');});A.Events.on('outsideDataRegion',()=>this.ui.toast('Haritada serbestçe gezebilirsiniz; yangın/duman/meteoroloji veri sorguları yalnız Türkiye veri alanında çalışır.','warn'));
-      this.grid.loadCore().then(()=>this.updateImpact()).catch(e=>this.ui.toast(`Şebeke core veri yüklenemedi: ${e.message}. start_windows.bat / localhost kullanın.`,'error'));
+      this.grid.loadCore().then(()=>{this.updateImpact();this.toggleGridMaster(true);}).catch(e=>this.ui.toast(`Şebeke core veri yüklenemedi: ${e.message}. start_windows.bat / localhost kullanın.`,'error'));
       this.healthCheck(false);this.loadSmokeGrid();this.loadWindGrid(true);
       if(A.CONFIG.firmsMapKey&&A.CONFIG.firmsMapKey!=='__FIRMS_MAP_KEY__')this.loadFirms();else A.Events.emit('service',{id:'firms',state:'warn',note:'MAP_KEY eksik; FIRMS katmanı pasif'});
       this.map.map.on('moveend',()=>{clearTimeout(this.moveTimer);this.moveTimer=setTimeout(()=>{const now=Date.now();if(now-this.lastApiCall<4000)return;this.lastApiCall=now;this.loadSmokeGrid();setTimeout(()=>this.loadWindGrid(true),600);},2000);});
