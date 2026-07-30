@@ -123,7 +123,7 @@
       this.effisBurntAreaLayer.on('tileerror',()=>A.Events.emit('service',{id:'effisBurntArea',state:'error',note:'Yanmış alan WMS tile yüklenemedi'}));
       this.effisBurntAreaLayer.addTo(this.map);
       this.makeLegend('burntArea','EFFIS Yanmış Alanlar',`<div class="sourceNote">GWIS NRT yanmış alan poligonları (VIIRS termal anomali kümelerinden türetilmiştir). Resmî yangın perimetresi olarak kullanılabilir. EFFIS / Copernicus. ${U.dateOnlyUtc(d)}</div>`);
-    },
+    }
     setFootprint(events, show=true){
       this.footprintLayer.clearLayers();
       if(this.map.hasLayer(this.footprintLayer))this.map.removeLayer(this.footprintLayer);
@@ -142,10 +142,10 @@
       }
       this.footprintLayer.addTo(this.map);
       this.makeLegend('footprint','Piksel Ayak İzi',`<div class="legendLine"><i style="background:rgba(255,80,40,0.2);border:1px solid rgba(255,100,50,0.5)"></i><span>Her tespitin VIIRS/MODIS piksel boyutu (scan×track)</span></div><div class="sourceNote">Yalnızca olay üyesi tespitler için; piksel boyutu uydu açısına göre değişir.</div>`);
-    },
+    }
     toggleFootprint(show){
       if(show){if(!this.map.hasLayer(this.footprintLayer))this.footprintLayer.addTo(this.map);}else{if(this.map.hasLayer(this.footprintLayer))this.map.removeLayer(this.footprintLayer);}
-    },
+    }
     setThermalEnvelope(events, show=true){
       this.thermalEnvelopeLayer.clearLayers();
       if(this.map.hasLayer(this.thermalEnvelopeLayer))this.map.removeLayer(this.thermalEnvelopeLayer);
@@ -172,10 +172,10 @@
         this.thermalEnvelopeLayer.addTo(this.map);
         this.makeLegend('thermal','Tahmini Termal Yayılım',`<div class="legendLine"><i style="background:hsl(30,90%,65%);opacity:0.5"></i><span>Yüksek parlama (&gt;360 K)</span></div><div class="legendLine"><i style="background:hsl(15,90%,55%);opacity:0.5"></i><span>Orta (320-360 K)</span></div><div class="legendLine"><i style="background:hsl(0,90%,45%);opacity:0.5"></i><span>Düşük (&lt;320 K)</span></div><div class="sourceNote">Uydu termal tespitlerinden türetilen yaklaşık alandır. Resmî yangın perimetresi değildir. BRIGHT_TI4/TI5 parlaklık sıcaklığına göre renklendirilmiştir. Geometri piksel boyutundan (scan×track) değil tespit konumları dışbükey zarfından hesaplanır.</div>`);
       }
-    },
+    }
     toggleThermalEnvelope(show){
       if(show){if(!this.map.hasLayer(this.thermalEnvelopeLayer))this.thermalEnvelopeLayer.addTo(this.map);}else{if(this.map.hasLayer(this.thermalEnvelopeLayer))this.map.removeLayer(this.thermalEnvelopeLayer);}
-    },
+    }
     setEventEvolution(events, show=true){
       this.evolutionLayer.clearLayers();
       if(this.map.hasLayer(this.evolutionLayer))this.map.removeLayer(this.evolutionLayer);
@@ -198,10 +198,10 @@
         this.evolutionLayer.addTo(this.map);
         this.makeLegend('evolution','Olay Evrim İzi',`<div class="legendLine"><i style="background:#ff6b35;height:2px;border-top:2px dashed #ff6b35"></i><span>Zaman sıralı tespit yolu</span></div><div class="legendLine"><span>○</span><span>En eski tespit</span></div><div class="legendLine"><span>●</span><span>En yeni tespit</span></div><div class="sourceNote">Yalnızca ≥2 tespiti olan olaylar için. Çizgi yangın yayılma yönünü göstermez.</div>`);
       }
-    },
+    }
     toggleEventEvolution(show){
       if(show){if(!this.map.hasLayer(this.evolutionLayer))this.evolutionLayer.addTo(this.map);}else{if(this.map.hasLayer(this.evolutionLayer))this.map.removeLayer(this.evolutionLayer);}
-    },
+    }
     substationIcon(props){const raw=String(props?.voltage||'').split(/[;,]/).map(Number).filter(Number.isFinite),max=Math.max(0,...raw);const cls=max>=300000?'tm400':max>=66000?'tm154':'tmOther';return L.divIcon({className:'tmIconWrap',html:`<span class="tmIcon ${cls}">◆</span>`,iconSize:[18,18],iconAnchor:[9,9]});}
     async setGridGroup(key,data,show){if(this.gridLayers.has(key)){const layer=this.gridLayers.get(key);if(show&&!this.map.hasLayer(layer))layer.addTo(this.map);if(!show&&this.map.hasLayer(layer))this.map.removeLayer(layer);this.updateGridLegend();return;}if(!show)return;const cfg=C.gridSources[key],trFilter=f=>{if(key==='substations'){const c=f.geometry?.coordinates;return c&&U.insideRegion({lat:c[1],lon:c[0]});}const coords=f.geometry?.type==='LineString'?[f.geometry.coordinates]:f.geometry?.type==='MultiLineString'?f.geometry.coordinates:[];return coords.some(line=>line.some(c=>U.insideRegion({lat:c[1],lon:c[0]})));};let layer;if(key==='substations')layer=L.geoJSON(data,{filter:trFilter,pane:'gridPane',pointToLayer:(f,latlng)=>L.marker(latlng,{pane:'gridPane',icon:this.substationIcon(f.properties)}),onEachFeature:(f,l)=>{l.bindTooltip(this.gridTooltip(f.properties,true));l.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:e.latlng.lat,lon:e.latlng.lng,gridFeature:{kind:'substation',properties:f.properties,geometry:f.geometry}});});}});else layer=L.geoJSON(data,{filter:trFilter,pane:'gridPane',style:()=>({pane:'gridPane',renderer:this.renderer,color:cfg.color,weight:cfg.weight,opacity:(key==='400'?0.82:0.76)}),onEachFeature:(f,l)=>{l.bindTooltip(this.gridTooltip(f.properties,false),{sticky:true});l.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:e.latlng.lat,lon:e.latlng.lng,gridFeature:{kind:'line',group:key,properties:f.properties,geometry:f.geometry}});});}});this.gridLayers.set(key,layer);layer.addTo(this.map);this.updateGridLegend();}
     gridTooltip(p,isSub){return `<strong>${isSub?'Trafo Merkezi':'İletim Hattı'}</strong><br>${U.escapeHtml(p.name||'Adsız OSM elemanı')}<br>Gerilim: ${U.escapeHtml(p.voltage||p.voltageGroup||'bilinmiyor')}<br>${U.escapeHtml(p.operator||'Operatör bilgisi yok')}<br><small>OSM / ODbL</small>`;}
