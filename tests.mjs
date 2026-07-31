@@ -762,14 +762,15 @@ test('v3.4.0 — index.html: MTG layer + opacity slider present, removed layers 
   assert.equal(htmlTxt.includes('atmoHub'), false, 'no AtmoHub markup in index.html');
 });
 
-test('v3.4.0 — app.js: removed services gone, defaults wind ON / downwind+MTG+EFFIS BA OFF', () => {
+test('v3.4.3 — app.js: removed services gone, defaults wind/thermal/EFFIS BA/downwind ON, MTG OFF', () => {
   assert.equal(appTxt.includes('loadGfw'), false, 'loadGfw removed');
   assert.equal(appTxt.includes('loadFirePolygons'), false, 'loadFirePolygons removed');
   assert.equal(appTxt.includes('discoverAtmoHub'), false, 'discoverAtmoHub removed');
   assert.ok(/windEnabled:\s*true/.test(appTxt), 'windEnabled default true');
-  assert.ok(/downwindEnabled:\s*false/.test(appTxt), 'downwindEnabled default false');
+  assert.ok(/downwindEnabled:\s*true/.test(appTxt), 'downwindEnabled default true');
   assert.ok(/mtgEnabled:\s*false/.test(appTxt), 'mtgEnabled default false');
-  assert.ok(/effisBurntAreaEnabled:\s*false/.test(appTxt), 'EFFIS BA default false');
+  assert.ok(/effisBurntAreaEnabled:\s*true/.test(appTxt), 'EFFIS BA default true');
+  assert.ok(/frpThreshold:C\.frpThreshold/.test(appTxt), 'FRP threshold single-sourced from config');
 });
 
 test('v3.4.0 — timeline playback syncs MTG WMS time via setMtgTime', () => {
@@ -783,16 +784,16 @@ test('v3.4.0 — services table lists MTG GeoColour, no AtmoHub/GFW/FirePolygon 
   assert.equal(uiTxt.includes('FirePolygon'), false, 'no FirePolygon row');
 });
 
-test('v3.4.0 — substation square markers with risk classes, legacy tmIcon gone', () => {
+test('v3.4.3 — substation squares uniform: same size, black fill, blue border, no risk-level classes', () => {
   assert.ok(mapTxt.includes('substationSquare'), 'substationSquare divIcon class used');
-  assert.ok(mapTxt.includes("substation-risk-${cls}"), 'risk class template');
-  assert.ok(mapTxt.includes("'critical'"), 'critical risk level');
-  assert.ok(mapTxt.includes("'low'"), 'low risk level');
+  assert.equal(mapTxt.includes('substation-risk-critical'), false, 'no per-level square class in map.js');
+  assert.equal(mapTxt.includes('{critical:14,high:12,medium:10,watch:8,low:8}'), false, 'no size-by-risk template');
+  assert.equal(mapTxt.includes('width:${size}px'), false, 'no dynamic size template');
   assert.equal(mapTxt.includes('tmIcon'), false, 'legacy tmIcon class removed from map.js');
   assert.equal(cssTxt.includes('.tmIcon'), false, 'legacy tmIcon CSS removed');
-  assert.ok(cssTxt.includes('.substationSquare'), 'substation square CSS present');
-  assert.ok(cssTxt.includes('.substation-risk-low'), 'risk-low CSS present');
-  assert.ok(cssTxt.includes('.substation-risk-critical'), 'risk-critical CSS present');
+  assert.ok(cssTxt.includes('.substationSquare.substation-risk{width:10px;height:10px;background:#000;border:2px solid #2f80ff;box-sizing:border-box}'), 'uniform 10px black-fill blue-border square CSS');
+  assert.equal(cssTxt.includes('.substation-risk-critical'), false, 'risk-critical CSS removed');
+  assert.equal(cssTxt.includes('.substation-risk-low'), false, 'risk-low CSS removed');
 });
 
 test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for removed sources', () => {
@@ -801,7 +802,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.4.2'"), 'config appVersion 3.4.2');
+  assert.ok(cfgTxt2.includes("appVersion: '3.4.3'"), 'config appVersion 3.4.3');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1068,14 +1069,46 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.4.2 version bump to 3.4.2 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.4.2'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.4.2'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.4.2'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.4.2'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.4.2"'), 'package.json version');
+test('v3.4.3 version bump to 3.4.3 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.4.3'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.4.3'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.4.3'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.4.3'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.4.3"'), 'package.json version');
+  assert.equal(htmlTxt.includes('3.4.2'), false, 'no stale 3.4.2 in index.html');
   assert.equal(htmlTxt.includes('3.4.1'), false, 'no stale 3.4.1 in index.html');
   assert.equal(htmlTxt.includes('3.4.0'), false, 'no stale 3.4.0 in index.html');
+});
+
+// ── v3.4.3 — default layers + FRP default 30 + uniform substation squares ──
+console.log('\nv3.4.3 — default layers, FRP default, uniform squares');
+
+test('v3.4.3 — FRP default is 30 everywhere (config single source)', () => {
+  assert.equal(C().frpThreshold, 30, 'config frpThreshold = 30');
+  assert.ok(appTxt.includes('frpThreshold:C.frpThreshold'), 'app state reads config');
+  assert.ok(mapTxt.includes('this.frpThreshold=C.frpThreshold'), 'map manager reads config');
+  assert.ok(htmlTxt.includes('id="frpThreshold" type="range" min="0" max="200" step="5" value="30"'), 'slider initial value 30');
+  assert.ok(htmlTxt.includes('≥30 MW'), 'slider label 30');
+  assert.equal(htmlTxt.includes('value="50"'), false, 'no stale 50 default');
+});
+
+test('v3.4.3 — thermal envelope / EFFIS BA / downwind default ON', () => {
+  assert.ok(htmlTxt.includes('id="layerThermalEnvelope" type="checkbox" checked'), 'thermal envelope default checked');
+  assert.ok(htmlTxt.includes('id="layerEffisBurntArea" type="checkbox" checked'), 'EFFIS BA default checked');
+  assert.ok(htmlTxt.includes('id="layerDownwindCorridor" type="checkbox" checked'), 'downwind default checked');
+  assert.ok(/effisBurntAreaEnabled:\s*true/.test(appTxt), 'state EFFIS BA true');
+  assert.ok(/downwindEnabled:\s*true/.test(appTxt), 'state downwind true');
+  assert.ok(appTxt.includes('if(this.state.effisBurntAreaEnabled)this.map.toggleEffisBurntArea(true,this.state.selectedTime);'), 'EFFIS BA applied at init');
+});
+
+test('v3.4.3 — all three TM icon factories are identical 10px squares', () => {
+  const icons = mapTxt.slice(mapTxt.indexOf('substationIcon(){'), mapTxt.indexOf('setGridGroup'));
+  assert.ok(icons.includes('substationSquare substation-risk'), 'uniform square class in all factories');
+  assert.equal((icons.match(/iconSize:\[10,10\]/g) || []).length, 3, 'all three icons 10x10');
+  assert.equal((icons.match(/iconAnchor:\[5,5\]/g) || []).length, 3, 'all three anchored center');
+  assert.equal(icons.includes('width:${size}px'), false, 'no dynamic sizing');
+  assert.equal(icons.includes('background:#0a2531'), false, 'sector icon no legacy dark fill');
+  assert.equal(icons.includes('#7be6ff'), false, 'sector icon no legacy cyan border');
 });
 
 // ── FIRMS hexagon markers + Ayarlar tab rename ──
@@ -1143,10 +1176,11 @@ test('v3.4.1 — MTG playback steps 10 min per frame while enabled, else 3 h', (
 
 test('v3.4.1 — nearest-risk substation marker is a square (riskSubstationIcon)', () => {
   assert.ok(mapTxt.includes('riskSubstationIcon('), 'riskSubstationIcon helper exists');
-  assert.ok(mapTxt.includes('this.riskSubstationIcon(a.riskBand.level,c)'), 'nearest substation uses risk-colored square');
+  assert.ok(mapTxt.includes('this.riskSubstationIcon(a.riskBand.level,c)'), 'nearest substation uses square marker');
   const riskSrc = mapTxt.slice(mapTxt.indexOf('setFireImpacts'), mapTxt.indexOf('makeLegend(\'risk\''));
-  assert.ok(riskSrc.includes('L.marker([s.feature.lat,s.feature.lon]'), 'substation rendered as marker (square) not circleMarker');
-  assert.ok(mapTxt.includes('{critical:14,high:12,medium:10,watch:8,low:8}'), 'square sizes critical14/high12/medium10/low-watch8');
+  assert.ok(riskSrc.includes('if(s)L.marker([s.feature.lat,s.feature.lon]'), 'substation rendered as marker (square) not circleMarker');
+  assert.equal(riskSrc.includes('L.circleMarker([s.feature.lat'), false, 'no circleMarker for TM symbol');
+  assert.equal(mapTxt.includes('{critical:14,high:12,medium:10,watch:8,low:8}'), false, 'no per-level square sizes');
 });
 
 test('v3.4.1 — downwind sector substations are squares (sectorSubstationIcon)', () => {

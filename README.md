@@ -1,8 +1,9 @@
-﻿# Türkiye Wildfire Grid Risk Monitor v3.4.2
+﻿# Türkiye Wildfire Grid Risk Monitor v3.4.3
 
 > **Harita serbesttir; veri Türkiye ile sınırlıdır.** GitHub Pages'te GITHUB PAGES modunda çalışır.
 
 
+- **v3.4.3** Varsayılan katman ve sembol düzeltmeleri: Min. FRP filtresi varsayılanı 50 → **30 MW** (tek kaynak: `config.js` `frpThreshold` — state, slider, reset ve `MapManager` aynı değeri kullanır); **Tahmini termal yayılım, EFFIS Yanmış Alanlar ve Rüzgâr bazlı koridor varsayılan AÇIK**; tüm trafo merkezi risk kareleri tek stile sabitlendi (10×10 px, siyah dolgu, mavi 2 px çerçeve — seviyeye göre boyut/renk yok).
 - **v3.4.2** MTG hotfix: yeni timeline/kullanıcı zamanı seçimi backfill bütçesini sıfırlar (`backfillAttempt = 0` — her istek kendi 12-slot bütçesini alır, `applyBackfill` bütçeyi değiştirmez); `mtgFmt()` zaten `" UTC"` eklediği için lejant/service-monitor/backfill metinlerindeki tekrarlanan `UTC` eki kaldırıldı.
 - **v3.4.1** MTG GeoColour resmi EUMETView endpoint'ine taşındı (`view.eumetsat.int/geoserver/wms`, WMS 1.3.0), zaman slotu floor + gelecek-clamp (gelecek frame üretilmez), frame-bazlı backfill (tile değil frame; en çok 12 slot), gösterilen vs istenen frame zamanı ayrımı, MTG açıkken 10 dk playback, riskli trafo merkezleri kare sembollerle, service monitor yeni durumları (loading/backfill/no-frame/Geçersiz WMS yanıtı).
 - **v3.4** EUMETSAT MTG-I FCI **GeoColour gerçek uydu görüntüsü** (WMS, 10 dk slot, timeline senkronu) eklendi; AtmoHub, AFAD/İhtiyaç Haritası FirePolygon, GFW ve eski MTG active-fire adapter'ları tamamen kaldırıldı. EFFIS Burnt Area birincil doğrulama poligonu yapıldı.
@@ -10,7 +11,7 @@
 - Runtime mode detection: `file:` → DOSYA MODU, `localhost`/`127.0.0.1` → SUNUCU MODU, GitHub Pages → GITHUB PAGES, diğer HTTPS → WEB MODU.
 - `index.html` doğrudan (`file://`) açıldığında şebeke GeoJSON'ları `.js` fallback dosyalarından yüklenir. Bu modda FIRMS Node proxy çalışmaz; MTG/EFFIS uydu katmanları doğrudan tarayıcıdan EUMETSAT WMS'e gider.
 
-# Türkiye Wildfire Grid Risk Monitor v3.4.2
+# Türkiye Wildfire Grid Risk Monitor v3.4.3
 
 Türkiye içindeki orman yangını termal tespitlerini, yangın kaynaklı yüzey PM10 model bileşenini, rüzgârı, EFFIS Fire Weather Index ve Burnt Area katmanlarını, EUMETSAT MTG-I GeoColour gerçek uydu görüntüsünü ve kullanıcı tarafından sağlanan OpenStreetMap iletim şebekesi verisini aynı haritada birleştiren yerel web uygulaması.
 
@@ -24,6 +25,13 @@ Genel hava kalitesi izlemek yerine şu operasyonel sorulara odaklanır:
 - Rüzgâr alanının aşağı-rüzgâr tarafında hangi şebeke koridorları izlenmeli?
 - Gerçek uydu görüntüsü (MTG GeoColour) ne gösteriyor?
 - Hangi olaylar önce incelenmeli?
+
+## v3.4.3 değişiklikleri
+
+- **Min. FRP filtresi 30 MW**: varsayılan eşik 50 → 30 (30 MW+ yangınlar artık varsayılan görünümde; 0 MW zaten hepsini gösterir). Eşik tek kaynaktan gelir: `config.js` → `frpThreshold: 30`; app state, Ayarlar'daki slider başlangıç değeri (`value="30"` / `≥30 MW`), sıfırlama ve `MapManager.frpThreshold` aynı sabiti kullanır — magic number yok.
+- **Varsayılan katmanlar açık**: Tahmini termal yayılım, EFFIS Yanmış Alanlar (DOĞRULAMA) ve Rüzgâr bazlı yayılım koridoru sayfa açılışında AÇIK. EFFIS BA katmanı artık init sırasında da uygulanır (uydu verisi geldiğinde de otomatik çizilir); kullanıcı tercihleri localStorage'da kayıtlıysa yine de kendi seçimi korunur.
+- **Tek tip TM risk karesi**: trafo merkezi risk sembolleri (en yakın riskli TM, koridordaki TM, şebeke TM'leri ve lejant örnekleri) artık seviyeye/gerilime göre boyut veya renk değiştirmez — her yerde 10×10 px, siyah dolgu `#000`, 2 px mavi çerçeve `#2f80ff` (`box-sizing: border-box`); seviye bilgisi yalnız risk tablosu/halkalarında kalır.
+- Testler **107/107** (3 yeni regression testi: FRP 30 tek kaynak + slider/label, üç katman varsayılan açık + init uygulaması, üç ikon fabrikası aynı 10×10 kare, eski seviye-boyut/renk kalıntısı yok).
 
 ## v3.4.2 değişiklikleri
 
