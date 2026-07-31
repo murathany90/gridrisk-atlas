@@ -36,7 +36,6 @@ const U = AtmoApp.Utils;
 // ── Load api ──
 const apiPath = 'js/api.js';
 eval(readFileSync(apiPath, 'utf8'));
-const FPA = AtmoApp.FirePolygonAdapter;
 
 // ── Load map ──
 const mapPath = 'js/map.js';
@@ -261,151 +260,6 @@ test('time separation prevents clustering', () => {
 });
 
 // ============================================================
-// ITEM 3 — FirePolygonAdapter lastGood / stale / empty / error
-// ============================================================
-console.log('\nItem 3 — FirePolygonAdapter lastGood / stale / empty / error');
-
-function lgEntry() { return FPA._lastGood(FPA.dateRange()) || { fc: null, at: null }; }
-function lgFeatures() { const e = lgEntry(); return e.fc; }
-function lgAt() { const e = lgEntry(); return e.at; }
-
-async function resetAdapter() {
-  AtmoApp.FirePolygonAdapter = FPA;
-  FPA._lastGoodMap.clear();
-  AtmoApp.Cache.clear();
-  global.fetch = null;
-  // Reset date range to default 7d
-  const now = Date.now();
-  FPA.setDateRange(now - 7 * 86400000, now);
-}
-
-function mockFetch(features, opts = {}) {
-  const failCount = opts.failCount ?? 0;
-  let callCount = 0;
-  global.fetch = async (url) => {
-    callCount++;
-    if (callCount <= failCount) throw new Error(opts.errorMsg || 'NETWORK_ERROR');
-    return {
-      ok: true,
-      status: 200,
-      json: async () => ({ type: 'FeatureCollection', features, exceededTransferLimit: false })
-    };
-  };
-}
-
-test('ok: features>0 updates state and lastGood', async () => {
-  await resetAdapter();
-  mockFetch([{ type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] }, properties: { date: '2026-07-30', il: 'Antalya', konum: 'Manavgat', area_ha: 500 } }]);
-  const r = await FPA.load(new AbortController().signal);
-  assert.ok(!r._stale, 'not stale');
-  assert.ok(!r._error, 'no error');
-  assert.equal(r.features.length, 1);
-  const lg = lgFeatures();
-  assert.ok(lg !== null, 'lastGood set');
-  assert.equal(lg.features.length, 1);
-  assert.ok(lgAt() !== null, 'lastSuccessfulAt set');
-});
-
-test('empty: features=0 clears polygons, does not update lastGood', async () => {
-  await resetAdapter();
-  mockFetch([{ type: 'Feature', properties: { date: '2026-07-30', il: 'Antalya', konum: 'Manavgat', area_ha: 500 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }]);
-  const r1 = await FPA.load(new AbortController().signal);
-  assert.equal(r1.features.length, 1);
-  assert.ok(lgFeatures() !== null);
-  AtmoApp.Cache.clear();
-
-  mockFetch([]);
-  const r2 = await FPA.load(new AbortController().signal);
-  assert.equal(r2.features.length, 0, 'empty features');
-  assert.ok(!r2._stale, 'not stale');
-  assert.ok(!r2._error, 'no error');
-  assert.equal(lgFeatures().features.length, 1, 'lastGood unchanged after empty');
-});
-
-test('failure+lastGood→stale', async () => {
-  await resetAdapter();
-  mockFetch([{ type: 'Feature', properties: { date: '2026-07-30', il: 'Antalya', area_ha: 500 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }]);
-  await FPA.load(new AbortController().signal);
-  assert.ok(lgFeatures() !== null);
-  AtmoApp.Cache.clear();
-
-  mockFetch([], { failCount: 1, errorMsg: 'NETWORK_ERROR' });
-  const r = await FPA.load(new AbortController().signal);
-  assert.ok(r._stale, 'marked as stale');
-  assert.ok(r._error, 'has error');
-  assert.equal(r.features.length, 1, 'stale returns lastGood data');
-});
-
-test('partial pagination does not update lastGood', async () => {
-  await resetAdapter();
-  FPA.setDateRange(Date.now()-30*86400000, Date.now());
-  let call=0;
-  global.fetch = async (url) => {
-    call++;
-    if(call===1) return { ok:true, json:async()=>({type:'FeatureCollection',features:[{type:'Feature',properties:{date:'2026-07-01',il:'Antalya',area_ha:100},geometry:{type:'Polygon',coordinates:[[[0,0],[1,0],[1,1],[0,1],[0,0]]]}}],exceededTransferLimit:true}) };
-    throw new Error('NETWORK_ERROR');
-  };
-  const r = await FPA.load(new AbortController().signal);
-  assert.ok(r._partial, 'result has _partial flag');
-  assert.equal(FPA._lastGoodMap.size, 0, 'partial pagination does not store lastGood');
-});
-
-test('failure+noLastGood→error', async () => {
-  await resetAdapter();
-  mockFetch([], { failCount: 1, errorMsg: 'NETWORK_ERROR' });
-  const r = await FPA.load(new AbortController().signal);
-  assert.ok(!r._stale, 'not stale');
-  assert.ok(r._error, 'has error');
-  assert.equal(r.features.length, 0, 'empty features');
-});
-
-test('pre-aborted signal throws ABORTED without state change', async () => {
-  await resetAdapter();
-  mockFetch([{ type: 'Feature', properties: { date: '2026-07-30', il: 'Antalya', area_ha: 500 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }]);
-  const ctrl = new AbortController();
-  ctrl.abort();
-  let err = null;
-  try { await FPA.load(ctrl.signal); } catch (e) { err = e; }
-  assert.ok(err, 'load throws on pre-aborted signal');
-  assert.equal(err.kind, 'ABORTED', 'controlled ABORTED error');
-  assert.equal(FPA._lastGoodMap.size, 0, 'lastGoodMap unchanged after aborted load');
-});
-
-test('stale metadata includes count and lastSuccessfulAt', async () => {
-  await resetAdapter();
-  const before = Date.now();
-  mockFetch([{ type: 'Feature', properties: { date: '2026-07-30', il: 'Antalya', area_ha: 500 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }]);
-  await FPA.load(new AbortController().signal);
-  assert.ok(lgAt() >= before, 'lastSuccessfulAt recorded');
-  AtmoApp.Cache.clear();
-
-  mockFetch([], { failCount: 1, errorMsg: 'NETWORK_ERROR' });
-  const r = await FPA.load(new AbortController().signal);
-  assert.ok(r._stale, 'stale');
-  assert.ok(r._error.includes('NETWORK_ERROR'), 'error message preserved');
-  assert.equal(r.features.length, 1, 'returns lastGood data');
-});
-
-test('lastGood updated only on non-empty success', async () => {
-  await resetAdapter();
-  AtmoApp.Cache.clear();
-  mockFetch([]);
-  await FPA.load(new AbortController().signal);
-  assert.equal(FPA._lastGoodMap.size, 0, 'lastGood not set on empty');
-
-  AtmoApp.Cache.clear();
-  mockFetch([{ type: 'Feature', properties: { date: '2026-07-30', il: 'Antalya', area_ha: 500 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }]);
-  const r = await FPA.load(new AbortController().signal);
-  assert.equal(r.features.length, 1);
-  assert.equal(lgFeatures().features.length, 1, 'lastGood set after non-empty');
-  AtmoApp.Cache.clear();
-
-  mockFetch([]);
-  await FPA.load(new AbortController().signal);
-  assert.equal(lgFeatures().features.length, 1, 'lastGood preserved after empty success');
-});
-
-// ============================================================
 // ITEM 4 (v3.3) — FireObservation normalization
 // ============================================================
 console.log('\nv3.3 — FireObservation normalization');
@@ -521,30 +375,6 @@ test('clusterFires includes products and satellites', () => {
 });
 
 // ============================================================
-// v3.3 — FirePolygonAdapter date range
-// ============================================================
-console.log('\nv3.3 — FirePolygonAdapter date range');
-
-test('FirePolygonAdapter dateRange returns default values', () => {
-  assert.ok(FPA.dateRange().start <= Date.now());
-  assert.ok(FPA.dateRange().end <= Date.now());
-  assert.ok(FPA.dateRange().start < FPA.dateRange().end);
-});
-
-test('FirePolygonAdapter setDateRange persists rolling days', () => {
-  localStorage.removeItem('firePolygonRangeDays');
-  const start = Date.now() - 14 * 86400000;
-  const end = Date.now();
-  FPA.setDateRange(start, end);
-  const r = FPA.dateRange();
-  const diff = Math.round((r.end - r.start) / 86400000);
-  assert.equal(diff, 14, 'dateRange returns 14-day rolling window');
-  assert.ok(r.end > Date.now() - 1000, 'end is rolling (now)');
-  // Cleanup
-  localStorage.removeItem('firePolygonRangeDays');
-});
-
-// ============================================================
 // v3.3 — FirmsAdapter AUTO mode
 // ============================================================
 console.log('\nv3.3 — FirmsAdapter AUTO mode');
@@ -593,28 +423,35 @@ test('null/NaN/zero scan/track is skipped', () => {
 });
 
 // ============================================================
-// Audit — MTG demonstration metadata
+// v3.4.0 — MTG GeoColour WMS config
 // ============================================================
-console.log('\nAudit — MTG adapter');
+console.log('\nv3.4.0 — MTG GeoColour WMS config');
 
-test('MTG adapter status is NOT_CONFIGURED', () => {
-  assert.equal(AtmoApp.MtgAdapter.status, 'NOT_CONFIGURED');
+test('mtgGeoColourWms config points at EUMETSAT WMS GeoColour layer', () => {
+  const m = C().mtgGeoColourWms;
+  assert.ok(m, 'mtgGeoColourWms defined');
+  assert.ok(m.url.includes('eumetview.eumetsat.int/geoserv/wms'), 'EUMETSAT WMS endpoint');
+  assert.equal(m.layer, 'mtg_fd:rgb_geocolour', 'GeoColour layer id');
+  assert.equal(m.slotMinutes, 10, '10-minute slot cadence');
+  assert.equal(m.version, '1.1.1', 'WMS 1.1.1 (EPSG:4326 srs)');
+  assert.equal(m.format, 'image/png', 'PNG format only');
+  assert.equal(m.crs, 'EPSG:4326', 'EPSG:4326 projection');
+  assert.ok(m.defaultOpacity >= 0 && m.defaultOpacity <= 1, 'default opacity valid');
 });
 
-test('MTG adapter load returns empty without key', async () => {
-  const result = await AtmoApp.MtgAdapter.load(new AbortController().signal);
-  assert.ok(Array.isArray(result));
-  assert.equal(result.length, 0);
+test('mtgGeoColourWms source text identifies real satellite imagery', () => {
+  const m = C().mtgGeoColourWms;
+  assert.ok(m.source.includes('EUMETSAT MTG-I FCI'), 'source credits MTG-I FCI');
+  assert.ok(m.source.includes('gerçek uydu görüntüsü'), 'source marks real imagery');
 });
 
-test('MTG adapter does not crash on load', async () => {
-  let threw = false;
-  try {
-    await AtmoApp.MtgAdapter.load(new AbortController().signal);
-  } catch(e) {
-    threw = true;
-  }
-  assert.equal(threw, false, 'MTG load does not throw');
+test('MTG pane z-index 240 sits below air and grid panes', () => {
+  const mapTxt2 = readFileSync('js/map.js', 'utf8');
+  assert.ok(mapTxt2.includes("mtgPane") && /mtgPane.*240/.test(mapTxt2), 'mtg pane created with z-index 240');
+  const air = mapTxt2.indexOf("createPane('airPane')");
+  const mtg = mapTxt2.indexOf("createPane('mtgPane')");
+  const grid = mapTxt2.indexOf("createPane('gridPane')");
+  assert.ok(mtg !== -1 && mtg < air && air < grid, 'mtg pane created before air and grid panes');
 });
 
 // ============================================================
@@ -633,134 +470,6 @@ test('same observation duplicated twice → 1 observation after dedup', () => {
   const d = { product: 'VIIRS_NOAA21_NRT', satellite: 'NOAA-21', detectedAt: '2026-07-30T12:00:00Z', lat: 39.1, lon: 33.1, frp: 50, source: 'NASA FIRMS' };
   const result = U.deduplicateDetections([d, { ...d }]);
   assert.equal(result.length, 1);
-});
-
-// ============================================================
-// Audit — FirePolygon date range cache separation
-// ============================================================
-console.log('\nAudit — FirePolygon date range');
-
-test('FirePolygonAdapter dateRange default 7 days', () => {
-  localStorage.removeItem('firePolygonRangeDays');
-  const range = AtmoApp.FirePolygonAdapter.dateRange();
-  const diffDays = (range.end - range.start) / 86400000;
-  assert.ok(Math.abs(diffDays - 7) <= 1, `default range ~7 days, got ${diffDays}`);
-});
-
-test('date range race: seq check prevents overwrite', () => {
-  let seq = 0;
-  function simulateLoad(days) {
-    const s = ++seq;
-    const end = Date.now();
-    const start = end - days * 86400000;
-    AtmoApp.FirePolygonAdapter.setDateRange(start, end);
-    const mySeq = s;
-    return function check() {
-      if (mySeq !== seq) return false;
-      return true;
-    };
-  }
-  const c1 = simulateLoad(30);
-  const c2 = simulateLoad(3);
-  assert.ok(c2(), 'second (3d) check passes');
-  assert.ok(!c1(), 'first (30d) check fails — stale overwrite prevented');
-});
-
-test('cache key differs per date range', () => {
-  const rk1 = FPA._rangeKey({ start: Date.now() - 3 * 86400000, end: Date.now() });
-  const rk2 = FPA._rangeKey({ start: Date.now() - 7 * 86400000, end: Date.now() });
-  const rk3 = FPA._rangeKey({ start: Date.now() - 30 * 86400000, end: Date.now() });
-  assert.notEqual(rk1, rk2, '3d key ≠ 7d key');
-  assert.notEqual(rk2, rk3, '7d key ≠ 30d key');
-  assert.notEqual(rk1, rk3, '3d key ≠ 30d key');
-  // Same range produces same key
-  const a = Date.now() - 7 * 86400000, b = Date.now();
-  assert.equal(FPA._rangeKey({ start: a, end: b }), FPA._rangeKey({ start: a, end: b }), 'same range → same key');
-});
-
-test('30d lastGood not used as stale fallback for 3d request', async () => {
-  await resetAdapter();
-  // Set 30d range and load successfully
-  FPA.setDateRange(Date.now() - 30 * 86400000, Date.now());
-  mockFetch([{ type: 'Feature', properties: { date: '2026-07-01', il: 'Antalya', area_ha: 100 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }]);
-  await FPA.load(new AbortController().signal);
-  assert.equal(FPA._lastGoodMap.size, 1, '30d lastGood stored');
-  AtmoApp.Cache.clear();
-
-  // Switch to 3d range and fail
-  FPA.setDateRange(Date.now() - 3 * 86400000, Date.now());
-  mockFetch([], { failCount: 1, errorMsg: 'NETWORK_ERROR' });
-  const r = await FPA.load(new AbortController().signal);
-  assert.ok(r._stale === undefined || r._stale === false, '3d request not stale from 30d lastGood');
-  assert.equal(r.features.length, 0, 'no stale fallback for different range');
-  assert.equal(FPA._lastGoodMap.size, 1, 'only 30d lastGood remains');
-});
-
-test('30d→3d race + cache combination', async () => {
-  await resetAdapter();
-  // Set 30d range
-  FPA.setDateRange(Date.now() - 30 * 86400000, Date.now());
-  const rk30 = FPA._rangeKey(FPA.dateRange());
-  // Switch to 3d range immediately (simulating user switching before 30d completes)
-  FPA.setDateRange(Date.now() - 3 * 86400000, Date.now());
-  const rk3 = FPA._rangeKey(FPA.dateRange());
-  // Verify keys are different
-  assert.notEqual(rk30, rk3, '30d and 3d have different range keys');
-
-  // 30d response arrives late → should NOT overwrite 3d cache
-  // Simulate by checking that cache keys are isolated
-  AtmoApp.Cache.set(`firePolygons:${rk30}`, { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-01' } }] }, 60000);
-  AtmoApp.Cache.set(`firePolygons:${rk3}`, { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-28' } }] }, 60000);
-  const c30 = AtmoApp.Cache.get(`firePolygons:${rk30}`);
-  const c3 = AtmoApp.Cache.get(`firePolygons:${rk3}`);
-  assert.ok(c30 !== null, '30d cache present');
-  assert.ok(c3 !== null, '3d cache present');
-  assert.notEqual(c30, c3, 'different cache values for different ranges');
-});
-
-test('date range note appears in load result', async () => {
-  await resetAdapter();
-  FPA.setDateRange(Date.now() - 3 * 86400000, Date.now());
-  mockFetch([{ type: 'Feature', properties: { date: '2026-07-30', il: 'Antalya', area_ha: 500 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }]);
-  const r = await FPA.load(new AbortController().signal);
-  assert.ok(r._rangeKey, 'result has _rangeKey');
-  assert.ok(/^\d+:\d+$/.test(r._rangeKey), `rangeKey uses days:hourBucket format, got ${r._rangeKey}`);
-  assert.ok(r._rangeKey.startsWith('3:'), `rangeKey reflects 3-day preset, got ${r._rangeKey}`);
-  // Reset
-  FPA.setDateRange(Date.now() - 7 * 86400000, Date.now());
-});
-
-test('different date ranges store separate lastGood entries', async () => {
-  await resetAdapter();
-  // Load 7d successfully
-  FPA.setDateRange(Date.now() - 7 * 86400000, Date.now());
-  mockFetch([{ type: 'Feature', properties: { date: '2026-07-25', il: 'Antalya', area_ha: 100 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }]);
-  await FPA.load(new AbortController().signal);
-  assert.equal(FPA._lastGoodMap.size, 1);
-
-  // Load 3d successfully (different range)
-  FPA.setDateRange(Date.now() - 3 * 86400000, Date.now());
-  mockFetch([{ type: 'Feature', properties: { date: '2026-07-28', il: 'Mugla', area_ha: 50 }, geometry: { type: 'Polygon', coordinates: [[[2,2],[3,2],[3,3],[2,3],[2,2]]] } }]);
-  await FPA.load(new AbortController().signal);
-  assert.equal(FPA._lastGoodMap.size, 2, 'two separate lastGood entries');
-
-  // 7d request fails → uses 7d lastGood (not 3d)
-  FPA.setDateRange(Date.now() - 7 * 86400000, Date.now());
-  AtmoApp.Cache.clear();
-  mockFetch([], { failCount: 1, errorMsg: 'NETWORK_ERROR' });
-  const r = await FPA.load(new AbortController().signal);
-  assert.ok(r._stale, '7d stale');
-  assert.equal(r.features.length, 1, '7d stale returns 7d data with 1 feature');
-  assert.equal(r.features[0].properties.il, 'Antalya', 'correct 7d data');
-
-  // 3d lastGood still intact
-  FPA.setDateRange(Date.now() - 3 * 86400000, Date.now());
-  const lg3 = FPA._lastGood(FPA.dateRange());
-  assert.ok(lg3 !== null, '3d lastGood preserved');
-  assert.equal(lg3.fc.features[0].properties.il, 'Mugla', '3d data correct');
-
-  // Reset
-  FPA.setDateRange(Date.now() - 7 * 86400000, Date.now());
 });
 
 // ============================================================
@@ -886,153 +595,6 @@ test('setTimeOffset wiring syncs EFFIS BA when enabled', () => {
 });
 
 // ============================================================
-// v3.3.2 — FirePolygon rolling cache (preset + hour bucket)
-// ============================================================
-console.log('\nv3.3.2 — FirePolygon rolling cache');
-
-test('1d hour-bucket cache keys differ across hours', () => {
-  const k1 = FPA.cacheKey(1, new Date('2026-07-30T09:00:00Z').getTime());
-  const k2 = FPA.cacheKey(1, new Date('2026-07-30T18:00:00Z').getTime());
-  assert.notEqual(k1, k2, '09:00 and 18:00 → different hour buckets → different keys');
-});
-
-test('preset cache isolation: 1d/3d/7d/30d keys never collide', () => {
-  const t = Date.now();
-  const keys = new Set([FPA.cacheKey(1, t), FPA.cacheKey(3, t), FPA.cacheKey(7, t), FPA.cacheKey(30, t)]);
-  assert.equal(keys.size, 4, 'four distinct preset keys');
-});
-
-test('same preset + same hour bucket reuses cache key', () => {
-  const t1 = new Date('2026-07-30T10:30:00Z').getTime();
-  const t2 = new Date('2026-07-30T10:45:00Z').getTime();
-  assert.equal(FPA.cacheKey(7, t1), FPA.cacheKey(7, t2), 'same hour bucket → same key');
-});
-
-test('cache key format: firePolygons:{days}:{hourBucket}', () => {
-  const t = new Date('2026-07-30T10:30:00Z').getTime();
-  const bucket = Math.floor(t / 3600000);
-  assert.equal(FPA.cacheKey(3, t), `firePolygons:3:${bucket}`);
-});
-
-test('same preset same hour bucket load served from cache without refetch', async () => {
-  await resetAdapter();
-  FPA.setDateRange(Date.now() - 1 * 86400000, Date.now());
-  let calls = 0;
-  global.fetch = async () => { calls++; return { ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-30', il: 'Antalya', area_ha: 100 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }], exceededTransferLimit: false }) }; };
-  const r1 = await FPA.load(new AbortController().signal);
-  assert.equal(calls, 1);
-  const r2 = await FPA.load(new AbortController().signal);
-  assert.equal(calls, 1, 'cache hit — no second fetch in same hour bucket');
-  assert.equal(r2.features.length, 1);
-});
-
-test('different presets do not share cache entries', async () => {
-  await resetAdapter();
-  FPA.setDateRange(Date.now() - 3 * 86400000, Date.now());
-  let calls = 0;
-  global.fetch = async () => { calls++; return { ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-28', il: 'Mugla', area_ha: 50 }, geometry: { type: 'Polygon', coordinates: [[[2,2],[3,2],[3,3],[2,3],[2,2]]] } }], exceededTransferLimit: false }) }; };
-  await FPA.load(new AbortController().signal);
-  assert.equal(calls, 1);
-  FPA.setDateRange(Date.now() - 7 * 86400000, Date.now());
-  await FPA.load(new AbortController().signal);
-  assert.equal(calls, 2, '7d preset refetches — no shared cache with 3d');
-});
-
-// ============================================================
-// v3.3.2 — FirePolygon pagination abort
-// ============================================================
-console.log('\nv3.3.2 — FirePolygon pagination abort');
-
-test('abort during page 2 throws ABORTED, no partial/lastGood', async () => {
-  await resetAdapter();
-  FPA.setDateRange(Date.now() - 30 * 86400000, Date.now());
-  let call = 0;
-  const ctrl = new AbortController();
-  global.fetch = (url, { signal }) => {
-    call++;
-    if (call === 1) return Promise.resolve({ ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-01', il: 'Antalya', area_ha: 100 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }], exceededTransferLimit: true }) });
-    return new Promise((_, rej) => {
-      signal.addEventListener('abort', () => rej(Object.assign(new Error('Aborted'), { name: 'AbortError' })));
-      ctrl.abort();
-    });
-  };
-  let err = null;
-  try { await FPA.load(ctrl.signal); } catch (e) { err = e; }
-  assert.ok(err, 'load throws');
-  assert.equal(err.kind, 'ABORTED', 'controlled ABORTED error, not partial completion');
-  assert.equal(FPA._lastGoodMap.size, 0, 'lastGood not updated on abort');
-});
-
-// ============================================================
-// v3.3.2 — FirePolygon MAX_PAGES safety limit
-// ============================================================
-console.log('\nv3.3.2 — FirePolygon MAX_PAGES safety limit');
-
-test('MAX_PAGES with exceededTransferLimit → _partial, warn, no lastGood', async () => {
-  await resetAdapter();
-  FPA.setDateRange(Date.now() - 30 * 86400000, Date.now());
-  let calls = 0;
-  let note = '';
-  const off = AtmoApp.Events.on('service', p => { if (p.id === 'firePolygon') note = p.note; });
-  global.fetch = async () => { calls++; return { ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-01', il: 'Antalya', area_ha: 100 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }], exceededTransferLimit: true }) }; };
-  const r = await FPA.load(new AbortController().signal);
-  off();
-  assert.equal(calls, 50, 'pagination hit safety limit');
-  assert.equal(r._partial, true, '_partial === true');
-  assert.equal(r.features.length, 50, 'partial dataset accumulated');
-  assert.equal(FPA._lastGoodMap.size, 0, 'lastGood not updated for incomplete data');
-  assert.ok(note.includes('kısmi veri'), 'warn note mentions partial: ' + note);
-});
-
-test('MAX_PAGES partial prefers complete lastGood as stale', async () => {
-  await resetAdapter();
-  FPA.setDateRange(Date.now() - 30 * 86400000, Date.now());
-  const feat = () => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-01', il: 'Antalya', area_ha: 100 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }], exceededTransferLimit: false });
-  global.fetch = async () => { const f = feat(); return { ok: true, status: 200, json: async () => f }; };
-  await FPA.load(new AbortController().signal);
-  assert.equal(FPA._lastGoodMap.size, 1, 'complete lastGood stored');
-  AtmoApp.Cache.clear();
-  global.fetch = async () => { const f = feat(); f.exceededTransferLimit = true; return { ok: true, status: 200, json: async () => f }; };
-  const r2 = await FPA.load(new AbortController().signal);
-  assert.ok(r2._stale, 'stale preferred over partial');
-  assert.equal(r2.features.length, 1, 'stale returns lastGood data');
-  assert.equal(FPA._lastGoodMap.size, 1, 'lastGood unchanged');
-});
-
-// ============================================================
-// v3.3.2 — FirePolygon empty message by preset
-// ============================================================
-console.log('\nv3.3.2 — FirePolygon empty message by preset');
-
-test('emptyNote matches each preset', () => {
-  assert.equal(FPA.emptyNote(1), 'Son 24 saatte yangın alanı bulunmadı');
-  assert.equal(FPA.emptyNote(3), 'Son 3 günde yangın alanı bulunmadı');
-  assert.equal(FPA.emptyNote(7), 'Son 7 günde yangın alanı bulunmadı');
-  assert.equal(FPA.emptyNote(30), 'Son 30 günde yangın alanı bulunmadı');
-});
-
-test('empty load reports preset-based message', async () => {
-  await resetAdapter();
-  let note = '';
-  const off = AtmoApp.Events.on('service', p => { if (p.id === 'firePolygon') note = p.note; });
-  FPA.setDateRange(Date.now() - 1 * 86400000, Date.now());
-  mockFetch([]);
-  await FPA.load(new AbortController().signal);
-  assert.ok(note.includes('Son 24 saatte'), '1d preset empty message: ' + note);
-  AtmoApp.Cache.clear();
-  FPA.setDateRange(Date.now() - 7 * 86400000, Date.now());
-  mockFetch([]);
-  await FPA.load(new AbortController().signal);
-  assert.ok(note.includes('Son 7 günde'), '7d preset empty message: ' + note);
-  AtmoApp.Cache.clear();
-  FPA.setDateRange(Date.now() - 30 * 86400000, Date.now());
-  mockFetch([]);
-  await FPA.load(new AbortController().signal);
-  assert.ok(note.includes('Son 30 günde'), '30d preset empty message: ' + note);
-  off();
-});
-
-// ============================================================
 // v3.3.2 — AbortSignal listener cleanup
 // ============================================================
 console.log('\nv3.3.2 — AbortSignal listener cleanup');
@@ -1103,31 +665,6 @@ test('fetchText removes external abort listener on success and abort', async () 
 });
 
 // ============================================================
-// v3.3.3 — FirePolygon pagination completed next page = ok
-// ============================================================
-console.log('\nv3.3.3 — FirePolygon pagination completed next page');
-
-test('page1 exceeded=true then page2 exceeded=false → ok, lastGood saved', async () => {
-  await resetAdapter();
-  FPA.setDateRange(Date.now() - 30 * 86400000, Date.now());
-  let call = 0, note = '';
-  const off = AtmoApp.Events.on('service', p => { if (p.id === 'firePolygon') note = p.note; });
-  global.fetch = async () => {
-    call++;
-    const exceeded = call === 1;
-    return { ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-01', il: 'Antalya', area_ha: 100 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }], exceededTransferLimit: exceeded }) };
-  };
-  const r = await FPA.load(new AbortController().signal);
-  off();
-  assert.equal(call, 2, 'two pages fetched');
-  assert.equal(r._partial, false, 'NOT partial — page 2 completed the dataset');
-  assert.equal(r._stale, undefined, 'not stale');
-  assert.equal(r.features.length, 2, 'both pages accumulated');
-  assert.equal(FPA._lastGoodMap.size, 1, 'complete multi-page result stored as lastGood');
-  assert.ok(!note.includes('kısmi'), 'report ok without partial note: ' + note);
-});
-
-// ============================================================
 // v3.3.3 — Legend cleanup on off / empty
 // ============================================================
 console.log('\nv3.3.3 — Legend cleanup');
@@ -1153,106 +690,102 @@ test('toggle off and empty dataset remove footprint/thermal/evolution legends', 
 });
 
 // ============================================================
-// v3.3.3 — FirePolygon lastGood rolling range key (days:hourBucket)
-// ============================================================
-console.log('\nv3.3.3 — FirePolygon lastGood rolling range key');
-
-test('rangeKey format is days:hourBucket', () => {
-  const k = FPA._rangeKey({ start: Date.now() - 3 * 86400000, end: Date.now() });
-  assert.ok(/^3:\d+$/.test(k), `got ${k}`);
-});
-
-test('rangeKey differs when rolling window moves to next hour bucket (same calendar days)', () => {
-  const endA = new Date('2026-07-30T10:30:00Z').getTime();
-  const endB = new Date('2026-07-30T11:45:00Z').getTime();
-  const kA = FPA._rangeKey({ start: endA - 86400000, end: endA });
-  const kB = FPA._rangeKey({ start: endB - 86400000, end: endB });
-  assert.ok(/^1:\d+$/.test(kA), `1d key format: ${kA}`);
-  assert.notEqual(kA, kB, 'same calendar date pair, different hour bucket → different key');
-});
-
-test('lastGood lookup is hour-bucket scoped; 24h-old window not matched', async () => {
-  await resetAdapter();
-  const endA = new Date('2026-07-30T10:30:00Z').getTime();
-  const endB = new Date('2026-07-30T11:45:00Z').getTime();
-  FPA._setLastGood({ start: endA - 86400000, end: endA }, { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { il: 'Antalya' } }] });
-  const lgA = FPA._lastGood({ start: endA - 86400000, end: endA });
-  const lgB = FPA._lastGood({ start: endB - 86400000, end: endB });
-  const lgOld = FPA._lastGood({ start: endA - 86400000, end: endA + 86400000 });
-  assert.ok(lgA, 'same range returns lastGood');
-  assert.equal(lgB, null, 'next-hour window (same calendar pair) does not match lastGood');
-  assert.equal(lgOld, null, '24h-old window does not match current lastGood');
-  FPA._lastGoodMap.clear();
-});
-
-// ============================================================
 // v3.3.3 — GitHub Pages: no fake server calls
 // ============================================================
 console.log('\nv3.3.3 — GitHub Pages mode guards');
 
-test('MTG on GitHub Pages: no fetch, warn Sunucu modu gerekli', async () => {
-  const orig = global.location;
-  global.location = { protocol: 'https:', hostname: 'murathany90.github.io' };
-  let calls = 0;
-  global.fetch = async () => { calls++; return { ok: true, json: async () => ({ features: [] }) }; };
-  let note = '';
-  const off = AtmoApp.Events.on('service', p => { if (p.id === 'mtg') note = p.note; });
-  try {
-    const r = await AtmoApp.MtgAdapter.load(new AbortController().signal);
-    assert.equal(r.length, 0);
-    assert.equal(calls, 0, 'no /api/mtg/active_fires call on GitHub Pages');
-    assert.ok(note.includes('Sunucu modu gerekli'), 'warn note: ' + note);
-  } finally { off(); global.location = orig; }
+test('v3.4.0 — MTG WMS is direct EUMETSAT GET from browser, no proxy dependency', () => {
+  const apiTxt = readFileSync('js/api.js', 'utf8');
+  assert.equal(apiTxt.includes('AtmoHubAdapter'), false, 'AtmoHubAdapter removed from api.js');
+  assert.equal(apiTxt.includes('GfwAdapter'), false, 'GfwAdapter removed from api.js');
+  assert.equal(apiTxt.includes('MtgAdapter'), false, 'MtgAdapter removed from api.js');
+  assert.equal(apiTxt.includes('FirePolygonAdapter'), false, 'FirePolygonAdapter removed from api.js');
+  const srvTxt2 = readFileSync('server.mjs', 'utf8');
+  assert.equal(srvTxt2.includes('/api/atmohub/discover'), false, 'atmohub discover route removed');
+  assert.equal(srvTxt2.includes('/api/mtg/active_fires'), false, 'mtg active_fires route removed');
+  assert.equal(srvTxt2.includes('ALLOWED_ATHUB_HOSTS'), false, 'AtmoHub SSRF allowlist removed');
+  assert.equal(srvTxt2.includes('PRIVATE_IPS'), false, 'PRIVATE_IPS guard removed');
 });
 
-test('MTG on local server still calls proxy', async () => {
-  const orig = global.location;
-  global.location = { protocol: 'http:', hostname: 'localhost' };
-  let calls = 0;
-  global.fetch = async () => { calls++; return { ok: true, json: async () => ({ status: 'NOT_CONFIGURED' }) }; };
-  try {
-    const r = await AtmoApp.MtgAdapter.load(new AbortController().signal);
-    assert.equal(calls, 1, 'proxy called on local server');
-    assert.equal(r.length, 0, 'NOT_CONFIGURED response → empty result');
-  } finally { global.location = orig; }
+test('v3.4.0 — roundToMtgSlot snaps to 10-minute WMS slots', () => {
+  const proto = AtmoApp.MapManager.prototype;
+  const fn = proto.roundToMtgSlot.toString();
+  const m = C().mtgGeoColourWms;
+  const slot = m.slotMinutes * 60000;
+  const t = new Date('2026-07-30T12:07:00Z').getTime();
+  const r = proto.roundToMtgSlot(t);
+  assert.equal((r - new Date('2026-07-30T12:00:00Z').getTime()) % slot, 0, 'snapped to slot boundary');
+  assert.ok(fn.includes('slotMinutes'), 'uses slotMinutes from config');
 });
 
-test('AtmoHub discovery on GitHub Pages: SERVER_REQUIRED without fetch', async () => {
-  const orig = global.location;
-  global.location = { protocol: 'https:', hostname: 'murathany90.github.io' };
-  let calls = 0;
-  global.fetch = async () => { calls++; return { ok: true, json: async () => ({ verified: [] }) }; };
-  try {
-    const r = await AtmoApp.AtmoHubAdapter.discoverCapabilities(true);
-    assert.equal(r.available, false);
-    assert.equal(r.reason, 'SERVER_REQUIRED');
-    assert.equal(calls, 0, 'no /api/atmohub/discover call on GitHub Pages');
-  } finally { global.location = orig; }
+test('v3.4.0 — wind corridor defaults: 30 km max distance, 22° half-angle, 30 corridors', () => {
+  assert.equal(C().downwindMaxDistanceKm, 30, 'downwindMaxDistanceKm === 30');
+  assert.equal(C().downwind.halfAngleDeg, 22, 'halfAngleDeg === 22');
+  assert.equal(C().downwind.maxCorridors, 30, 'maxCorridors === 30');
+  const gridTxt = readFileSync('js/grid.js', 'utf8');
+  assert.ok(gridTxt.includes('C.downwindMaxDistanceKm'), 'grid sector analysis uses downwindMaxDistanceKm');
+  assert.equal(gridTxt.includes('C.downwind.distanceKm'), false, 'no legacy downwind.distanceKm in grid.js');
 });
 
-test('AtmoHub discovery on localhost still calls server', async () => {
-  const orig = global.location;
-  global.location = { protocol: 'http:', hostname: 'localhost' };
-  let calls = 0;
-  global.fetch = async () => { calls++; return { ok: true, json: async () => ({ verified: [{ url: 'https://x/api' }] }) }; };
-  try {
-    const r = await AtmoApp.AtmoHubAdapter.discoverCapabilities(false);
-    assert.equal(calls, 1, 'server discovery called on localhost');
-    assert.equal(r.available, true, 'verified candidate → available');
-  } finally { global.location = orig; }
+test('v3.4.0 — index.html: MTG layer + opacity slider present, removed layers gone', () => {
+  assert.ok(htmlTxt.includes('id="layerMtg"'), 'MTG layer checkbox present');
+  assert.ok(htmlTxt.includes('id="mtgOpacity"'), 'MTG opacity slider present');
+  assert.equal(htmlTxt.includes('id="layerGfw"'), false, 'GFW checkbox removed');
+  assert.equal(htmlTxt.includes('id="layerFirePolygons"'), false, 'FirePolygon checkbox removed');
+  assert.equal(htmlTxt.includes('id="firePolygonRange"'), false, 'FirePolygon preset select removed');
+  assert.equal(htmlTxt.includes('atmoHub'), false, 'no AtmoHub markup in index.html');
 });
 
-test('GFW key missing: returns empty with warn, no fetch', async () => {
-  let calls = 0;
-  global.fetch = async () => { calls++; return { ok: true, json: async () => ({ data: [] }) }; };
-  let note = '';
-  const off = AtmoApp.Events.on('service', p => { if (p.id === 'gfw') note = p.note; });
-  try {
-    const r = await AtmoApp.GfwAdapter.load(new AbortController().signal);
-    assert.equal(r.length, 0);
-    assert.equal(calls, 0, 'no GFW fetch when key missing');
-    assert.ok(note.includes('GFW'), 'warn note mentions GFW: ' + note);
-  } finally { off(); }
+test('v3.4.0 — app.js: removed services gone, defaults wind ON / downwind+MTG+EFFIS BA OFF', () => {
+  assert.equal(appTxt.includes('loadGfw'), false, 'loadGfw removed');
+  assert.equal(appTxt.includes('loadFirePolygons'), false, 'loadFirePolygons removed');
+  assert.equal(appTxt.includes('discoverAtmoHub'), false, 'discoverAtmoHub removed');
+  assert.ok(/windEnabled:\s*true/.test(appTxt), 'windEnabled default true');
+  assert.ok(/downwindEnabled:\s*false/.test(appTxt), 'downwindEnabled default false');
+  assert.ok(/mtgEnabled:\s*false/.test(appTxt), 'mtgEnabled default false');
+  assert.ok(/effisBurntAreaEnabled:\s*false/.test(appTxt), 'EFFIS BA default false');
+});
+
+test('v3.4.0 — timeline playback syncs MTG WMS time via setMtgTime', () => {
+  assert.ok(appTxt.includes('if(this.state.mtgEnabled)this.map.setMtgTime(d);'), 'setTimeOffset drives setMtgTime when MTG on');
+});
+
+test('v3.4.0 — services table lists MTG GeoColour, no AtmoHub/GFW/FirePolygon rows', () => {
+  assert.ok(uiTxt.includes('EUMETSAT MTG GeoColour'), 'MTG row present');
+  assert.equal(uiTxt.includes('AtmoHub'), false, 'no AtmoHub row');
+  assert.equal(uiTxt.includes('GFW'), false, 'no GFW row');
+  assert.equal(uiTxt.includes('FirePolygon'), false, 'no FirePolygon row');
+});
+
+test('v3.4.0 — substation square markers with risk classes, legacy tmIcon gone', () => {
+  assert.ok(mapTxt.includes('substationSquare'), 'substationSquare divIcon class used');
+  assert.ok(mapTxt.includes("substation-risk-${cls}"), 'risk class template');
+  assert.ok(mapTxt.includes("'critical'"), 'critical risk level');
+  assert.ok(mapTxt.includes("'low'"), 'low risk level');
+  assert.equal(mapTxt.includes('tmIcon'), false, 'legacy tmIcon class removed from map.js');
+  assert.equal(cssTxt.includes('.tmIcon'), false, 'legacy tmIcon CSS removed');
+  assert.ok(cssTxt.includes('.substationSquare'), 'substation square CSS present');
+  assert.ok(cssTxt.includes('.substation-risk-low'), 'risk-low CSS present');
+  assert.ok(cssTxt.includes('.substation-risk-critical'), 'risk-critical CSS present');
+});
+
+test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for removed sources', () => {
+  const cfgTxt2 = readFileSync('js/config.js', 'utf8');
+  assert.equal(cfgTxt2.includes('firePolygons'), false, 'firePolygons config removed');
+  assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
+  assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
+  assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
+  assert.ok(cfgTxt2.includes("appVersion: '3.4.0'"), 'config appVersion 3.4.0');
+});
+
+test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.1.1, EPSG:4326, PNG, TIME)', () => {
+  const mtgSrc = mapTxt.slice(mapTxt.indexOf('createMtgLayer'), mapTxt.indexOf('toggleMtg'));
+  assert.ok(mtgSrc.includes("version:wms.version"), 'WMS version from config');
+  assert.ok(mtgSrc.includes("srs:wms.crs"), 'srs from config (EPSG:4326)');
+  assert.ok(mtgSrc.includes("format:wms.format"), 'format from config');
+  assert.ok(mtgSrc.includes("layers:wms.layer"), 'layer from config (mtg_fd:rgb_geocolour)');
+  assert.ok(mapTxt.includes('this.mtgLayer.setParams({time:iso})'), 'setParams update path present');
+  assert.ok(mtgSrc.includes("pane:'mtgPane'"), 'tiles rendered into mtg pane');
 });
 
 // ── v3.3.4 mobile-responsive / overflow contract ──
@@ -1344,13 +877,13 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.3.7 version bump to 3.3.7 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.3.7'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.3.7'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.3.7'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.3.7'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.3.7"'), 'package.json version');
-  assert.equal(htmlTxt.includes('3.3.6'), false, 'no stale 3.3.6 in index.html');
+test('v3.4.0 version bump to 3.4.0 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.4.0'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.4.0'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.4.0'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.4.0'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.4.0"'), 'package.json version');
+  assert.equal(htmlTxt.includes('3.3.7'), false, 'no stale 3.3.7 in index.html');
 });
 
 // ── FIRMS hexagon markers + Ayarlar tab rename ──
