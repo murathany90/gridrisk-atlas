@@ -5,12 +5,12 @@ import { strict as assert } from 'assert';
 global.window = global;
 global.AtmoApp = {};
 global.document = {
-  createElement(tag) { const el = { tag, style: {}, classList: { add() {} }, addEventListener() {}, remove() {} }; if (tag === 'a') { el.click = () => {}; el.href = ''; } return el; },
+  createElement(tag) { const el = { tag, style: {}, dataset: {}, classList: { add() {}, remove() {}, toggle() {} }, addEventListener() {}, remove() {}, appendChild() {}, querySelector() { return { addEventListener() {} }; } }; if (tag === 'a') { el.click = () => {}; el.href = ''; } return el; },
   body: { appendChild() {}, removeChild() {} },
-  getElementById() { return null; },
+  getElementById(id) { if (id === 'legendStack') return { querySelector() { return null; }, appendChild() {} }; return null; },
   querySelector() { return null; }
 };
-global.L = { DomUtil: { create() { return {}; }, setPosition() {} }, DomEvent: { stopPropagation() {} } };
+global.L = { Layer: class {}, DomUtil: { create() { return {}; }, setPosition() {} }, DomEvent: { stopPropagation() {} } };
 const storage = new Map();
 global.localStorage = {
   getItem(k) { return storage.get(k) ?? null; },
@@ -36,6 +36,10 @@ const U = AtmoApp.Utils;
 const apiPath = 'js/api.js';
 eval(readFileSync(apiPath, 'utf8'));
 const FPA = AtmoApp.FirePolygonAdapter;
+
+// ── Load map ──
+const mapPath = 'js/map.js';
+eval(readFileSync(mapPath, 'utf8'));
 
 // ── Test runner ──
 const tests = [];
@@ -354,15 +358,15 @@ test('failure+noLastGood→error', async () => {
   assert.equal(r.features.length, 0, 'empty features');
 });
 
-test('abort does not change state or produce stale/error', async () => {
+test('pre-aborted signal throws ABORTED without state change', async () => {
   await resetAdapter();
   mockFetch([{ type: 'Feature', properties: { date: '2026-07-30', il: 'Antalya', area_ha: 500 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }]);
   const ctrl = new AbortController();
   ctrl.abort();
-  const r = await FPA.load(ctrl.signal);
-  assert.ok(!r._stale, 'not stale on abort');
-  assert.ok(!r._error, 'no error on abort');
-  assert.equal(r.features.length, 0, 'empty features on abort');
+  let err = null;
+  try { await FPA.load(ctrl.signal); } catch (e) { err = e; }
+  assert.ok(err, 'load throws on pre-aborted signal');
+  assert.equal(err.kind, 'ABORTED', 'controlled ABORTED error');
   assert.equal(FPA._lastGoodMap.size, 0, 'lastGoodMap unchanged after aborted load');
 });
 
@@ -846,6 +850,254 @@ console.log('\nAudit — EFFIS config');
 test('EFFIS burnt area layer is defined', () => {
   assert.ok(C().effisBurntAreaLayer, 'effisBurntAreaLayer defined');
   assert.equal(C().effisBurntAreaLayer, 'effis.nrt.ba.poly');
+});
+
+// ============================================================
+// v3.3.2 — EFFIS Burnt Area timeline sync
+// ============================================================
+console.log('\nv3.3.2 — EFFIS Burnt Area timeline sync');
+
+test('EFFIS BA WMS TIME follows timeline date without layer accumulation', () => {
+  const wmsCalls = [];
+  const origL = global.L;
+  global.L = { ...origL, tileLayer: { wms(url, opts) { wmsCalls.push({ url, opts }); return { on() { return this; }, addTo() { return this; } }; } } };
+  const m = new AtmoApp.MapManager();
+  let removed = 0;
+  m.map = { removeLayer() { removed++; } };
+  try {
+    m.toggleEffisBurntArea(true, new Date('2026-07-30T12:00:00Z'));
+    assert.equal(wmsCalls.length, 1, 'enable creates one WMS layer');
+    assert.equal(wmsCalls[0].opts.time, '2026-07-30', 'TIME from enabled date');
+    m.toggleEffisBurntArea(true, new Date('2026-07-28T12:00:00Z'));
+    assert.equal(wmsCalls.length, 2, 'timeline change rebuilds layer with new TIME');
+    assert.equal(wmsCalls[1].opts.time, '2026-07-28', 'TIME=2026-07-28 after timeline change');
+    assert.equal(removed, 1, 'old layer removed before new one — no accumulation');
+    m.toggleEffisBurntArea(false, new Date('2026-07-28T12:00:00Z'));
+    assert.equal(wmsCalls.length, 2, 'disabled — no new request');
+  } finally { global.L = origL; }
+});
+
+test('setTimeOffset wiring syncs EFFIS BA when enabled', () => {
+  const appJs = readFileSync('js/app.js', 'utf8');
+  assert.ok(appJs.includes("if(this.state.effisBurntAreaEnabled)this.map.toggleEffisBurntArea(true,d);"), 'BA sync wired into setTimeOffset');
+  assert.ok(appJs.includes("if(this.state.effisBurntAreaEnabled)"), 'BA sync guarded by enabled state');
+});
+
+// ============================================================
+// v3.3.2 — FirePolygon rolling cache (preset + hour bucket)
+// ============================================================
+console.log('\nv3.3.2 — FirePolygon rolling cache');
+
+test('1d hour-bucket cache keys differ across hours', () => {
+  const k1 = FPA.cacheKey(1, new Date('2026-07-30T09:00:00Z').getTime());
+  const k2 = FPA.cacheKey(1, new Date('2026-07-30T18:00:00Z').getTime());
+  assert.notEqual(k1, k2, '09:00 and 18:00 → different hour buckets → different keys');
+});
+
+test('preset cache isolation: 1d/3d/7d/30d keys never collide', () => {
+  const t = Date.now();
+  const keys = new Set([FPA.cacheKey(1, t), FPA.cacheKey(3, t), FPA.cacheKey(7, t), FPA.cacheKey(30, t)]);
+  assert.equal(keys.size, 4, 'four distinct preset keys');
+});
+
+test('same preset + same hour bucket reuses cache key', () => {
+  const t1 = new Date('2026-07-30T10:30:00Z').getTime();
+  const t2 = new Date('2026-07-30T10:45:00Z').getTime();
+  assert.equal(FPA.cacheKey(7, t1), FPA.cacheKey(7, t2), 'same hour bucket → same key');
+});
+
+test('cache key format: firePolygons:{days}:{hourBucket}', () => {
+  const t = new Date('2026-07-30T10:30:00Z').getTime();
+  const bucket = Math.floor(t / 3600000);
+  assert.equal(FPA.cacheKey(3, t), `firePolygons:3:${bucket}`);
+});
+
+test('same preset same hour bucket load served from cache without refetch', async () => {
+  await resetAdapter();
+  FPA.setDateRange(Date.now() - 1 * 86400000, Date.now());
+  let calls = 0;
+  global.fetch = async () => { calls++; return { ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-30', il: 'Antalya', area_ha: 100 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }], exceededTransferLimit: false }) }; };
+  const r1 = await FPA.load(new AbortController().signal);
+  assert.equal(calls, 1);
+  const r2 = await FPA.load(new AbortController().signal);
+  assert.equal(calls, 1, 'cache hit — no second fetch in same hour bucket');
+  assert.equal(r2.features.length, 1);
+});
+
+test('different presets do not share cache entries', async () => {
+  await resetAdapter();
+  FPA.setDateRange(Date.now() - 3 * 86400000, Date.now());
+  let calls = 0;
+  global.fetch = async () => { calls++; return { ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-28', il: 'Mugla', area_ha: 50 }, geometry: { type: 'Polygon', coordinates: [[[2,2],[3,2],[3,3],[2,3],[2,2]]] } }], exceededTransferLimit: false }) }; };
+  await FPA.load(new AbortController().signal);
+  assert.equal(calls, 1);
+  FPA.setDateRange(Date.now() - 7 * 86400000, Date.now());
+  await FPA.load(new AbortController().signal);
+  assert.equal(calls, 2, '7d preset refetches — no shared cache with 3d');
+});
+
+// ============================================================
+// v3.3.2 — FirePolygon pagination abort
+// ============================================================
+console.log('\nv3.3.2 — FirePolygon pagination abort');
+
+test('abort during page 2 throws ABORTED, no partial/lastGood', async () => {
+  await resetAdapter();
+  FPA.setDateRange(Date.now() - 30 * 86400000, Date.now());
+  let call = 0;
+  const ctrl = new AbortController();
+  global.fetch = (url, { signal }) => {
+    call++;
+    if (call === 1) return Promise.resolve({ ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-01', il: 'Antalya', area_ha: 100 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }], exceededTransferLimit: true }) });
+    return new Promise((_, rej) => {
+      signal.addEventListener('abort', () => rej(Object.assign(new Error('Aborted'), { name: 'AbortError' })));
+      ctrl.abort();
+    });
+  };
+  let err = null;
+  try { await FPA.load(ctrl.signal); } catch (e) { err = e; }
+  assert.ok(err, 'load throws');
+  assert.equal(err.kind, 'ABORTED', 'controlled ABORTED error, not partial completion');
+  assert.equal(FPA._lastGoodMap.size, 0, 'lastGood not updated on abort');
+});
+
+// ============================================================
+// v3.3.2 — FirePolygon MAX_PAGES safety limit
+// ============================================================
+console.log('\nv3.3.2 — FirePolygon MAX_PAGES safety limit');
+
+test('MAX_PAGES with exceededTransferLimit → _partial, warn, no lastGood', async () => {
+  await resetAdapter();
+  FPA.setDateRange(Date.now() - 30 * 86400000, Date.now());
+  let calls = 0;
+  let note = '';
+  const off = AtmoApp.Events.on('service', p => { if (p.id === 'firePolygon') note = p.note; });
+  global.fetch = async () => { calls++; return { ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-01', il: 'Antalya', area_ha: 100 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }], exceededTransferLimit: true }) }; };
+  const r = await FPA.load(new AbortController().signal);
+  off();
+  assert.equal(calls, 50, 'pagination hit safety limit');
+  assert.equal(r._partial, true, '_partial === true');
+  assert.equal(r.features.length, 50, 'partial dataset accumulated');
+  assert.equal(FPA._lastGoodMap.size, 0, 'lastGood not updated for incomplete data');
+  assert.ok(note.includes('kısmi veri'), 'warn note mentions partial: ' + note);
+});
+
+test('MAX_PAGES partial prefers complete lastGood as stale', async () => {
+  await resetAdapter();
+  FPA.setDateRange(Date.now() - 30 * 86400000, Date.now());
+  const feat = () => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-01', il: 'Antalya', area_ha: 100 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }], exceededTransferLimit: false });
+  global.fetch = async () => { const f = feat(); return { ok: true, status: 200, json: async () => f }; };
+  await FPA.load(new AbortController().signal);
+  assert.equal(FPA._lastGoodMap.size, 1, 'complete lastGood stored');
+  AtmoApp.Cache.clear();
+  global.fetch = async () => { const f = feat(); f.exceededTransferLimit = true; return { ok: true, status: 200, json: async () => f }; };
+  const r2 = await FPA.load(new AbortController().signal);
+  assert.ok(r2._stale, 'stale preferred over partial');
+  assert.equal(r2.features.length, 1, 'stale returns lastGood data');
+  assert.equal(FPA._lastGoodMap.size, 1, 'lastGood unchanged');
+});
+
+// ============================================================
+// v3.3.2 — FirePolygon empty message by preset
+// ============================================================
+console.log('\nv3.3.2 — FirePolygon empty message by preset');
+
+test('emptyNote matches each preset', () => {
+  assert.equal(FPA.emptyNote(1), 'Son 24 saatte yangın alanı bulunmadı');
+  assert.equal(FPA.emptyNote(3), 'Son 3 günde yangın alanı bulunmadı');
+  assert.equal(FPA.emptyNote(7), 'Son 7 günde yangın alanı bulunmadı');
+  assert.equal(FPA.emptyNote(30), 'Son 30 günde yangın alanı bulunmadı');
+});
+
+test('empty load reports preset-based message', async () => {
+  await resetAdapter();
+  let note = '';
+  const off = AtmoApp.Events.on('service', p => { if (p.id === 'firePolygon') note = p.note; });
+  FPA.setDateRange(Date.now() - 1 * 86400000, Date.now());
+  mockFetch([]);
+  await FPA.load(new AbortController().signal);
+  assert.ok(note.includes('Son 24 saatte'), '1d preset empty message: ' + note);
+  AtmoApp.Cache.clear();
+  FPA.setDateRange(Date.now() - 7 * 86400000, Date.now());
+  mockFetch([]);
+  await FPA.load(new AbortController().signal);
+  assert.ok(note.includes('Son 7 günde'), '7d preset empty message: ' + note);
+  AtmoApp.Cache.clear();
+  FPA.setDateRange(Date.now() - 30 * 86400000, Date.now());
+  mockFetch([]);
+  await FPA.load(new AbortController().signal);
+  assert.ok(note.includes('Son 30 günde'), '30d preset empty message: ' + note);
+  off();
+});
+
+// ============================================================
+// v3.3.2 — AbortSignal listener cleanup
+// ============================================================
+console.log('\nv3.3.2 — AbortSignal listener cleanup');
+
+function spySignal() {
+  const listeners = new Set();
+  const s = {
+    aborted: false,
+    reason: undefined,
+    addEventListener(t, fn) { listeners.add(fn); },
+    removeEventListener(t, fn) { listeners.delete(fn); },
+    listenerCount() { return listeners.size; },
+    abort(reason) { s.aborted = true; s.reason = reason; for (const fn of [...listeners]) fn(); }
+  };
+  return s;
+}
+
+test('fetchJson removes external abort listener on success', async () => {
+  global.fetch = async () => ({ ok: true, status: 200, json: async () => ({ ok: 1 }) });
+  const s = spySignal();
+  const r = await U.fetchJson('http://x', { signal: s });
+  assert.equal(r.data.ok, 1);
+  assert.equal(s.listenerCount(), 0, 'listener removed after success');
+});
+
+test('fetchJson removes external abort listener on network error', async () => {
+  global.fetch = async () => { throw new Error('NETWORK_ERR'); };
+  const s = spySignal();
+  let err = null;
+  try { await U.fetchJson('http://x', { signal: s }); } catch (e) { err = e; }
+  assert.ok(err, 'throws');
+  assert.equal(s.listenerCount(), 0, 'listener removed after network error');
+});
+
+test('fetchJson removes external abort listener on manual abort', async () => {
+  const s = spySignal();
+  global.fetch = (url, { signal }) => new Promise((_, rej) => { signal.addEventListener('abort', () => rej(Object.assign(new Error('Aborted'), { name: 'AbortError' }))); });
+  const p = U.fetchJson('http://x', { signal: s });
+  s.abort(new Error('cancel'));
+  let err = null;
+  try { await p; } catch (e) { err = e; }
+  assert.equal(err.kind, 'ABORTED');
+  assert.equal(s.listenerCount(), 0, 'listener removed after manual abort');
+});
+
+test('fetchJson removes external abort listener on timeout', async () => {
+  const s = spySignal();
+  global.fetch = (url, { signal }) => new Promise((_, rej) => { signal.addEventListener('abort', () => rej(Object.assign(new Error('Aborted'), { name: 'AbortError' }))); });
+  let err = null;
+  try { await U.fetchJson('http://x', { signal: s, timeout: 60 }); } catch (e) { err = e; }
+  assert.equal(err.kind, 'TIMEOUT');
+  assert.equal(s.listenerCount(), 0, 'listener removed after timeout');
+});
+
+test('fetchText removes external abort listener on success and abort', async () => {
+  global.fetch = async () => ({ ok: true, status: 200, text: async () => 'csv data' });
+  const s1 = spySignal();
+  await U.fetchText('http://x', { signal: s1 });
+  assert.equal(s1.listenerCount(), 0, 'text success cleanup');
+  const s2 = spySignal();
+  global.fetch = (url, { signal }) => new Promise((_, rej) => { signal.addEventListener('abort', () => rej(Object.assign(new Error('Aborted'), { name: 'AbortError' }))); });
+  const p = U.fetchText('http://x', { signal: s2 });
+  s2.abort(new Error('cancel'));
+  let err = null;
+  try { await p; } catch (e) { err = e; }
+  assert.equal(err.kind, 'ABORTED');
+  assert.equal(s2.listenerCount(), 0, 'text abort cleanup');
 });
 
 // ── Run ──
