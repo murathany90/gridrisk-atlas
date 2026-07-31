@@ -2,7 +2,7 @@
 (function(A){
   A.CONFIG = {
     appName: 'Türkiye Wildfire Grid Risk Monitor',
-    appVersion: '3.4.0',
+    appVersion: '3.4.1',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
     mapMinZoom: 2,
@@ -33,20 +33,22 @@
     effisWms: 'https://maps.effis.emergency.copernicus.eu/effis',
     effisFwiLayer: 'ecmwf007.fwi',
     effisBurntAreaLayer: 'effis.nrt.ba.poly',
-    timeline: { minHours: -48, maxHours: 12, playStepHours: 3, playIntervalMs: 1500 },
+    timeline: { minHours: -48, maxHours: 12, playStepHours: 3, playIntervalMs: 1500, mtgPlayStepMinutes: 10 },
     cacheTtl: { air: 30*60*1000, weather: 60*60*1000, geocode: 60*60*1000, firms: 7*60*1000, grid: 24*60*60*1000 },
     firmsSources: ['VIIRS_NOAA21_NRT','VIIRS_NOAA20_NRT','VIIRS_SNPP_NRT','MODIS_NRT'],
     mtgGeoColourWms: {
       label: 'EUMETSAT MTG-I GeoColour RGB',
-      url: 'https://eumetview.eumetsat.int/geoserv/wms',
+      url: 'https://view.eumetsat.int/geoserver/wms',
       layer: 'mtg_fd:rgb_geocolour',
       format: 'image/png',
-      version: '1.1.1',
+      version: '1.3.0',
       crs: 'EPSG:4326',
       attribution: 'Imagery © EUMETSAT 2026',
       defaultOpacity: 0.85,
       slotMinutes: 10,
       maxBackfillSlots: 12,
+      frameSettleMs: 3000,
+      probeBbox: '35,26,43,46',
       source: 'EUMETSAT MTG-I FCI · gerçek uydu görüntüsü'
     },
     baseMaps: {

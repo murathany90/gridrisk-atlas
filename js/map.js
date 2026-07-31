@@ -23,8 +23,38 @@
     }
   }
 
+  function mtgFmt(iso){return iso?iso.slice(11,16)+' UTC':'—';}
+  class MtgFrameManager{
+    constructor(cfg,handlers){this.cfg=cfg;this.on=handlers||{};this.slot=(cfg.slotMinutes||10)*60*1000;this.maxBack=cfg.maxBackfillSlots??12;this.settleMs=cfg.frameSettleMs??3000;this.frameSeq=0;this.requestedFrame=null;this.lastUserTime=null;this.displayedTime=null;this.loadedTileCount=0;this.failedTileCount=0;this.backfillAttempt=0;this._settleT=null;this._probeDone=false;}
+    static roundToSlot(ms,slot){return new Date(Math.floor(ms/slot)*slot);}
+    latestAllowed(){return MtgFrameManager.roundToSlot(Date.now(),this.slot);}
+    normalize(date){const ms=Number(date instanceof Date?date.getTime():date),s=MtgFrameManager.roundToSlot(ms,this.slot),max=this.latestAllowed();return s.getTime()>max.getTime()?max:s;}
+    applyUserTime(iso){this.lastUserTime=iso;if(iso===this.requestedFrame)return null;return this._start(iso);}
+    applyBackfill(iso){return this._start(iso);}
+    _start(iso){if(this._settleT){clearTimeout(this._settleT);this._settleT=null;}this.frameSeq++;this.requestedFrame=iso;this.loadedTileCount=0;this.failedTileCount=0;this._probeDone=false;this.on.start?.(iso,this.frameSeq);return this.frameSeq;}
+    tileLoad(seq){if(seq!==this.frameSeq)return;this.loadedTileCount++;if(this._settleT){clearTimeout(this._settleT);this._settleT=null;}if(this.loadedTileCount===1){this.displayedTime=this.requestedFrame;this.on.ok?.(this.requestedFrame,this.frameSeq);}}
+    tileError(seq){if(seq!==this.frameSeq||this.loadedTileCount>0)return;this.failedTileCount++;if(this._settleT)return;this._settleT=setTimeout(()=>this._settle(),this.settleMs);}
+    dispose(){if(this._settleT){clearTimeout(this._settleT);this._settleT=null;}}
+    async _settle(){
+      this._settleT=null;
+      const seq=this.frameSeq;
+      if(this.loadedTileCount>0||seq===0)return;
+      if(this.backfillAttempt>=this.maxBack){this.on.exhausted?.(this.requestedFrame,this.backfillAttempt,seq);return;}
+      if(!this._probeDone&&this.on.probe){
+        this._probeDone=true;
+        const kind=await this.on.probe(this.requestedFrame);
+        if(this.frameSeq!==seq||this.loadedTileCount>0||this._settleT)return;
+        if(kind==='invalid'){this.on.invalid?.(this.requestedFrame,seq);return;}
+        if(kind==='network'){this.on.network?.(this.requestedFrame,seq);return;}
+      }
+      this.backfillAttempt++;
+      const target=new Date(Date.parse(this.requestedFrame)-this.slot).toISOString();
+      this.on.backfill?.(this.requestedFrame,target,this.backfillAttempt,seq);
+    }
+  }
+
   class MapManager{
-    constructor(){this.map=null;this.renderer=null;this.baseLayer=null;this.baseKey=null;this.fireLayer=null;this.fireAll=[];this.fireVisible=[];this.fireEventsVisible=[];this.currentSelectedTime=new Date();this.frpHeat=null;this.smokeLayer=null;this.airPointLayer=null;this.airData=[];this.airVariable='pm10_wildfires';this.windLayer=null;this.windData=[];this.riskLayer=null;this.riskAssetLayer=null;this.downwindLayer=null;this.windVectorLayer=null;this.gridLayers=new Map();this.fwiLayer=null;this.effisBurntAreaLayer=null;this.mtgLayer=null;this.mtgTime=null;this._mtgDebounceT=null;this.onPointClick=null;this.frpThreshold=50;this._renderTimer=null;this.footprintLayer=null;this.thermalEnvelopeLayer=null;this.evolutionLayer=null;}
+    constructor(){this.map=null;this.renderer=null;this.baseLayer=null;this.baseKey=null;this.fireLayer=null;this.fireAll=[];this.fireVisible=[];this.fireEventsVisible=[];this.currentSelectedTime=new Date();this.frpHeat=null;this.smokeLayer=null;this.airPointLayer=null;this.airData=[];this.airVariable='pm10_wildfires';this.windLayer=null;this.windData=[];this.riskLayer=null;this.riskAssetLayer=null;this.downwindLayer=null;this.windVectorLayer=null;this.gridLayers=new Map();this.fwiLayer=null;this.effisBurntAreaLayer=null;this.mtgLayer=null;this._mtgFrameMgr=null;this._mtgDebounceT=null;this.mtgRequestedTime=null;this.mtgDisplayedTime=null;this.onPointClick=null;this.frpThreshold=50;this._renderTimer=null;this.footprintLayer=null;this.thermalEnvelopeLayer=null;this.evolutionLayer=null;}
     init(onPointClick){
       this.onPointClick=onPointClick;      this.map=L.map('map',{zoomControl:true,minZoom:C.mapMinZoom||2,worldCopyJump:true}).setView(C.defaultCenter,C.defaultZoom);this.renderer=L.canvas({padding:.4});
       this.map.createPane('mtgPane');this.map.getPane('mtgPane').style.zIndex=240;this.map.createPane('airPane');this.map.getPane('airPane').style.zIndex=320;this.map.createPane('fwiPane');this.map.getPane('fwiPane').style.zIndex=330;this.map.createPane('gridPane');this.map.getPane('gridPane').style.zIndex=410;this.map.createPane('riskPane');this.map.getPane('riskPane').style.zIndex=445;this.map.createPane('firePane');this.map.getPane('firePane').style.zIndex=460;this.map.createPane('windPane');this.map.getPane('windPane').style.zIndex=480;
@@ -78,12 +108,12 @@
         poly.bindTooltip(`Rüzgâr bazlı izleme koridoru · maksimum ${maxKm} km<br>${U.round(a.wind.speed,1)} km/h · taşıma yönü ${Math.round(a.downwindDirection)}°<br>Koridorda: <strong>${dw.lines.length} hat / ${dw.substations.length} TM</strong><br><strong>Duman tahmini değildir.</strong>`);
         poly.addTo(this.downwindLayer);
         for(const x of dw.lines.slice(0,4))L.polyline([[x.feature.a.lat,x.feature.a.lon],[x.feature.b.lat,x.feature.b.lon]],{pane:'riskPane',color:'#7be6ff',weight:4,opacity:.78,dashArray:'5 4',interactive:false}).addTo(this.downwindLayer);
-        for(const x of dw.substations.slice(0,4))L.circleMarker([x.feature.lat,x.feature.lon],{pane:'riskPane',radius:7,color:'#7be6ff',weight:2,fillColor:'#0a2531',fillOpacity:.75,interactive:false}).addTo(this.downwindLayer);
+        for(const x of dw.substations.slice(0,4))L.marker([x.feature.lat,x.feature.lon],{pane:'riskPane',icon:this.sectorSubstationIcon(),interactive:false}).addTo(this.downwindLayer);
         count++;
       }
       if(count){
         this.downwindLayer.addTo(this.map);
-        this.makeLegend('downwind','Rüzgâr Bazlı İzleme Koridoru',`<div class="legendLine"><i style="background:#7be6ff"></i><span>Koridordaki şebeke varlığı</span></div><div class="sourceNote">Yangın olayından maksimum ${C.downwindMaxDistanceKm} km, ±${C.downwind.halfAngleDeg}° sektör. Rüzgâr alanını operasyonel tarama için kullanır; gerçek duman yörüngesi değildir.</div>`);
+        this.makeLegend('downwind','Rüzgâr Bazlı İzleme Koridoru',`<div class="legendLine"><i style="background:#7be6ff"></i><span>Koridordaki şebeke varlığı</span></div><div class="legendLine"><span class="substationSquare" style="display:inline-block;width:10px;height:10px;background:#0a2531;border:2px solid #7be6ff"></span><span>Koridordaki trafo merkezi</span></div><div class="sourceNote">Yangın olayından maksimum ${C.downwindMaxDistanceKm} km, ±${C.downwind.halfAngleDeg}° sektör. Rüzgâr alanını operasyonel tarama için kullanır; gerçek duman yörüngesi değildir.</div>`);
       }
     }
     toggleFwi(show,date){if(!show){if(this.fwiLayer)this.map.removeLayer(this.fwiLayer);document.querySelector('[data-legend="fwi"]')?.remove();return;}if(this.fwiLayer)this.map.removeLayer(this.fwiLayer);this.fwiLayer=L.tileLayer.wms(C.effisWms,{layers:C.effisFwiLayer,format:'image/png',transparent:true,version:'1.1.1',time:U.dateOnlyUtc(date),opacity:.43,pane:'fwiPane',attribution:'EFFIS / Copernicus'});let loaded=false;this.fwiLayer.on('tileload',()=>{if(!loaded){loaded=true;A.Events.emit('service',{id:'effis',state:'ok',count:null,note:`WMS ${C.effisFwiLayer} · TIME=${U.dateOnlyUtc(date)}`});}});this.fwiLayer.on('tileerror',()=>A.Events.emit('service',{id:'effis',state:'error',note:'WMS tile yüklenemedi'}));this.fwiLayer.addTo(this.map);this.makeLegend('fwi','EFFIS Fire Weather Index',`<div class="sourceNote">EFFIS WMS renkleri · ${U.dateOnlyUtc(date)} · meteorolojik yangın tehlikesi. Sayısal FWI değeri bu WMS tile katmanından türetilmez.</div>`);}
@@ -97,41 +127,66 @@
       this.effisBurntAreaLayer.addTo(this.map);
       this.makeLegend('burntArea','EFFIS Yanmış Alanlar',`<div class="sourceNote">EFFIS/GWIS NRT VIIRS-tabanlı algoritmik yanmış alan/yangın poligonu. Resmî saha perimetresi değildir. EFFIS / Copernicus. ${U.dateOnlyUtc(d)}</div>`);
     }
-    roundToMtgSlot(date){const ms=Number(date instanceof Date?date.getTime():date),slot=(C.mtgGeoColourWms.slotMinutes||10)*60*1000;return new Date(Math.round(ms/slot)*slot);}
+    latestAllowedMtgSlot(){return this._mtgFrameMgr?this._mtgFrameMgr.latestAllowed():MtgFrameManager.roundToSlot(Date.now(),(C.mtgGeoColourWms.slotMinutes||10)*60*1000);}
+    roundToMtgSlot(date){const ms=Number(date instanceof Date?date.getTime():date),slot=(C.mtgGeoColourWms.slotMinutes||10)*60*1000;return MtgFrameManager.roundToSlot(ms,slot);}
+    async probeMtgTime(iso){
+      const wms=C.mtgGeoColourWms,bbox=wms.probeBbox||'35,26,43,46',u=`${wms.url}?SERVICE=WMS&VERSION=${wms.version}&REQUEST=GetMap&LAYERS=${wms.layer}&STYLES=&FORMAT=image/png&TRANSPARENT=TRUE&BBOX=${bbox}&WIDTH=64&HEIGHT=64&CRS=EPSG:4326&TIME=${encodeURIComponent(iso)}`;
+      try{
+        const r=await fetch(u,{signal:AbortSignal.timeout(12000)});
+        const ct=(r.headers.get('content-type')||'').toLowerCase();
+        if(!r.ok)return ct.includes('text/html')||ct.includes('application/json')?'invalid':'no-frame';
+        if(ct.startsWith('image/'))return'image';
+        return ct.includes('text/html')||ct.includes('application/json')?'invalid':'no-frame';
+      }catch(e){return'network';}
+    }
     createMtgLayer(date){
-      const wms=C.mtgGeoColourWms,time=this.roundToMtgSlot(date).toISOString(),opacity=U.clamp(Number(localStorage.getItem('mtgOpacity'))||wms.defaultOpacity,.3,1);
-      const layer=L.tileLayer.wms(wms.url,{layers:wms.layer,format:wms.format,transparent:true,version:wms.version,crs:L.CRS?L.CRS.EPSG4326:null,srs:wms.crs,time,opacity,pane:'mtgPane',attribution:wms.attribution});
-      let backfill=0;
-      layer.on('tileload',()=>{backfill=0;A.Events.emit('service',{id:'mtg',state:'ok',count:null,note:`WMS ${wms.layer} · TIME=${layer.wmsParams.time}`});});
-      layer.on('tileerror',()=>{
-        const maxBack=wms.maxBackfillSlots??12;
-        if(backfill>=maxBack){A.Events.emit('service',{id:'mtg',state:'error',note:`MTG GeoColour: ${layer.wmsParams.time} için uydu görüntüsü alınamadı (arşivde yok veya kaynak yanıt vermiyor)`});return;}
-        backfill++;
-        const cur=Date.parse(layer.wmsParams.time);
-        if(Number.isFinite(cur))layer.setParams({time:this.roundToMtgSlot(cur-wms.slotMinutes*60000).toISOString()});
+      const wms=C.mtgGeoColourWms,mm=this;
+      const mgr=this._mtgFrameMgr=new MtgFrameManager(wms,{
+        start:(iso)=>{A.Events.emit('service',{id:'mtg',state:'loading',note:`MTG GeoColour · frame ${mtgFmt(iso)} yükleniyor`});mm.updateMtgLegend();},
+        ok:(iso)=>{mm.mtgDisplayedTime=iso;A.Events.emit('service',{id:'mtg',state:'ok',count:null,note:`Bağlı · Frame: ${mtgFmt(iso)}${iso!==mgr.lastUserTime?` · İstenen: ${mtgFmt(mgr.lastUserTime)} UTC`:''}`});mm.updateMtgLegend();},
+        backfill:(req,target,n)=>{A.Events.emit('service',{id:'mtg',state:'backfill',note:`Gecikmeli frame · İstenen: ${mtgFmt(mgr.lastUserTime||req)} UTC · ${mtgFmt(target)} deneniyor (${n}/${mgr.maxBack})`});mgr.applyBackfill(target);mm.mtgLayer.setParams({time:target});mm.updateMtgLegend();},
+        exhausted:(req,n)=>{A.Events.emit('service',{id:'mtg',state:'no-frame',note:`Arşivde görüntü yok · ${mtgFmt(req)} UTC (${n} slot tarandı)`});mm.updateMtgLegend();},
+        invalid:(req)=>{A.Events.emit('service',{id:'mtg',state:'error',note:'Geçersiz WMS yanıtı · kaynak görüntü döndürmüyor'});},
+        network:(req)=>{A.Events.emit('service',{id:'mtg',state:'error',note:'WMS bağlantı hatası'})},
+        probe:(iso)=>mm.probeMtgTime(iso)
       });
-      this.mtgLayer=layer;this.mtgTime=time;
+      const iso=mgr.normalize(date).toISOString(),opacity=U.clamp(Number(localStorage.getItem('mtgOpacity'))||wms.defaultOpacity,.3,1);
+      const layer=L.tileLayer.wms(wms.url,{layers:wms.layer,format:wms.format,transparent:true,version:wms.version,crs:L.CRS?L.CRS.EPSG4326:null,time:iso,opacity,pane:'mtgPane',attribution:wms.attribution});
+      layer.on('tileloadstart',e=>{e.tile.dataset.frameSeq=String(mgr.frameSeq);});
+      layer.on('tileload',e=>mgr.tileLoad(Number(e.tile.dataset.frameSeq)));
+      layer.on('tileerror',e=>mgr.tileError(Number(e.tile.dataset.frameSeq)));
+      mgr.applyUserTime(iso);
+      this.mtgLayer=layer;this.mtgRequestedTime=iso;this.mtgDisplayedTime=null;
       return layer;
     }
     toggleMtg(show,date){
-      if(!show){clearTimeout(this._mtgDebounceT);if(this.mtgLayer)this.map.removeLayer(this.mtgLayer);document.querySelector('[data-legend="mtg"]')?.remove();return;}
+      if(!show){clearTimeout(this._mtgDebounceT);this._mtgFrameMgr?.dispose();if(this.mtgLayer)this.map.removeLayer(this.mtgLayer);document.querySelector('[data-legend="mtg"]')?.remove();return;}
       if(!this.mtgLayer)this.createMtgLayer(date||new Date()).addTo(this.map);
       else if(!this.map.hasLayer(this.mtgLayer))this.map.addLayer(this.mtgLayer);
       this.setMtgTime(date||new Date());
-      this.makeLegend('mtg','EUMETSAT MTG-I GeoColour',`<div class="sourceNote">${C.mtgGeoColourWms.source} · gerçek uydu görüntüsü (model değil).<br>Zaman: ${this.mtgTime||'—'} · 10 dk slotu. Arşivde bulunmayan slotlarda en yakın geçmiş slota geri sarılır (en çok 2 sa).</div>`);
+      this.makeLegend('mtg','EUMETSAT MTG-I GeoColour',this.mtgLegendBody());
     }
     setMtgTime(date){
-      if(!this.mtgLayer)return;
-      const iso=this.roundToMtgSlot(date).toISOString();
-      if(iso===this.mtgTime)return;
+      if(!this.mtgLayer||!this._mtgFrameMgr)return;
+      const mgr=this._mtgFrameMgr,iso=mgr.normalize(this.roundToMtgSlot(date)).toISOString();
+      if(iso===mgr.lastUserTime)return;
       clearTimeout(this._mtgDebounceT);
       this._mtgDebounceT=setTimeout(()=>{
-        this.mtgTime=iso;
+        mgr.applyUserTime(iso);
         this.mtgLayer.setParams({time:iso});
-        const legend=document.querySelector('[data-legend="mtg"]');
-        if(legend)legend.querySelector('.legendBody').innerHTML=`<div class="sourceNote">${C.mtgGeoColourWms.source} · gerçek uydu görüntüsü (model değil).<br>Zaman: ${iso} · 10 dk slotu.</div>`;
+        this.mtgRequestedTime=iso;
+        this.updateMtgLegend();
       },200);
     }
+    mtgLegendBody(){
+      const mgr=this._mtgFrameMgr,req=mgr?.lastUserTime,disp=mgr?.displayedTime,lines=[`${C.mtgGeoColourWms.source} · gerçek uydu görüntüsü (model değil).`];
+      if(req&&disp&&req!==disp)lines.push(`Seçilen: ${mtgFmt(req)} UTC<br>Uydu karesi: ${mtgFmt(disp)} UTC`);
+      else if(disp)lines.push(`Uydu karesi: ${mtgFmt(disp)} UTC`);
+      else if(req)lines.push(`Seçilen: ${mtgFmt(req)} UTC · yükleniyor`);
+      if(mgr&&mgr.lastUserTime&&mgr.lastUserTime>=mgr.latestAllowed().toISOString())lines.push('Uydu görüntüsü: son mevcut gerçek frame.');
+      return `<div class="sourceNote">${lines.join('<br>')}</div>`;
+    }
+    updateMtgLegend(){const legend=document.querySelector('[data-legend="mtg"]');if(legend)legend.querySelector('.legendBody').innerHTML=this.mtgLegendBody();}
     setFootprint(events, show=true){
       this.footprintLayer.clearLayers();
       if(this.map.hasLayer(this.footprintLayer))this.map.removeLayer(this.footprintLayer);
@@ -214,12 +269,15 @@
       if(show){if(!this.map.hasLayer(this.evolutionLayer))this.evolutionLayer.addTo(this.map);}else{if(this.map.hasLayer(this.evolutionLayer))this.map.removeLayer(this.evolutionLayer);document.querySelector('[data-legend="evolution"]')?.remove();}
     }
     substationIcon(props){const raw=String(props?.voltage||'').split(/[;,]/).map(Number).filter(Number.isFinite),max=Math.max(0,...raw);const size=max>=300000?14:max>=154000?12:max>=66000?10:8;const cls=max>=300000?'critical':max>=154000?'high':max>=66000?'medium':'low';return L.divIcon({className:'substationIconWrap',html:`<span class="substationSquare substation-risk-${cls}" style="width:${size}px;height:${size}px"></span>`,iconSize:[size,size],iconAnchor:[size/2,size/2]});}
+    riskSubstationIcon(level,color){const size={critical:14,high:12,medium:10,watch:8,low:8}[level]||10;return L.divIcon({className:'substationIconWrap',html:`<span class="substationSquare substation-risk-${level==='watch'?'low':level}" style="width:${size}px;height:${size}px;background:${color};border-color:#fff"></span>`,iconSize:[size,size],iconAnchor:[size/2,size/2]});}
+    sectorSubstationIcon(){return L.divIcon({className:'substationIconWrap',html:`<span class="substationSquare" style="width:10px;height:10px;background:#0a2531;border:2px solid #7be6ff"></span>`,iconSize:[10,10],iconAnchor:[5,5]});}
     async setGridGroup(key,data,show){if(this.gridLayers.has(key)){const layer=this.gridLayers.get(key);if(show&&!this.map.hasLayer(layer))layer.addTo(this.map);if(!show&&this.map.hasLayer(layer))this.map.removeLayer(layer);this.updateGridLegend();return;}if(!show)return;const cfg=C.gridSources[key],trFilter=f=>{if(key==='substations'){const c=f.geometry?.coordinates;return c&&U.insideRegion({lat:c[1],lon:c[0]});}const coords=f.geometry?.type==='LineString'?[f.geometry.coordinates]:f.geometry?.type==='MultiLineString'?f.geometry.coordinates:[];return coords.some(line=>line.some(c=>U.insideRegion({lat:c[1],lon:c[0]})));};let layer;if(key==='substations')layer=L.geoJSON(data,{filter:trFilter,pane:'gridPane',pointToLayer:(f,latlng)=>L.marker(latlng,{pane:'gridPane',icon:this.substationIcon(f.properties)}),onEachFeature:(f,l)=>{l.bindTooltip(this.gridTooltip(f.properties,true),{sticky:true});l.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:e.latlng.lat,lon:e.latlng.lng,gridFeature:{kind:'substation',properties:f.properties,geometry:f.geometry}});});}});else layer=L.geoJSON(data,{filter:trFilter,pane:'gridPane',style:()=>({pane:'gridPane',renderer:this.renderer,color:cfg.color,weight:cfg.weight,opacity:(key==='400'?0.82:0.76)}),onEachFeature:(f,l)=>{l.bindTooltip(this.gridTooltip(f.properties,false),{sticky:true});l.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:e.latlng.lat,lon:e.latlng.lng,gridFeature:{kind:'line',group:key,properties:f.properties,geometry:f.geometry}});});}});this.gridLayers.set(key,layer);layer.addTo(this.map);this.updateGridLegend();}
     gridTooltip(p,isSub){const v=U.formatVoltage(p.voltage)||U.formatVoltage(p.voltageGroup)||'Bilinmiyor';return `<strong>${isSub?'Trafo Merkezi':'İletim Hattı'}</strong><br>${U.escapeHtml(p.name||(isSub?'Adsız trafo merkezi':'Adsız OSM hattı'))}<br>Gerilim: ${U.escapeHtml(v)}${p.operator?`<br>${U.escapeHtml(p.operator)}`:''}<br><small>OSM / ODbL</small>`;}
     hideAllGrid(){for(const layer of this.gridLayers.values())if(this.map.hasLayer(layer))this.map.removeLayer(layer);this.updateGridLegend();}
     updateGridLegend(){const active=[...this.gridLayers.entries()].filter(([,l])=>this.map.hasLayer(l)).map(([k])=>k);document.querySelector('[data-legend="grid"]')?.remove();if(!active.length)return;this.makeLegend('grid','İletim Şebekesi · OSM',`${active.map(k=>`<div class="legendLine"><i style="background:${C.gridSources[k].color}"></i><span>${C.gridSources[k].label}</span></div>`).join('')}<div class="sourceNote">OSM power-grid dışa aktarımı · yalnız hatlar ve trafo merkezleri. 400/154 kV varsayılan açık; sayfa açılışında performans için kademeli yüklenir.</div>`);}
-    setFireImpacts(analyses,show=true){this.riskLayer.clearLayers();this.riskAssetLayer.clearLayers();document.querySelector('[data-legend="risk"]')?.remove();if(!show)return;for(const a of analyses||[]){if(!a.riskBand||a.riskScore<20||!U.insideRegion({lat:a.event.lat,lon:a.event.lon}))continue;const c=U.riskColor(a.riskBand.level),r=U.clamp(7+(100-a.riskScore)*-.015+a.event.count*.25,7,15);L.circleMarker([a.event.lat,a.event.lon],{pane:'riskPane',renderer:this.renderer,radius:r,color:c,weight:a.riskScore>=75?3:2,fill:false,opacity:.95,interactive:false}).addTo(this.riskLayer);if(a.riskScore>=55){const l=a.nearest?.line,s=a.nearest?.substation;if(l){L.polyline([[l.feature.a.lat,l.feature.a.lon],[l.feature.b.lat,l.feature.b.lon]],{pane:'riskPane',color:'#fff',weight:8,opacity:.55,interactive:false}).addTo(this.riskAssetLayer);L.polyline([[l.feature.a.lat,l.feature.a.lon],[l.feature.b.lat,l.feature.b.lon]],{pane:'riskPane',color:c,weight:5,opacity:.95,interactive:false}).addTo(this.riskAssetLayer);}if(s)L.circleMarker([s.feature.lat,s.feature.lon],{pane:'riskPane',radius:9,color:'#fff',weight:3,fillColor:c,fillOpacity:.9,interactive:false}).addTo(this.riskAssetLayer);}}
-      if((analyses||[]).some(x=>x.riskScore>=20))this.makeLegend('risk','Yangın–Şebeke Öncelik Skoru',`${C.riskScoreBands.map(b=>`<div class="legendLine"><i class="dot" style="background:${U.riskColor(b.level)}"></i><span>${b.min}+ · ${b.label}</span></div>`).join('')}<div class="sourceNote">Mesafe + FRP + tespit yaşı + gerilim/TM önemi; rüzgâr mevcutsa doğrultu katkısı. <strong>Arıza olasılığı veya resmî güvenlik mesafesi değildir.</strong></div>`);}
+    setFireImpacts(analyses,show=true){this.riskLayer.clearLayers();this.riskAssetLayer.clearLayers();document.querySelector('[data-legend="risk"]')?.remove();if(!show)return;for(const a of analyses||[]){if(!a.riskBand||a.riskScore<20||!U.insideRegion({lat:a.event.lat,lon:a.event.lon}))continue;const c=U.riskColor(a.riskBand.level),r=U.clamp(7+(100-a.riskScore)*-.015+a.event.count*.25,7,15);L.circleMarker([a.event.lat,a.event.lon],{pane:'riskPane',renderer:this.renderer,radius:r,color:c,weight:a.riskScore>=75?3:2,fill:false,opacity:.95,interactive:false}).addTo(this.riskLayer);if(a.riskScore>=55){const l=a.nearest?.line,s=a.nearest?.substation;if(l){L.polyline([[l.feature.a.lat,l.feature.a.lon],[l.feature.b.lat,l.feature.b.lon]],{pane:'riskPane',color:'#fff',weight:8,opacity:.55,interactive:false}).addTo(this.riskAssetLayer);L.polyline([[l.feature.a.lat,l.feature.a.lon],[l.feature.b.lat,l.feature.b.lon]],{pane:'riskPane',color:c,weight:5,opacity:.95,interactive:false}).addTo(this.riskAssetLayer);}        if(s)L.marker([s.feature.lat,s.feature.lon],{pane:'riskPane',icon:this.riskSubstationIcon(a.riskBand.level,c),interactive:false}).addTo(this.riskAssetLayer);}}
+      if((analyses||[]).some(x=>x.riskScore>=20))this.makeLegend('risk','Yangın–Şebeke Öncelik Skoru',`${C.riskScoreBands.map(b=>`<div class="legendLine"><i class="dot" style="background:${U.riskColor(b.level)}"></i><span>${b.min}+ · ${b.label}</span></div>`).join('')}<div class="legendLine"><span class="substationSquare substation-risk-critical" style="display:inline-block"></span><span>Riskli trafo merkezi (kare)</span></div><div class="sourceNote">Mesafe + FRP + tespit yaşı + gerilim/TM önemi; rüzgâr mevcutsa doğrultu katkısı. <strong>Arıza olasılığı veya resmî güvenlik mesafesi değildir.</strong></div>`);}
   }
   A.MapManager=MapManager;
+  A.MtgFrameManager=MtgFrameManager;
 })(window.AtmoApp);

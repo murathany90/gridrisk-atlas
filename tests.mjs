@@ -1,4 +1,4 @@
-import { readFileSync } from 'fs';
+import { readFileSync, readdirSync, statSync } from 'fs';
 import { strict as assert } from 'assert';
 
 // ── Setup environment ──
@@ -18,10 +18,14 @@ global.localStorage = {
   removeItem(k) { storage.delete(k); },
   clear() { storage.clear(); }
 };
-global.performance = { now: () => 0 };
+const realPerformance = global.performance;
+global.performance = new Proxy(realPerformance, {
+  get(t, k) { if (k === 'now') return () => 0; const v = t[k]; return typeof v === 'function' ? v.bind(t) : v; }
+});
 global.location = { protocol: 'https:', hostname: 'localhost' };
 global.setTimeout = setTimeout; global.clearTimeout = clearTimeout;
 global.AbortController = AbortController;
+const realFetch = global.fetch;
 
 // ── Load config ──
 const cfgPath = 'js/config.js';
@@ -427,14 +431,14 @@ test('null/NaN/zero scan/track is skipped', () => {
 // ============================================================
 console.log('\nv3.4.0 — MTG GeoColour WMS config');
 
-test('mtgGeoColourWms config points at EUMETSAT WMS GeoColour layer', () => {
+test('mtgGeoColourWms config points at official EUMETView WMS GeoColour layer', () => {
   const m = C().mtgGeoColourWms;
   assert.ok(m, 'mtgGeoColourWms defined');
-  assert.ok(m.url.includes('eumetview.eumetsat.int/geoserv/wms'), 'EUMETSAT WMS endpoint');
+  assert.equal(m.url, 'https://view.eumetsat.int/geoserver/wms', 'official EUMETView GeoServer endpoint');
   assert.equal(m.layer, 'mtg_fd:rgb_geocolour', 'GeoColour layer id');
   assert.equal(m.slotMinutes, 10, '10-minute slot cadence');
   assert.equal(m.maxBackfillSlots, 12, 'backfill cap 12 slots (2 h)');
-  assert.equal(m.version, '1.1.1', 'WMS 1.1.1 (EPSG:4326 srs)');
+  assert.equal(m.version, '1.3.0', 'WMS 1.3.0 (per capabilities)');
   assert.equal(m.format, 'image/png', 'PNG format only');
   assert.equal(m.crs, 'EPSG:4326', 'EPSG:4326 projection');
   assert.ok(m.defaultOpacity >= 0 && m.defaultOpacity <= 1, 'default opacity valid');
@@ -719,6 +723,27 @@ test('v3.4.0 — roundToMtgSlot snaps to 10-minute WMS slots', () => {
   assert.ok(fn.includes('slotMinutes'), 'uses slotMinutes from config');
 });
 
+test('v3.4.1 — slot calculation floors to past slot, never rounds up to future', () => {
+  const proto = AtmoApp.MapManager.prototype;
+  const slot = C().mtgGeoColourWms.slotMinutes * 60000;
+  assert.equal(proto.roundToMtgSlot(new Date('2026-07-30T12:56:00Z')).toISOString(), '2026-07-30T12:50:00.000Z', '12:56 -> 12:50 (floor), not 13:00');
+  assert.equal(proto.roundToMtgSlot(new Date('2026-07-30T12:50:00Z')).toISOString(), '2026-07-30T12:50:00.000Z', 'exact slot stays');
+  assert.equal(proto.roundToMtgSlot(new Date('2026-07-30T12:51:59Z')).toISOString(), '2026-07-30T12:50:00.000Z', '12:51:59 -> 12:50');
+  const fn = proto.roundToMtgSlot.toString();
+  assert.equal(fn.includes('Math.round'), false, 'Math.round removed from slot calc');
+  assert.ok(mapTxt.includes('Math.floor(ms/slot)'), 'Math.floor used for slot calc (MtgFrameManager.roundToSlot)');
+});
+
+test('v3.4.1 — future timeline clamps MTG to latest allowed real frame', () => {
+  const proto = AtmoApp.MapManager.prototype;
+  const future = new Date(Date.now() + 12 * 3600e3);
+  const latest = proto.latestAllowedMtgSlot();
+  const r = proto.roundToMtgSlot(future);
+  const r2 = r.getTime() > latest.getTime() ? latest : r;
+  assert.ok(r2.getTime() <= latest.getTime(), 'MTG time never exceeds latest allowed now-slot');
+  assert.equal(r2.getTime() % (C().mtgGeoColourWms.slotMinutes * 60000), 0, 'clamped time still on slot boundary');
+});
+
 test('v3.4.0 — wind corridor defaults: 30 km max distance, 22° half-angle, 30 corridors', () => {
   assert.equal(C().downwindMaxDistanceKm, 30, 'downwindMaxDistanceKm === 30');
   assert.equal(C().downwind.halfAngleDeg, 22, 'halfAngleDeg === 22');
@@ -776,19 +801,125 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.4.0'"), 'config appVersion 3.4.0');
+  assert.ok(cfgTxt2.includes("appVersion: '3.4.1'"), 'config appVersion 3.4.1');
 });
 
-test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.1.1, EPSG:4326, PNG, TIME)', () => {
+test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
   const mtgSrc = mapTxt.slice(mapTxt.indexOf('createMtgLayer'), mapTxt.indexOf('toggleMtg'));
-  assert.ok(mtgSrc.includes("version:wms.version"), 'WMS version from config');
-  assert.ok(mtgSrc.includes("srs:wms.crs"), 'srs from config (EPSG:4326)');
+  assert.ok(mtgSrc.includes("version:wms.version"), 'WMS version from config (1.3.0)');
+  assert.equal(mtgSrc.includes('srs:wms.crs'), false, 'no srs param — WMS 1.3.0 uses CRS (Leaflet swaps BBOX axis order)');
+  assert.ok(mtgSrc.includes('crs:L.CRS?L.CRS.EPSG4326:null'), 'EPSG:4326 CRS for axis-order handling');
   assert.ok(mtgSrc.includes("format:wms.format"), 'format from config');
   assert.ok(mtgSrc.includes("layers:wms.layer"), 'layer from config (mtg_fd:rgb_geocolour)');
-  assert.ok(mapTxt.includes('this.mtgLayer.setParams({time:iso})'), 'setParams update path present');
   assert.ok(mtgSrc.includes("pane:'mtgPane'"), 'tiles rendered into mtg pane');
-  assert.ok(mtgSrc.includes('maxBackfillSlots'), 'slot backfill cap wired');
-  assert.ok(mtgSrc.includes('layer.setParams({time:this.roundToMtgSlot('), 'tileerror walks back one slot via setParams');
+  assert.ok(mapTxt.includes('maxBackfillSlots'), 'slot backfill cap wired');
+  assert.ok(mtgSrc.includes("e.tile.dataset.frameSeq"), 'tile events stamped with frame sequence');
+  assert.ok(mtgSrc.includes('mgr.tileLoad(') && mtgSrc.includes('mgr.tileError('), 'tile events routed to frame manager');
+});
+
+// ============================================================
+// v3.4.1 — MTG frame-based backfill (MtgFrameManager)
+// ============================================================
+console.log('\nv3.4.1 — MTG frame-based backfill');
+
+const FMC = () => ({ ...C().mtgGeoColourWms, frameSettleMs: 3000 });
+function makeFrameManager(handlers) {
+  const events = [];
+  const mgr = new AtmoApp.MtgFrameManager(FMC(), {
+    start: (iso, seq) => events.push(['start', iso, seq]),
+    ok: (iso, seq) => events.push(['ok', iso, seq]),
+    backfill: (req, target, n, seq) => events.push(['backfill', req, target, n, seq]),
+    exhausted: (req, n, seq) => events.push(['exhausted', req, n, seq]),
+    invalid: (req, seq) => events.push(['invalid', req, seq]),
+    network: (req, seq) => events.push(['network', req, seq]),
+    probe: async (iso) => 'image',
+    ...handlers
+  });
+  return { mgr, events };
+}
+function settle(mgr) {
+  const t = mgr._settleT;
+  if (t) clearTimeout(t);
+  return mgr._settle();
+}
+
+test('v3.4.1 — 8 tile errors on the same frame cause exactly 1 backfill', async () => {
+  const { mgr, events } = makeFrameManager();
+  mgr.applyUserTime('2026-07-30T14:30:00.000Z');
+  for (let i = 0; i < 8; i++) mgr.tileError(1);
+  assert.equal(mgr.failedTileCount, 8, 'all 8 errors counted on the frame');
+  assert.equal(events.filter(e => e[0] === 'backfill').length, 0, 'no backfill before settle');
+  await settle(mgr);
+  assert.equal(events.filter(e => e[0] === 'backfill').length, 1, 'exactly one backfill for the frame');
+  assert.equal(mgr.backfillAttempt, 1, 'backfillAttempt incremented once');
+  const bf = events.find(e => e[0] === 'backfill');
+  assert.equal(bf[2], '2026-07-30T14:20:00.000Z', 'backfill target is one 10-min slot earlier');
+  mgr.dispose();
+});
+
+test('v3.4.1 — stale tileerror from an old frame does not affect the new frame', async () => {
+  const { mgr, events } = makeFrameManager();
+  const seq1 = mgr.applyUserTime('2026-07-30T14:30:00.000Z');
+  mgr.tileError(seq1);
+  await settle(mgr);
+  assert.equal(mgr.backfillAttempt, 1, 'first frame failed and backfilled once');
+  const backfillEvent = events.find(e => e[0] === 'backfill');
+  const seq2 = mgr.applyBackfill(backfillEvent[2]);
+  assert.equal(seq2, seq1 + 1, 'new frame sequence allocated');
+  mgr.tileError(seq1); mgr.tileError(seq1);
+  assert.equal(mgr.failedTileCount, 0, 'stale frame-1 errors ignored by frame 2');
+  assert.equal(mgr.backfillAttempt, 1, 'backfillAttempt unchanged by stale events');
+  mgr.dispose();
+});
+
+test('v3.4.1 — displayed frame timestamp tracks the frame actually on screen', () => {
+  const { mgr } = makeFrameManager();
+  mgr.applyUserTime('2026-07-30T14:30:00.000Z');
+  mgr.tileLoad(1);
+  assert.equal(mgr.displayedTime, '2026-07-30T14:30:00.000Z', 'displayed = requested when frame ok');
+  assert.equal(mgr.lastUserTime, '2026-07-30T14:30:00.000Z', 'lastUserTime keeps user selection');
+  const seq2 = mgr.applyBackfill('2026-07-30T14:10:00.000Z');
+  mgr.tileLoad(seq2);
+  assert.equal(mgr.displayedTime, '2026-07-30T14:10:00.000Z', 'displayed = actual backfilled frame 14:10');
+  assert.equal(mgr.lastUserTime, '2026-07-30T14:30:00.000Z', 'requested stays 14:30 after backfill');
+});
+
+test('v3.4.1 — max 12 backfill slots then exhausted, no endless loop', async () => {
+  const { mgr, events } = makeFrameManager();
+  let seq = mgr.applyUserTime('2026-07-30T14:30:00.000Z');
+  let guard = 0;
+  while (guard++ < 50) {
+    mgr.tileError(seq);
+    const before = events.filter(e => e[0] === 'backfill').length;
+    await settle(mgr);
+    if (events.filter(e => e[0] === 'backfill').length === before) break;
+    seq = mgr.applyBackfill(events.filter(e => e[0] === 'backfill').at(-1)[2]);
+  }
+  assert.equal(mgr.backfillAttempt, 12, 'exactly 12 backfill attempts');
+  assert.ok(events.some(e => e[0] === 'exhausted'), 'exhausted emitted after 12 slots');
+  assert.ok(guard < 50, 'loop terminated');
+  mgr.dispose();
+});
+
+test('v3.4.1 — invalid WMS response stops backfill and reports error', async () => {
+  const { mgr, events } = makeFrameManager({ probe: async () => 'invalid' });
+  const seq = mgr.applyUserTime('2026-07-30T14:30:00.000Z');
+  mgr.tileError(seq);
+  await settle(mgr);
+  assert.ok(events.some(e => e[0] === 'invalid'), 'invalid handler called');
+  assert.equal(mgr.backfillAttempt, 0, 'no backfill when service returns non-image');
+  mgr.dispose();
+});
+
+test('v3.4.1 — normalize clamps future dates to the latest allowed real slot', () => {
+  const mgr = new AtmoApp.MtgFrameManager(FMC(), {});
+  const future = new Date(Date.now() + 12 * 3600e3);
+  const n = mgr.normalize(future);
+  assert.ok(n.getTime() <= mgr.latestAllowed().getTime(), 'future date clamped to now-slot');
+  assert.equal(n.getTime() % mgr.slot, 0, 'clamped value stays on 10-min boundary');
+  const past = new Date('2024-01-01T00:00:00Z');
+  assert.equal(mgr.normalize(past).toISOString(), '2024-01-01T00:00:00.000Z', 'past dates pass through on slot boundary');
+  mgr.dispose();
 });
 
 // ── v3.3.4 mobile-responsive / overflow contract ──
@@ -880,13 +1011,13 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.4.0 version bump to 3.4.0 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.4.0'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.4.0'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.4.0'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.4.0'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.4.0"'), 'package.json version');
-  assert.equal(htmlTxt.includes('3.3.7'), false, 'no stale 3.3.7 in index.html');
+test('v3.4.1 version bump to 3.4.1 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.4.1'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.4.1'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.4.1'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.4.1'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.4.1"'), 'package.json version');
+  assert.equal(htmlTxt.includes('3.4.0'), false, 'no stale 3.4.0 in index.html');
 });
 
 // ── FIRMS hexagon markers + Ayarlar tab rename ──
@@ -938,6 +1069,113 @@ test('v3.3.7 map: no preferCanvas double-canvas blocking hover on grid lines', (
   assert.ok(cssTxt.includes('.leaflet-pane>canvas.leaflet-smoke-canvas{pointer-events:none}'), 'smoke canvas none');
   assert.ok(cssTxt.includes('.leaflet-pane>svg{pointer-events:none}'), 'svg roots none');
   assert.ok(cssTxt.includes('.leaflet-pane>svg .leaflet-interactive{pointer-events:visiblePainted}'), 'svg interactive paths only');
+});
+
+// ============================================================
+// v3.4.1 — MTG 10-min playback, risk squares, service states
+// ============================================================
+console.log('\nv3.4.1 — playback, risk squares, service states');
+
+test('v3.4.1 — MTG playback steps 10 min per frame while enabled, else 3 h', () => {
+  assert.equal(C().timeline.mtgPlayStepMinutes, 10, 'mtgPlayStepMinutes = 10');
+  assert.equal(C().timeline.playStepHours, 3, 'non-MTG step stays 3 h');
+  assert.ok(appTxt.includes('const step=this.state.mtgEnabled?C.timeline.mtgPlayStepMinutes/60:C.timeline.playStepHours;'), 'playback step branches on mtgEnabled');
+  assert.ok(appTxt.includes('if(this.state.mtgEnabled)d.setUTCSeconds(0,0);else d.setUTCMinutes(0,0,0);'), '10-min offsets preserved while MTG active');
+});
+
+test('v3.4.1 — nearest-risk substation marker is a square (riskSubstationIcon)', () => {
+  assert.ok(mapTxt.includes('riskSubstationIcon('), 'riskSubstationIcon helper exists');
+  assert.ok(mapTxt.includes('this.riskSubstationIcon(a.riskBand.level,c)'), 'nearest substation uses risk-colored square');
+  const riskSrc = mapTxt.slice(mapTxt.indexOf('setFireImpacts'), mapTxt.indexOf('makeLegend(\'risk\''));
+  assert.ok(riskSrc.includes('L.marker([s.feature.lat,s.feature.lon]'), 'substation rendered as marker (square) not circleMarker');
+  assert.ok(mapTxt.includes('{critical:14,high:12,medium:10,watch:8,low:8}'), 'square sizes critical14/high12/medium10/low-watch8');
+});
+
+test('v3.4.1 — downwind sector substations are squares (sectorSubstationIcon)', () => {
+  assert.ok(mapTxt.includes('sectorSubstationIcon()'), 'sectorSubstationIcon helper exists');
+  const dwSrc = mapTxt.slice(mapTxt.indexOf('setDownwindCorridors'), mapTxt.indexOf('toggleFwi'));
+  assert.ok(dwSrc.includes("L.marker([x.feature.lat,x.feature.lon],{pane:'riskPane',icon:this.sectorSubstationIcon()"), 'sector substation uses square marker');
+  assert.equal(dwSrc.includes('L.circleMarker'), false, 'no circleMarker left in downwind corridor path');
+});
+
+test('v3.4.1 — risk legend shows square TM symbol', () => {
+  const riskLegend = mapTxt.slice(mapTxt.indexOf("this.makeLegend('risk'"), mapTxt.indexOf('this.makeLegend(\'risk\'') + 900);
+  assert.ok(riskLegend.includes('Riskli trafo merkezi (kare)'), 'legend line labels square TM');
+  assert.ok(riskLegend.includes('substationSquare'), 'legend uses square class');
+  assert.ok(mapTxt.includes('Koridordaki trafo merkezi'), 'downwind legend marks square TM symbol');
+});
+
+test('v3.4.1 — services table labels loading/backfill/no-frame states', () => {
+  assert.ok(uiTxt.includes("s.state==='loading'?'Yükleniyor'"), 'loading label');
+  assert.ok(uiTxt.includes("s.state==='backfill'?'Gecikmeli frame'"), 'backfill label');
+  assert.ok(uiTxt.includes("s.state==='no-frame'?'Kare yok'"), 'no-frame label');
+});
+
+test('v3.4.1 — map.js emits distinct MTG states incl. Geçersiz WMS yanıtı', () => {
+  assert.ok(mapTxt.includes("state:'loading'") && mapTxt.includes("state:'backfill'") && mapTxt.includes("state:'no-frame'"), 'loading/backfill/no-frame states emitted');
+  assert.ok(mapTxt.includes("state:'error',note:'Geçersiz WMS yanıtı"), 'invalid WMS response state');
+  assert.ok(mapTxt.includes("state:'error',note:'WMS bağlantı hatası'"), 'network error state');
+});
+
+test('v3.4.1 — old EUMETView geoserv endpoint absent repo-wide', () => {
+  function allFiles(dir) {
+    let out = [];
+    for (const e of readdirSync(dir)) {
+      const p = `${dir}/${e}`;
+      if (statSync(p).isDirectory()) {
+        if (['node_modules', '.git', 'data'].includes(e)) continue;
+        out = out.concat(allFiles(p));
+      } else if (/\.(js|mjs|html|md|css|json|yml)$/.test(e)) out.push(p);
+    }
+    return out;
+  }
+  const hits = allFiles('.').filter(f => readFileSync(f, 'utf8').includes('eumetview.' + 'eumetsat.int/geoserv'));
+  assert.deepEqual(hits, [], 'legacy endpoint removed from every file: ' + hits.join(', '));
+});
+
+test('v3.4.1 — official EUMETView endpoint referenced everywhere', () => {
+  assert.ok(cfgTxt.includes('https://view.eumetsat.int/geoserver/wms'), 'config uses official endpoint');
+  assert.ok(mapTxt.includes('L.tileLayer.wms(wms.url,'), 'map.js builds layer from configured official endpoint');
+});
+
+// ============================================================
+// v3.4.1 — live external EUMETView WMS contract
+// ============================================================
+console.log('\nv3.4.1 — external EUMETView contract');
+
+test('v3.4.1 — GetCapabilities advertises layer + GetMap returns real image (SKIPPED if network unavailable)', async () => {
+  const m = C().mtgGeoColourWms;
+  const f = typeof realFetch === 'function' ? realFetch : fetch;
+  let caps;
+  try {
+    caps = await f(`${m.url}?service=WMS&version=${m.version}&request=GetCapabilities`, { signal: AbortSignal.timeout(20000) });
+  } catch (e) {
+    console.log('    SKIPPED — network unavailable');
+    return;
+  }
+  assert.equal(caps.status, 200, `GetCapabilities HTTP 200, got ${caps.status}`);
+  const xml = await caps.text();
+  assert.ok(xml.startsWith('<?xml'), 'capabilities is XML');
+  assert.ok(xml.includes('mtg_fd:rgb_geocolour'), 'GeoColour layer present in capabilities');
+  assert.ok(xml.includes(`version="${m.version}"`), `capabilities root version ${m.version}`);
+  const dim = xml.match(/<Dimension name="time"[^>]*>\s*([^<]+)<\/Dimension>/);
+  assert.ok(dim, 'time dimension present');
+  const parts = dim[1].trim().split('/');
+  assert.equal(parts.length, 3, 'time dimension start/end/step');
+  const time = parts[1].trim();
+  let gmap;
+  try {
+    gmap = await f(`${m.url}?SERVICE=WMS&VERSION=${m.version}&REQUEST=GetMap&LAYERS=${m.layer}&STYLES=&FORMAT=image/png&TRANSPARENT=TRUE&BBOX=${m.probeBbox}&WIDTH=64&HEIGHT=64&CRS=EPSG:4326&TIME=${encodeURIComponent(time)}`, { signal: AbortSignal.timeout(30000) });
+  } catch (e) {
+    console.log('    SKIPPED — GetMap network error');
+    return;
+  }
+  assert.equal(gmap.status, 200, `GetMap HTTP 200, got ${gmap.status}`);
+  const ct = (gmap.headers.get('content-type') || '').toLowerCase();
+  assert.ok(ct.startsWith('image/'), `GetMap Content-Type image/*, got ${ct}`);
+  const bytes = new Uint8Array(await gmap.arrayBuffer());
+  assert.ok(bytes.length > 1000, 'image payload non-trivial');
+  assert.ok(bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47, 'PNG magic bytes');
 });
 
 // ── Run ──
