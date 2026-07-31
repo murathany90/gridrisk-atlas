@@ -4,7 +4,7 @@
     constructor(){
       this.ui=new A.UIManager();this.map=new A.MapManager();this.grid=new A.GridRepository();
       this.state={selectedTime:new Date(),smokeVariable:'pm10_wildfires',smokeData:[],wildfireSummaryData:[],fireData:[],fireEvents:[],fireImpacts:[],windData:[],windEnabled:false,windLevel:'10m',fwiEnabled:false,effisBurntAreaEnabled:false,firesEnabled:true,heatEnabled:false,impactEnabled:true,downwindEnabled:true,smokePoints:false,gridMaster:true,selectedPoint:null,frpThreshold:50,firePolygonsEnabled:false,firePolygonData:null,gfwData:null};
-      this.controllers={air:null,wind:null,firms:null,detail:null,firePolygon:null,gfw:null};this.reqSeq={air:0,wind:0,firms:0,detail:0,firePolygon:0,gfw:0};this.moveTimer=null;this.timeTimer=null;this.playTimer=null;this.lastApiCall=0;
+      this.controllers={air:null,wind:null,firms:null,detail:null,firePolygon:null,gfw:null};this.reqSeq={air:0,wind:0,firms:0,detail:0,firePolygon:0,gfw:0};this.moveTimer=null;this.timeTimer=null;this.playTimer=null;this.lastApiCall=0;this.resizeT=null;
     }
     async init(){
       this.ui.init();this.map.init(p=>this.selectPoint(p));this.bindUI();this.restoreSettings();this.ui.setTime(this.state.selectedTime);this.ui.setUpdated();
@@ -14,7 +14,9 @@
       if(A.CONFIG.firmsMapKey&&A.CONFIG.firmsMapKey!=='__FIRMS_MAP_KEY__')this.loadFirms();else A.Events.emit('service',{id:'firms',state:'warn',note:'MAP_KEY eksik; FIRMS katmanı pasif'});
       if(document.getElementById('layerGfw')?.checked)this.loadGfw();
       this.map.map.on('moveend',()=>{clearTimeout(this.moveTimer);this.moveTimer=setTimeout(()=>{const now=Date.now();if(now-this.lastApiCall<5000)return;this.lastApiCall=now;this.loadSmokeGrid();setTimeout(()=>this.loadWindGrid(),600);},2000);});
+      window.addEventListener('resize',()=>this.scheduleResize());window.addEventListener('orientationchange',()=>this.scheduleResize());
     }
+    scheduleResize(){clearTimeout(this.resizeT);this.resizeT=setTimeout(()=>{const v=document.getElementById('view-map');if(v?.classList.contains('active'))this.map?.map?.invalidateSize();},150);}
     restoreSettings(){
       document.getElementById('firmsSource').value=A.FirmsAdapter.source();
       const wl=localStorage.getItem('windLevel');if(C.windLevels[wl])this.state.windLevel=wl;document.getElementById('windLevel').value=this.state.windLevel;document.getElementById('baseMapSelect').value=this.map.baseKey||'satellite';

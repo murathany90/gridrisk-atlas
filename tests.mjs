@@ -1255,5 +1255,59 @@ test('GFW key missing: returns empty with warn, no fetch', async () => {
   } finally { off(); }
 });
 
+// ── v3.3.4 mobile-responsive / overflow contract ──
+const cssTxt = readFileSync('css/styles.css', 'utf8');
+const htmlTxt = readFileSync('index.html', 'utf8');
+const appTxt = readFileSync('js/app.js', 'utf8');
+const uiTxt = readFileSync('js/ui.js', 'utf8');
+
+test('v3.3.4 CSS: dynamic viewport height support', () => {
+  assert.ok(/min-height:100dvh/.test(cssTxt), 'min-height:100dvh present');
+  assert.ok(/@supports\(height:100dvh\)\{html,body,#appShell\{height:100dvh\}\}/.test(cssTxt), 'dvh supports block present');
+});
+
+test('v3.3.4 CSS: KPI rail keeps all 6 cards scroll-snap on mobile', () => {
+  assert.ok(/\.kpiBar\{height:77px;grid-template-columns:repeat\(6,minmax\(110px,1fr\)\);padding:5px;overflow-x:auto/.test(cssTxt), 'kpiBar rail 6-col minmax(110px,1fr)');
+  assert.ok(/\.kpiBar \.kpiCard:nth-child\(n\+3\)\{display:block\}/.test(cssTxt), 'all 6 KPI cards visible');
+  assert.ok(/\.kpiBar \.kpiCard\{scroll-snap-align:start\}/.test(cssTxt), 'scroll-snap-align on cards');
+});
+
+test('v3.3.4 CSS: mainNav 4-col grid + icon-only refresh on mobile', () => {
+  assert.ok(/\.mainNav\{height:44px;display:grid;grid-template-columns:repeat\(4,minmax\(0,1fr\)\) auto/.test(cssTxt), 'nav grid repeat(4,minmax(0,1fr)) auto');
+  assert.ok(/\.mainNav \.navBtn\{[^}]*min-height:40px/.test(cssTxt), 'nav touch targets >=40px');
+  assert.ok(/#refreshAllBtn::before\{content:'↻'/.test(cssTxt), 'refresh icon-only via ::before');
+});
+
+test('v3.3.4 CSS: mobile topbar keeps only livePill/buildPill + title ellipsis', () => {
+  assert.ok(/\.topMeta #lastUpdated,\.domainPill,#runtimeMode\{display:none\}/.test(cssTxt), 'runtimeMode hidden on mobile');
+  assert.ok(/\.topbar h1\{font-size:17px;margin:0;letter-spacing:\.1px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis/.test(cssTxt), 'h1 ellipsis');
+});
+
+test('v3.3.4 CSS: safe-area + compact timeline/detail/toast', () => {
+  assert.ok(/\.timelinePanel\{left:max\(8px,env\(safe-area-inset-left\)\);right:max\(8px,env\(safe-area-inset-right\)\);bottom:8px;width:auto\}/.test(cssTxt), 'timeline safe-area L/R');
+  assert.ok(/@media\(max-width:480px\)\{\.timelinePanel\{padding:6px 8px\}\.timelineTop\{display:grid;grid-template-columns:auto auto 1fr auto auto/.test(cssTxt), 'compact 2-row timeline <=480px');
+  assert.ok(/\.detailPanel\{top:auto;bottom:0;width:100%;height:auto;max-height:calc\(100dvh - 90px\);min-height:220px/.test(cssTxt), 'detail bottom-sheet max-height dvh');
+  assert.ok(/padding-bottom:max\(8px,env\(safe-area-inset-bottom\)\)/.test(cssTxt), 'detail bottom safe-area');
+  assert.ok(/#closeDetailBtn\{width:44px;height:44px/.test(cssTxt), '44px close button');
+  assert.ok(/\.toastHost\{left:max\(8px,env\(safe-area-inset-left\)\);right:max\(8px,env\(safe-area-inset-right\)\);bottom:max\(42px,env\(safe-area-inset-bottom\)\)\}/.test(cssTxt), 'toast safe-area');
+});
+
+test('v3.3.4 CSS: legend stack + tables + 1-col grids', () => {
+  assert.ok(/\.legendStack\{position:absolute;z-index:550;left:12px;bottom:108px;display:flex;flex-direction:column;gap:6px;max-width:min\(220px,calc\(100vw - 16px\)\);max-height:40dvh;overflow-y:auto/.test(cssTxt), 'legend max-height:40dvh + max-width min()');
+  assert.ok(/\.tableWrap\{overflow-x:auto;-webkit-overflow-scrolling:touch;max-width:100%/.test(cssTxt), 'tableWrap overflow-x touch');
+  assert.ok(/@media\(max-width:600px\)\{\.metricGrid\{grid-template-columns:1fr\}\}/.test(cssTxt), 'metricGrid 1-col <=600px');
+});
+
+test('v3.3.4 HTML: no inline grid-template-columns left', () => {
+  assert.equal(htmlTxt.includes('grid-template-columns:1fr 1fr'), false, 'inline 2-col styles removed');
+  assert.ok(!/style="grid-template-columns/.test(htmlTxt), 'no style= grid-template-columns anywhere');
+});
+
+test('v3.3.4 JS: debounced invalidateSize on resize/orientation + panel collapse', () => {
+  assert.ok(/scheduleResize\(\)\{clearTimeout\(this\.resizeT\);this\.resizeT=setTimeout\(\(\)=>\{const v=document\.getElementById\('view-map'\);if\(v\?\.classList\.contains\('active'\)\)this\.map\?\.map\?\.invalidateSize\(\);},150\);}/.test(appTxt), 'scheduleResize debounce in app.js');
+  assert.ok(/window\.addEventListener\('resize',\(\)=>this\.scheduleResize\(\)\);window\.addEventListener\('orientationchange',\(\)=>this\.scheduleResize\(\)\);/.test(appTxt), 'resize+orientationchange listeners');
+  assert.ok(/collapseBtn'\)\?\.addEventListener\('click',e=>\{const body=document\.getElementById\('layerPanelBody'\);body\.classList\.toggle\('hidden'\);e\.currentTarget\.textContent=body\.classList\.contains\('hidden'\)\?'\+':'−';if\(document\.getElementById\('view-map'\)\?\.classList\.contains\('active'\)\)setTimeout\(\(\)=>A\.app\?\.map\?\.map\?\.invalidateSize\(\),30\);/.test(uiTxt), 'collapse triggers invalidateSize');
+});
+
 // ── Run ──
 await run();

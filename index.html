@@ -134,7 +134,7 @@
 
     <section id="view-info" class="view settingsView">
       <div class="analysisGrid">
-        <article class="card wide"><div class="cardHeader"><h2>🔥 Teknik Terimler ve Kısaltmalar</h2><span class="badge analysis">BİLGİ</span></div><div class="metricGrid" style="grid-template-columns:1fr 1fr;gap:8px">
+        <article class="card wide"><div class="cardHeader"><h2>🔥 Teknik Terimler ve Kısaltmalar</h2><span class="badge analysis">BİLGİ</span></div><div class="metricGrid">
           <div class="metric"><small>FIRMS</small><strong>Fire Information for Resource Management System</strong><small>NASA'nın uydu tabanlı termal anomali/aktif yangın tespit sistemi. MODIS ve VIIRS sensörlerinden elde edilen verileri sunar. Tespitler hotspot (termal anomali) olup gerçek yangın perimetresi değildir.</small></div>
           <div class="metric"><small>FRP</small><strong>Fire Radiative Power (MW)</strong><small>Yangının anlık ısıl gücü. Bir yangının ne kadar yoğun yandığını gösterir. Yüksek FRP daha yoğun yanma ve potansiyel olarak daha hızlı yayılma anlamına gelir. Uygulamada 50+ MW eşik değer olarak kullanılır.</small></div>
           <div class="metric"><small>VIIRS</small><strong>Visible Infrared Imaging Radiometer Suite</strong><small>Suomi NPP, NOAA-20 ve NOAA-21 uydularındaki sensör. 375 m ve 750 m çözünürlükte termal tespit yapar. MODIS'ten daha yüksek çözünürlüklüdür.</small></div>
@@ -148,7 +148,7 @@
           <div class="metric"><small>Hotspot</small><strong>FIRMS Termal Anomali Tespiti</strong><small>Uydu görüntülerinde çevresine göre anormal derecede sıcak piksel. Yangın perimetresi değildir. Bulut örtüsü, yoğun duman veya gece geçişlerinde tespit edilemeyebilir.</small></div>
           <div class="metric"><small>Küme / Cluster</small><strong>5 km / 6 saat uzamsal-zamansal kümeleme</strong><small>Birden çok FIRMS tespitinin aynı yangın olayına ait olacak şekilde gruplanması. 5 km yarıçap ve 6 saatlik zaman penceresi kullanılır. FRP ağırlıklı merkez hesaplanır.</small></div>
         </div></article>
-        <article class="card wide"><div class="cardHeader"><h2>📊 Analiz Metrikleri ve Skorlama</h2><span class="badge analysis">METODOLOJİ</span></div><div class="metricGrid" style="grid-template-columns:1fr 1fr;gap:8px">
+        <article class="card wide"><div class="cardHeader"><h2>📊 Analiz Metrikleri ve Skorlama</h2><span class="badge analysis">METODOLOJİ</span></div><div class="metricGrid">
           <div class="metric"><small>Risk Skoru (0-100)</small><strong>Operasyonel Önceliklendirme Endeksi</strong><small>Yangın olayının şebeke varlıklarına olan potansiyel etkisini ölçen bileşik skor. Mesafe + FRP + tespit yaşı + gerilim/TM önemi + rüzgâr doğrultusu (varsa) bileşenlerinden oluşur. <strong>Arıza olasılığı değildir.</strong></small></div>
           <div class="metric"><small>Mesafe Bileşeni (0-50 puan)</small><strong>Yangın-şebeke yakınlık skoru</strong><small>≤1 km: 50 puan, ≤3 km: 42 puan, ≤10 km: 28 puan, ≤25 km: 12 puan, &gt;25 km: 0 puan.</small></div>
           <div class="metric"><small>FRP Bileşeni (0-20 puan)</small><strong>Yangın yoğunluğu skoru</strong><small>maxFRP'ye bağlı: √(maxFRP) × 2, maksimum 20 puan. Yüksek FRP daha yoğun yangın anlamına gelir.</small></div>
@@ -160,7 +160,7 @@
           <div class="metric"><small>Rüzgâr Koridoru</small><strong>50 km / ±22° sektör taraması</strong><small>Yangından rüzgâr yönünde 50 km mesafeye ve ±22° açıya kadar şebeke varlığı taraması. Gerçek duman yörüngesi değildir; operasyonel ön-değerlendirme amaçlıdır.</small></div>
           <div class="metric"><small>Duman Görselleştirme</small><strong>Canvas tabanlı plume interpolasyonu</strong><small>CAMS PM10 grid noktaları arasında radyal gradient ile yumuşak duman görünümü. Bilimsel çözünürlük (~11 km) değişmez; yalnız görsel enterpolasyondur.</small></div>
         </div></article>
-        <article class="card wide caution"><h2>⚠ Önemli Sınırlamalar</h2><div class="metricGrid" style="grid-template-columns:1fr 1fr;gap:8px">
+        <article class="card wide caution"><h2>⚠ Önemli Sınırlamalar</h2><div class="metricGrid">
           <div class="metric"><small>Hotspot ≠ Yangın Perimetresi</small><strong>FIRMS tespitleri gerçek yangın sınırını göstermez.</strong><small>Her tespit bir pikselin çevresine göre sıcak olduğunu belirtir. Yangının gerçek büyüklüğü, şekli ve yayılma hızı hakkında bilgi vermez.</small></div>
           <div class="metric"><small>Koridor ≠ Duman Yörüngesi</small><strong>Rüzgâr koridoru gerçek duman modeli değildir.</strong><small>Basitleştirilmiş geometrik sektör taramasıdır. Gerçek duman taşınımı topografya, atmosferik kararlılık ve üst seviye rüzgâr profillerinden etkilenir.</small></div>
           <div class="metric"><small>Risk Skoru ≠ Arıza Olasılığı</small><strong>Skor operasyonel önceliklendirme içindir.</strong><small>Yangının şebekeye zarar verme olasılığını veya yangın davranışını modellemez. Saha koşulları, ekipman durumu ve müdahale kapasitesini dikkate almaz.</small></div>
@@ -168,7 +168,7 @@
           <div class="metric"><small>Veri Gecikmesi</small><small>FIRMS global NRT: ≤3 sa, CAMS: saatlik, Open-Meteo: 30-60 dk. Gerçek zamanlı değildir.</small></div>
           <div class="metric"><small>Şebeke Kapsamı</small><small>Yalnız OSM'de bulunan 400/154 kV hatlar ve TM'ler. Özel şebeke varlıkları, dağıtım hatları ve SCADA verisi dahil değildir.</small></div>
         </div></article>
-        <article class="card wide"><div class="cardHeader"><h2>🔗 Veri Kaynakları ve Referanslar</h2><span class="badge forecast">KAYNAK</span></div><div class="metricGrid" style="grid-template-columns:1fr 1fr;gap:8px">
+        <article class="card wide"><div class="cardHeader"><h2>🔗 Veri Kaynakları ve Referanslar</h2><span class="badge forecast">KAYNAK</span></div><div class="metricGrid">
           <div class="metric"><small>NASA FIRMS</small><strong>firms.modaps.eosdis.nasa.gov</strong><small>MODIS ve VIIRS termal anomali verileri. MAP_KEY ile erişim. Ücretsiz kayıt gerektirir.</small></div>
           <div class="metric"><small>CAMS / Open-Meteo</small><strong>open-meteo.com</strong><small>Open-Meteo üzerinden CAMS European Air Quality verileri. Wildfire PM10 ve PM10 payı. Ücretsiz API.</small></div>
           <div class="metric"><small>Open-Meteo Weather</small><strong>open-meteo.com</strong><small>ECMWF tabanlı hava tahmini. Rüzgâr (10m/850/700 hPa), sıcaklık, nem. Ücretsiz API.</small></div>
