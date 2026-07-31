@@ -12,7 +12,7 @@
 .legendStack.legendsHidden{opacity:0;pointer-events:none;transform:translateY(8px)}
 .legendHeader{display:flex;align-items:center;justify-content:space-between;gap:8px}.legendTitle{margin:0}.legendClose{width:20px;height:20px;padding:0;border-radius:5px;background:transparent;border:1px solid #30485a;color:#9fb1bf;font-size:14px;line-height:16px}.legendClose:hover{background:#193044;color:white}
 .timelineDomains{display:grid;grid-template-columns:25% 75%;gap:0;font-size:7px;letter-spacing:.4px;margin:4px 0 1px;color:#7d93a5}.timelineDomains span:first-child{color:#9ad8bb;border-right:1px solid #446173}.timelineDomains span:last-child{text-align:center;color:#8fc9f0}
-.tmIconWrap{background:transparent;border:0}.tmIcon{display:block;width:18px;height:18px;line-height:17px;text-align:center;font-size:15px;text-shadow:0 1px 3px #000,0 0 2px #000}.tmIcon.tm400{color:#ff5a5f}.tmIcon.tm154{color:#f8fafc}.tmIcon.tmOther{color:#ffb454}
+.substationIconWrap{background:transparent;border:0}.substationSquare{display:block;border:1.5px solid #0b1e2b;border-radius:2px;box-shadow:0 0 3px rgba(0,0,0,.55)}.substationSquare.substation-risk-critical{background:#ef4444;border-color:#7f1d1d}.substationSquare.substation-risk-high{background:#f97316;border-color:#7c2d12}.substationSquare.substation-risk-medium{background:#eab308;border-color:#713f12}.substationSquare.substation-risk-low{background:#f8fafc;border-color:#334155}
 .riskTable tbody tr[data-risk-index]{cursor:pointer}.riskTable tbody tr[data-risk-index]:hover{background:#132536}
 .kpiCard strong.zeroValue{color:#b9c4ce}
 .kpiCard small.statusWarn{color:#e9b961}

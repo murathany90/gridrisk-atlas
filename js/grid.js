@@ -47,7 +47,7 @@
       return{lines:[...lines.values()].sort((a,b)=>a.distanceKm-b.distanceKm),substations:[...substations.values()].sort((a,b)=>a.distanceKm-b.distanceKm)};
     }
     analyzeFire(fire,maxKm=25){const point={lat:fire.lat,lon:fire.lon},n=this.nearest(point,maxKm),d=Math.min(n.line?.distanceKm??Infinity,n.substation?.distanceKm??Infinity),assets=this.assetsWithin(point,Math.min(10,maxKm));return{fire,nearest:n,assets,minDistanceKm:Number.isFinite(d)?d:null,band:Number.isFinite(d)?U.impactBand(d):null};}
-    assetsInSector(point,direction,maxKm=C.downwind.distanceKm,halfAngle=C.downwind.halfAngleDeg){
+    assetsInSector(point,direction,maxKm=C.downwindMaxDistanceKm,halfAngle=C.downwind.halfAngleDeg){
       if(!Number.isFinite(direction))return{lines:[],substations:[]};const lines=new Map(),substations=new Map(),seenSeg=new Set();
       const inside=p=>{const d=U.haversineKm(point,p);if(d>maxKm||d<.05)return null;const bearing=U.bearingDeg(point,p),diff=U.angleDiff(direction,bearing);return diff<=halfAngle?{distanceKm:d,bearing,diff}:null;};
       for(const ck of this.nearbyCells(point,maxKm)){

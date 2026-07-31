@@ -2,7 +2,7 @@
 (function(A){
   A.CONFIG = {
     appName: 'Türkiye Wildfire Grid Risk Monitor',
-    appVersion: '3.3.7',
+    appVersion: '3.4.0',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
     mapMinZoom: 2,
@@ -33,14 +33,21 @@
     effisWms: 'https://maps.effis.emergency.copernicus.eu/effis',
     effisFwiLayer: 'ecmwf007.fwi',
     effisBurntAreaLayer: 'effis.nrt.ba.poly',
-    atmoHubPortal: 'https://portal.atmohub.gr/',
-    atmoHubDiscovery: '/api/atmohub/discover',
     timeline: { minHours: -48, maxHours: 12, playStepHours: 3, playIntervalMs: 1500 },
     cacheTtl: { air: 30*60*1000, weather: 60*60*1000, geocode: 60*60*1000, firms: 7*60*1000, grid: 24*60*60*1000 },
     firmsSources: ['VIIRS_NOAA21_NRT','VIIRS_NOAA20_NRT','VIIRS_SNPP_NRT','MODIS_NRT'],
-    gfwApiKey: '__GFW_API_KEY__',
-    eumetsatConsumerKey: '__EUMETSAT_CONSUMER_KEY__',
-    eumetsatConsumerSecret: '__EUMETSAT_CONSUMER_SECRET__',
+    mtgGeoColourWms: {
+      label: 'EUMETSAT MTG-I GeoColour RGB',
+      url: 'https://eumetview.eumetsat.int/geoserv/wms',
+      layer: 'mtg_fd:rgb_geocolour',
+      format: 'image/png',
+      version: '1.1.1',
+      crs: 'EPSG:4326',
+      attribution: 'Imagery © EUMETSAT 2026',
+      defaultOpacity: 0.85,
+      slotMinutes: 10,
+      source: 'EUMETSAT MTG-I FCI · gerçek uydu görüntüsü'
+    },
     baseMaps: {
       satellite: {
         label:'Uydu · Esri World Imagery',
@@ -89,19 +96,9 @@
       '850hPa': {label:'850 hPa rüzgârı',speed:'wind_speed_850hPa',direction:'wind_direction_850hPa'},
       '700hPa': {label:'700 hPa rüzgârı',speed:'wind_speed_700hPa',direction:'wind_direction_700hPa'}
     },
-    firePolygonRange: { start: Date.now()-7*86400000, end: Date.now() },
-    firePolygons: {
-      url: 'https://admin.ihtiyacharitasi.org/server/rest/services/Hosted/yangin_alan2024_view/FeatureServer/2/query',
-      label: 'Güncel Yangın Alanları',
-      source: 'İhtiyaç Haritası / AFAD & OGM',
-      fillColor: '#ff4500',
-      fillOpacity: .18,
-      strokeColor: '#ff4500',
-      strokeWeight: 1.8,
-      markerColor: '#ff6b35'
-    },
     fireClustering: { radiusKm: 5, timeHours: 6 },
-    downwind: { distanceKm: 50, halfAngleDeg: 22, maxCorridors: 30 },
+    downwindMaxDistanceKm: 30,
+    downwind: { halfAngleDeg: 22, maxCorridors: 30 },
     impactBands: [
       {maxKm:1,label:'Kritik yakınlık',level:'critical'},
       {maxKm:3,label:'Yüksek yakınlık',level:'high'},

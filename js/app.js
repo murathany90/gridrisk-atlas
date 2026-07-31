@@ -3,8 +3,8 @@
   class Application{
     constructor(){
       this.ui=new A.UIManager();this.map=new A.MapManager();this.grid=new A.GridRepository();
-      this.state={selectedTime:new Date(),smokeVariable:'pm10_wildfires',smokeData:[],wildfireSummaryData:[],fireData:[],fireEvents:[],fireImpacts:[],windData:[],windEnabled:false,windLevel:'10m',fwiEnabled:false,effisBurntAreaEnabled:false,firesEnabled:true,heatEnabled:false,impactEnabled:true,downwindEnabled:true,smokePoints:false,gridMaster:true,selectedPoint:null,frpThreshold:50,firePolygonsEnabled:false,firePolygonData:null,gfwData:null};
-      this.controllers={air:null,wind:null,firms:null,detail:null,firePolygon:null,gfw:null};this.reqSeq={air:0,wind:0,firms:0,detail:0,firePolygon:0,gfw:0};this.moveTimer=null;this.timeTimer=null;this.playTimer=null;this.lastApiCall=0;this.resizeT=null;
+      this.state={selectedTime:new Date(),smokeVariable:'pm10_wildfires',smokeData:[],wildfireSummaryData:[],fireData:[],fireEvents:[],fireImpacts:[],windData:[],windEnabled:true,windLevel:'10m',fwiEnabled:false,effisBurntAreaEnabled:false,mtgEnabled:false,firesEnabled:true,heatEnabled:false,impactEnabled:true,downwindEnabled:false,smokePoints:false,gridMaster:true,selectedPoint:null,frpThreshold:50};
+      this.controllers={air:null,wind:null,firms:null,detail:null};this.reqSeq={air:0,wind:0,firms:0,detail:0};this.moveTimer=null;this.timeTimer=null;this.playTimer=null;this.lastApiCall=0;this.resizeT=null;
     }
     async init(){
       this.ui.init();this.map.init(p=>this.selectPoint(p));this.bindUI();this.restoreSettings();this.ui.setTime(this.state.selectedTime);this.ui.setUpdated();
@@ -12,7 +12,6 @@
       this.grid.loadCore().then(()=>{this.updateImpact();this.renderGridStaggered();}).catch(e=>this.ui.toast(`Şebeke core veri yüklenemedi: ${e.message}. start_windows.bat / localhost kullanın.`,'error'));
       this.healthCheck(false);this.loadSmokeGrid();this.loadWindGrid(true);
       if(A.CONFIG.firmsMapKey&&A.CONFIG.firmsMapKey!=='__FIRMS_MAP_KEY__')this.loadFirms();else A.Events.emit('service',{id:'firms',state:'warn',note:'MAP_KEY eksik; FIRMS katmanı pasif'});
-      if(document.getElementById('layerGfw')?.checked)this.loadGfw();
       this.map.map.on('moveend',()=>{clearTimeout(this.moveTimer);this.moveTimer=setTimeout(()=>{const now=Date.now();if(now-this.lastApiCall<5000)return;this.lastApiCall=now;this.loadSmokeGrid();setTimeout(()=>this.loadWindGrid(),600);},2000);});
       window.addEventListener('resize',()=>this.scheduleResize());window.addEventListener('orientationchange',()=>this.scheduleResize());
     }
@@ -21,7 +20,6 @@
       document.getElementById('firmsSource').value=A.FirmsAdapter.source();
       const wl=localStorage.getItem('windLevel');if(C.windLevels[wl])this.state.windLevel=wl;document.getElementById('windLevel').value=this.state.windLevel;document.getElementById('baseMapSelect').value=this.map.baseKey||'satellite';
       document.getElementById('frpThreshold').value=this.state.frpThreshold;document.getElementById('frpThresholdValue').textContent=`≥${this.state.frpThreshold} MW`;this.map.frpThreshold=this.state.frpThreshold;const cel=document.getElementById('frpCount');if(cel)cel.textContent='— olay gösteriliyor';
-      const rd=localStorage.getItem('firePolygonRangeDays');if(rd){const sel=document.getElementById('firePolygonRange');if(sel)sel.value=rd;}
     }
     bindUI(){
       document.getElementById('closeDetailBtn').addEventListener('click',()=>{this.ui.closeDetail();this.map.clearWindVector();});
@@ -31,7 +29,6 @@
       document.getElementById('frpThreshold').addEventListener('input',e=>{const v=Number(e.target.value);this.state.frpThreshold=v;document.getElementById('frpThresholdValue').textContent=`≥${v} MW`;this.map.frpThreshold=v;this.map.renderFires(this.state.selectedTime);this.state.fireEvents=this.map.fireEventsVisible;this.updateImpact();this.renderFireLayers();const el=document.getElementById('frpCount');if(el)el.textContent=`${this.state.fireEvents.length.toLocaleString('tr-TR')} olay gösteriliyor`;});
       document.getElementById('layerFireGridImpact').addEventListener('change',e=>{this.state.impactEnabled=e.target.checked;this.map.setFireImpacts(this.state.fireImpacts,e.target.checked);});
       document.getElementById('layerDownwindCorridor').addEventListener('change',e=>{this.state.downwindEnabled=e.target.checked;if(e.target.checked)this.loadWindGrid(true);else this.map.setDownwindCorridors([],false);});
-      document.getElementById('layerFirePolygons').addEventListener('change',e=>{this.state.firePolygonsEnabled=e.target.checked;if(e.target.checked){if(!this.state.firePolygonData)this.loadFirePolygons();else this.map.setFirePolygons(this.state.firePolygonData,true);}else this.map.setFirePolygons(null,false);});
       document.querySelectorAll('.smokeLayer').forEach(el=>el.addEventListener('change',e=>{if(e.target.checked){this.state.smokeVariable=e.target.dataset.var;this.loadSmokeGrid();}}));
       document.getElementById('layerSmokePoints').addEventListener('change',e=>{this.state.smokePoints=e.target.checked;this.map.showSmokePoints(e.target.checked);});
       document.getElementById('smokeOpacity').addEventListener('input',e=>{const v=Number(e.target.value);this.map.smokeLayer?.setOpacity(v);document.getElementById('smokeOpacityValue').textContent=`%${Math.round(v*100)}`;});
@@ -40,26 +37,16 @@
       document.getElementById('windLevel').addEventListener('change',e=>{this.state.windLevel=e.target.value;localStorage.setItem('windLevel',this.state.windLevel);this.loadWindGrid(true);if(this.state.selectedPoint)this.selectPoint(this.state.selectedPoint,true);});
       document.getElementById('layerFwi').addEventListener('change',e=>{this.state.fwiEnabled=e.target.checked;this.map.toggleFwi(e.target.checked,this.state.selectedTime);});
       document.getElementById('layerEffisBurntArea').addEventListener('change',e=>{this.state.effisBurntAreaEnabled=e.target.checked;this.map.toggleEffisBurntArea(e.target.checked,this.state.selectedTime);});
+      document.getElementById('layerMtg').addEventListener('change',e=>{this.state.mtgEnabled=e.target.checked;this.map.toggleMtg(e.target.checked,this.state.selectedTime);});
+      document.getElementById('mtgOpacity').addEventListener('input',e=>{const v=Number(e.target.value)/100;localStorage.setItem('mtgOpacity',String(v));this.map.mtgLayer?.setOpacity(v);document.getElementById('mtgOpacityValue').textContent=`%${Math.round(v*100)}`;});
       document.getElementById('layerFootprint').addEventListener('change',e=>{this.map.toggleFootprint(e.target.checked);if(e.target.checked&&this.state.fireEvents.length)this.map.setFootprint(this.state.fireEvents,true);});
       document.getElementById('layerThermalEnvelope').addEventListener('change',e=>{this.map.toggleThermalEnvelope(e.target.checked);if(e.target.checked&&this.state.fireEvents.length)this.map.setThermalEnvelope(this.state.fireEvents,true);});
       document.getElementById('layerEventEvolution').addEventListener('change',e=>{this.map.toggleEventEvolution(e.target.checked);if(e.target.checked&&this.state.fireEvents.length)this.map.setEventEvolution(this.state.fireEvents,true);});
-      const gfwEl=document.getElementById('layerGfw');
-      if(gfwEl&&(!C.gfwApiKey||C.gfwApiKey==='__GFW_API_KEY__')){gfwEl.disabled=true;gfwEl.checked=false;const note=document.createElement('span');note.className='layerWarn';note.textContent='Yapılandırılmamış (GFW_API_KEY yok)';gfwEl.parentElement?.appendChild(note);}
-      gfwEl?.addEventListener('change',e=>{if(e.target.checked)this.loadGfw();else this.removeGfw();});
-      const rangeSelect=document.getElementById('firePolygonRange');
-      if(rangeSelect)rangeSelect.addEventListener('change',e=>{
-        const days=Number(e.target.value);
-        const end=Date.now();
-        const start=end-days*86400000;
-        A.FirePolygonAdapter.setDateRange(start,end);
-        A.Cache.clear('firePolygons:');
-        if(this.state.firePolygonsEnabled)this.loadFirePolygons();
-      });
       document.getElementById('layerGridMaster').addEventListener('change',e=>this.toggleGridMaster(e.target.checked));document.querySelectorAll('.gridLayer').forEach(el=>el.addEventListener('change',()=>{if(this.state.gridMaster)this.refreshGridLayers();}));
       document.getElementById('timeSlider').addEventListener('input',e=>this.setTimeOffset(Number(e.target.value),false));document.getElementById('timeSlider').addEventListener('change',()=>this.scheduleTimeReload(0));
       document.getElementById('nowBtn').addEventListener('click',()=>{document.getElementById('timeSlider').value='0';this.setTimeOffset(0,true);});document.getElementById('stepBackBtn').addEventListener('click',()=>this.shiftTime(-3));document.getElementById('stepForwardBtn').addEventListener('click',()=>this.shiftTime(3));document.getElementById('playBtn').addEventListener('click',()=>this.togglePlay());
       document.getElementById('firmsSource').addEventListener('change',e=>{A.FirmsAdapter.setSource(e.target.value);A.Cache.clear('firms:');this.loadFirms();});const autoNote=document.getElementById('firmsSourceNote');if(autoNote)autoNote.textContent=A.FirmsAdapter.isAuto()?'AUTO: 3 VIIRS ürünü paralel → birleştir → tekilleştir':'';
-      document.getElementById('atmoHubDiscoverBtn').addEventListener('click',()=>this.discoverAtmoHub());document.getElementById('healthCheckBtn').addEventListener('click',()=>this.healthCheck(true));
+      document.getElementById('healthCheckBtn').addEventListener('click',()=>this.healthCheck(true));
       document.getElementById('refreshAllBtn').addEventListener('click',()=>{A.Cache.clear();this.loadSmokeGrid();this.loadWindGrid(true);if(C.firmsMapKey&&C.firmsMapKey!=='__FIRMS_MAP_KEY__')this.loadFirms();this.ui.toast('Önbellek temizlendi; gerçek kaynaklar yeniden isteniyor.');});
       document.getElementById('exportCsvBtn').addEventListener('click',()=>A.ExportManager.csv(this.state));document.getElementById('exportJsonBtn').addEventListener('click',()=>A.ExportManager.json(this.state));document.getElementById('exportGeoJsonBtn').addEventListener('click',()=>A.ExportManager.geojson(this.state));
     }
@@ -83,7 +70,7 @@
       }
     }
     async refreshGridLayers(){const selected=new Set([...document.querySelectorAll('.gridLayer:checked')].map(x=>x.dataset.grid));for(const key of Object.keys(C.gridSources)){try{if(selected.has(key)){const data=await this.grid.loadGroup(key);await this.map.setGridGroup(key,data,true);}else if(this.map.gridLayers.has(key)){await this.map.setGridGroup(key,this.grid.data.get(key),false);}}catch(e){this.ui.toast(`Şebeke katmanı ${key}: ${e.message}`,'error');}}}
-    setTimeOffset(hours,reload){const d=new Date(Date.now()+hours*3600e3);d.setUTCMinutes(0,0,0);this.state.selectedTime=d;this.ui.setTime(d);this.map.renderFires(d);this.state.fireEvents=this.map.fireEventsVisible;if(this.state.heatEnabled)this.map.toggleHeat(true);if(this.state.fwiEnabled)this.map.toggleFwi(true,d);if(this.state.effisBurntAreaEnabled)this.map.toggleEffisBurntArea(true,d);this.updateImpact();this.ui.renderExportSummary(this.state);this.renderFireLayers();if(reload)this.scheduleTimeReload(0);else this.scheduleTimeReload(300);}
+    setTimeOffset(hours,reload){const d=new Date(Date.now()+hours*3600e3);d.setUTCMinutes(0,0,0);this.state.selectedTime=d;this.ui.setTime(d);this.map.renderFires(d);this.state.fireEvents=this.map.fireEventsVisible;if(this.state.heatEnabled)this.map.toggleHeat(true);if(this.state.fwiEnabled)this.map.toggleFwi(true,d);if(this.state.effisBurntAreaEnabled)this.map.toggleEffisBurntArea(true,d);if(this.state.mtgEnabled)this.map.setMtgTime(d);this.updateImpact();this.ui.renderExportSummary(this.state);this.renderFireLayers();if(reload)this.scheduleTimeReload(0);else this.scheduleTimeReload(300);}
     shiftTime(delta){const s=document.getElementById('timeSlider'),v=U.clamp(Number(s.value)+delta,Number(s.min),Number(s.max));s.value=String(v);this.setTimeOffset(v,true);}
     togglePlay(){const b=document.getElementById('playBtn');if(this.playTimer){clearInterval(this.playTimer);this.playTimer=null;b.textContent='▶';return;}b.textContent='⏸';this._playbackApiThrottle=0;this.playTimer=setInterval(()=>{const s=document.getElementById('timeSlider');let v=Number(s.value)+C.timeline.playStepHours;if(v>Number(s.max))v=Number(s.min);s.value=String(v);const now=Date.now();const slowReload=now-this._playbackApiThrottle>C.timeline.playIntervalMs*4;this.setTimeOffset(v,slowReload);if(slowReload)this._playbackApiThrottle=now;},C.timeline.playIntervalMs);}
     scheduleTimeReload(ms){clearTimeout(this.timeTimer);this.timeTimer=setTimeout(()=>{this.loadSmokeGrid();this.loadWindGrid(true);if(this.state.selectedPoint)this.selectPoint(this.state.selectedPoint,true);},ms);}
@@ -100,30 +87,19 @@
     async loadFirms(){
       this.controllers.firms?.abort();const ctrl=new AbortController();this.controllers.firms=ctrl;const seq=++this.reqSeq.firms;try{const data=await A.FirmsAdapter.load(ctrl.signal);if(seq!==this.reqSeq.firms)return;this.state.fireData=data;this.map.setFires(data,this.state.selectedTime);this.map.toggleFires(this.state.firesEnabled);this.state.fireEvents=this.map.fireEventsVisible;if(this.state.heatEnabled)this.map.toggleHeat(true);this.updateImpact();this.ui.renderExportSummary(this.state);this.ui.setUpdated();this.renderFireLayers();}catch(e){if(e.kind==='ABORTED')return;if(e.kind==='AUTH_REQUIRED'){document.getElementById('kpiFireEvents').textContent='KEY';document.getElementById('kpiDetectionsNote').textContent='NASA FIRMS MAP_KEY eksik';this.ui.toast('GitHub Secret\'a FIRMS_MAP_KEY ekleyin.','warn');return;}this.ui.toast(`FIRMS: ${e.kind||e.message}`,'warn');}
     }
-    async loadGfw(){
-      if(!C.gfwApiKey||C.gfwApiKey==='__GFW_API_KEY__'){this.ui.toast('GFW yapılandırılmamış (GFW_API_KEY eksik); katman pasif.','warn');return;}
-      this.controllers.gfw?.abort();const ctrl=new AbortController();this.controllers.gfw=ctrl;const seq=++this.reqSeq.gfw;
-      try{const data=await A.GfwAdapter.load(ctrl.signal);if(seq!==this.reqSeq.gfw)return;this.state.gfwData=data;this.map.setGfwMarkers(data);}catch(e){if(e.kind!=='ABORTED')this.ui.toast(`GFW: ${e.kind||e.message}`,'warn');}
-    }
-    removeGfw(){this.state.gfwData=null;this.map.clearGfwMarkers();}
     renderFireLayers(){
       const ev=this.state.fireEvents;
       if(document.getElementById('layerFootprint')?.checked)this.map.setFootprint(ev,true);
       if(document.getElementById('layerThermalEnvelope')?.checked)this.map.setThermalEnvelope(ev,true);
       if(document.getElementById('layerEventEvolution')?.checked)this.map.setEventEvolution(ev,true);
     }
-    async loadFirePolygons(){
-      this.controllers.firePolygon?.abort();const ctrl=new AbortController();this.controllers.firePolygon=ctrl;const seq=++this.reqSeq.firePolygon;
-      try{const fc=await A.FirePolygonAdapter.load(ctrl.signal);if(seq!==this.reqSeq.firePolygon)return;if(fc._stale){this.map.setFirePolygons(fc,this.state.firePolygonsEnabled);this.ui.toast('Yangın alanı katmanı güncellenemedi; son başarılı veri gösteriliyor.','warn');return;}if(fc._error&&!fc.features.length){this.ui.toast('Yangın alanı katmanı: '+fc._error,'error');return;}this.state.firePolygonData=fc;this.map.setFirePolygons(fc,this.state.firePolygonsEnabled);}catch(e){if(e.kind!=='ABORTED')this.ui.toast(`Yangın alanı katmanı: ${e.kind||e.message}`,'error');}
-    }
     updateImpact(){if(!this.grid.loadedCore)return;this.state.fireEvents=this.map.fireEventsVisible||[];this.state.fireImpacts=this.grid.analyzeEvents(this.state.fireEvents,25,this.state.selectedTime,this.state.windData);this.map.setFireImpacts(this.state.fireImpacts,this.state.impactEnabled);this.map.setDownwindCorridors(this.state.fireImpacts,this.state.downwindEnabled);this.ui.renderImpact(this.state.fireImpacts);this.ui.renderExportSummary(this.state);}
     async selectPoint(p,silent=false){
       if(!U.insideRegion(p)){if(!silent)this.ui.openDetail('Türkiye veri alanı dışında','<div class="warningBox">Harita dünya üzerinde serbestçe gezilebilir. Ancak FIRMS, CAMS/Open-Meteo ve şebeke etki sorguları yalnız Türkiye veri alanında çalışır; bu koordinat için veri isteği yapılmadı.</div>');return;}
-      p={...p,lat:Number(p.lat),lon:Number(p.lon)};this.state.selectedPoint={lat:p.lat,lon:p.lon,fire:p.fire,fireEvent:p.fireEvent,gridFeature:p.gridFeature,firePolygon:p.firePolygon||null};this.controllers.detail?.abort();const ctrl=new AbortController();this.controllers.detail=ctrl;const seq=++this.reqSeq.detail;if(!silent)this.ui.openDetail(p.fireEvent?'Yangın olayı':p.fire?'FIRMS termal tespiti':p.firePolygon?'Yangın alanı':p.gridFeature?'Şebeke varlığı':'Konum sorgulanıyor…','<div class="emptyState">CAMS wildfire PM10, meteoroloji ve şebeke yakınlığı sorgulanıyor…</div>');
+      p={...p,lat:Number(p.lat),lon:Number(p.lon)};this.state.selectedPoint={lat:p.lat,lon:p.lon,fire:p.fire,fireEvent:p.fireEvent,gridFeature:p.gridFeature};this.controllers.detail?.abort();const ctrl=new AbortController();this.controllers.detail=ctrl;const seq=++this.reqSeq.detail;if(!silent)this.ui.openDetail(p.fireEvent?'Yangın olayı':p.fire?'FIRMS termal tespiti':p.gridFeature?'Şebeke varlığı':'Konum sorgulanıyor…','<div class="emptyState">CAMS wildfire PM10, meteoroloji ve şebeke yakınlığı sorgulanıyor…</div>');
       try{if(!this.grid.loadedCore)await this.grid.loadCore();const [airResult,weatherResult]=await Promise.allSettled([A.OpenMeteoAir.detail(p,this.state.selectedTime,ctrl.signal),A.OpenMeteoWeather.detail(p,this.state.selectedTime,ctrl.signal)]);if(seq!==this.reqSeq.detail)return;const air=airResult.status==='fulfilled'?airResult.value:null;const weather=weatherResult.status==='fulfilled'?weatherResult.value:null;if(!air&&!weather){if(!silent)this.ui.openDetail('Veri alınamadı',`<div class="warningBox">CAMS ve Open-Meteo servisleri şu anda yanıt vermiyor. Ayarlar → Veri Kaynağı Durumu bölümünü kontrol edin.</div>`);return;}const end=Math.min(this.state.selectedTime.getTime(),Date.now()+15*60e3),start=end-24*3600e3,nearby=(this.state.fireData||[]).filter(f=>{const t=Date.parse(f.detectedAt);return t>=start&&t<=end;}).map(f=>({fire:f,distance:U.haversineKm({lat:p.lat,lon:p.lon},{lat:f.lat,lon:f.lon})})).filter(x=>x.distance<=100).sort((a,b)=>a.distance-b.distance),nearest=this.grid.nearest({lat:p.lat,lon:p.lon},50);this.ui.renderPointDetail(p,air,weather,nearby,p.fire,p.fireEvent,p.gridFeature,nearest);if(weather){const lvl=C.windLevels[this.state.windLevel]||C.windLevels['10m'];this.map.drawWindVector({lat:p.lat,lon:p.lon},weather.values[lvl.direction],weather.values[lvl.speed],this.state.windLevel);}this.ui.renderExportSummary(this.state);}catch(e){if(e.kind!=='ABORTED')this.ui.openDetail('Veri alınamadı',`<div class="warningBox">${U.escapeHtml(e.kind||e.message)}. Ayarlar → Veri Kaynağı Durumu bölümünü kontrol edin.</div>`);}
     }
-    async discoverAtmoHub(){const box=document.getElementById('atmoHubDiscoveryResult');box.innerHTML='<strong>AtmoHub canlı keşfi çalışıyor…</strong><br><small>Ana portal + tematik sayfalar + JS/CSS bundle varlıkları taranıyor. Bu işlem 10–40 saniye sürebilir.</small>';const r=await A.AtmoHubAdapter.discoverCapabilities(true);this.ui.renderAtmoHubDiscovery(r);}
-    async healthCheck(showToast=true){      A.Events.emit('service',{id:'grid',state:this.grid.loadedCore?'ok':'idle',note:this.grid.loadedCore?'Core grid hazır':'Yerel GeoJSON yükleniyor'});if(!C.firmsMapKey||C.firmsMapKey==='__FIRMS_MAP_KEY__')A.Events.emit('service',{id:'firms',state:'warn',note:'MAP_KEY eksik; servis çağrısı yapılmadı'});A.Events.emit('service',{id:'atmohub',state:'warn',note:'Public API yalnız Ayarlar → AtmoHub keşfi ile doğrulanır; CAMS fallback aktif'});const ctrl=new AbortController();await Promise.allSettled([A.OpenMeteoAir.health(ctrl.signal),A.OpenMeteoWeather.health(ctrl.signal)]);A.Events.emit('service',{id:'effis',state:'idle',note:'Resmî WMS; FWI açıldığında tile isteği doğrulanır'});if(showToast)this.ui.toast('Bağlantı kontrolü tamamlandı. Mock veri kullanılmadı.');}
+    async healthCheck(showToast=true){      A.Events.emit('service',{id:'grid',state:this.grid.loadedCore?'ok':'idle',note:this.grid.loadedCore?'Core grid hazır':'Yerel GeoJSON yükleniyor'});if(!C.firmsMapKey||C.firmsMapKey==='__FIRMS_MAP_KEY__')A.Events.emit('service',{id:'firms',state:'warn',note:'MAP_KEY eksik; servis çağrısı yapılmadı'});const ctrl=new AbortController();await Promise.allSettled([A.OpenMeteoAir.health(ctrl.signal),A.OpenMeteoWeather.health(ctrl.signal)]);A.Events.emit('service',{id:'effis',state:'idle',note:'Resmî WMS; FWI açıldığında tile isteği doğrulanır'});A.Events.emit('service',{id:'effisBurntArea',state:'idle',note:'Resmî WMS; katman açıldığında tile isteği doğrulanır'});A.Events.emit('service',{id:'mtg',state:'idle',note:'EUMETSAT WMS; GeoColour açıldığında tile isteği doğrulanır'});if(showToast)this.ui.toast('Bağlantı kontrolü tamamlandı. Mock veri kullanılmadı.');}
   }
   A.app=new Application();window.addEventListener('DOMContentLoaded',()=>A.app.init());
 })(window.AtmoApp);

@@ -24,11 +24,11 @@
   }
 
   class MapManager{
-    constructor(){this.map=null;this.renderer=null;this.baseLayer=null;this.baseKey=null;this.fireLayer=null;this.fireAll=[];this.fireVisible=[];this.fireEventsVisible=[];this.currentSelectedTime=new Date();this.frpHeat=null;this.smokeLayer=null;this.airPointLayer=null;this.airData=[];this.airVariable='pm10_wildfires';this.windLayer=null;this.windData=[];this.riskLayer=null;this.riskAssetLayer=null;this.downwindLayer=null;this.windVectorLayer=null;this.gridLayers=new Map();this.fwiLayer=null;this.effisBurntAreaLayer=null;this.onPointClick=null;this.frpThreshold=50;this._renderTimer=null;this.firePolygonLayer=null;this.firePolygonMarkerLayer=null;this.footprintLayer=null;this.thermalEnvelopeLayer=null;this.evolutionLayer=null;this.gfwLayer=null;}
+    constructor(){this.map=null;this.renderer=null;this.baseLayer=null;this.baseKey=null;this.fireLayer=null;this.fireAll=[];this.fireVisible=[];this.fireEventsVisible=[];this.currentSelectedTime=new Date();this.frpHeat=null;this.smokeLayer=null;this.airPointLayer=null;this.airData=[];this.airVariable='pm10_wildfires';this.windLayer=null;this.windData=[];this.riskLayer=null;this.riskAssetLayer=null;this.downwindLayer=null;this.windVectorLayer=null;this.gridLayers=new Map();this.fwiLayer=null;this.effisBurntAreaLayer=null;this.mtgLayer=null;this.mtgTime=null;this._mtgDebounceT=null;this.onPointClick=null;this.frpThreshold=50;this._renderTimer=null;this.footprintLayer=null;this.thermalEnvelopeLayer=null;this.evolutionLayer=null;}
     init(onPointClick){
       this.onPointClick=onPointClick;      this.map=L.map('map',{zoomControl:true,minZoom:C.mapMinZoom||2,worldCopyJump:true}).setView(C.defaultCenter,C.defaultZoom);this.renderer=L.canvas({padding:.4});
-      this.map.createPane('airPane');this.map.getPane('airPane').style.zIndex=320;this.map.createPane('fwiPane');this.map.getPane('fwiPane').style.zIndex=330;this.map.createPane('gridPane');this.map.getPane('gridPane').style.zIndex=410;this.map.createPane('riskPane');this.map.getPane('riskPane').style.zIndex=445;this.map.createPane('firePane');this.map.getPane('firePane').style.zIndex=460;this.map.createPane('windPane');this.map.getPane('windPane').style.zIndex=480;
-      this.setBaseMap(localStorage.getItem('baseMap')||'satellite');this.fireLayer=L.layerGroup([], {pane:'firePane'}).addTo(this.map);this.airPointLayer=L.layerGroup([], {pane:'airPane'}).addTo(this.map);this.smokeLayer=new SmokeCanvasLayer().addTo(this.map);this.windLayer=L.layerGroup([], {pane:'windPane'});this.riskLayer=L.layerGroup([], {pane:'riskPane'}).addTo(this.map);this.riskAssetLayer=L.layerGroup([], {pane:'riskPane'}).addTo(this.map);this.downwindLayer=L.layerGroup([], {pane:'riskPane'});this.windVectorLayer=L.layerGroup([], {pane:'windPane'}).addTo(this.map);      this.borderLayer=L.polygon(C.regionPolygon,{pane:'gridPane',color:'#60a5fa',weight:1.5,fill:false,dashArray:'4 4',opacity:.55,interactive:false}).addTo(this.map);this.firePolygonLayer=L.layerGroup([],{pane:'riskPane'});this.firePolygonMarkerLayer=L.layerGroup([],{pane:'riskPane'});this.footprintLayer=L.layerGroup([],{pane:'riskPane'});this.thermalEnvelopeLayer=L.layerGroup([],{pane:'firePane'});this.evolutionLayer=L.layerGroup([],{pane:'riskPane'});this.gfwLayer=L.layerGroup([],{pane:'firePane'});
+      this.map.createPane('mtgPane');this.map.getPane('mtgPane').style.zIndex=240;this.map.createPane('airPane');this.map.getPane('airPane').style.zIndex=320;this.map.createPane('fwiPane');this.map.getPane('fwiPane').style.zIndex=330;this.map.createPane('gridPane');this.map.getPane('gridPane').style.zIndex=410;this.map.createPane('riskPane');this.map.getPane('riskPane').style.zIndex=445;this.map.createPane('firePane');this.map.getPane('firePane').style.zIndex=460;this.map.createPane('windPane');this.map.getPane('windPane').style.zIndex=480;
+      this.setBaseMap(localStorage.getItem('baseMap')||'satellite');this.fireLayer=L.layerGroup([], {pane:'firePane'}).addTo(this.map);this.airPointLayer=L.layerGroup([], {pane:'airPane'}).addTo(this.map);this.smokeLayer=new SmokeCanvasLayer().addTo(this.map);this.windLayer=L.layerGroup([], {pane:'windPane'});this.riskLayer=L.layerGroup([], {pane:'riskPane'}).addTo(this.map);this.riskAssetLayer=L.layerGroup([], {pane:'riskPane'}).addTo(this.map);this.downwindLayer=L.layerGroup([], {pane:'riskPane'});this.windVectorLayer=L.layerGroup([], {pane:'windPane'}).addTo(this.map);      this.borderLayer=L.polygon(C.regionPolygon,{pane:'gridPane',color:'#60a5fa',weight:1.5,fill:false,dashArray:'4 4',opacity:.55,interactive:false}).addTo(this.map);this.footprintLayer=L.layerGroup([],{pane:'riskPane'});this.thermalEnvelopeLayer=L.layerGroup([],{pane:'firePane'});this.evolutionLayer=L.layerGroup([],{pane:'riskPane'});
       this.map.on('click',e=>{const p={lat:e.latlng.lat,lon:e.latlng.lng};if(U.insideRegion(p))this.onPointClick?.(p);else A.Events.emit('outsideDataRegion',p);});this.map.on('zoomend moveend',()=>{if(this._renderTimer)return;const t=this.currentSelectedTime;this._renderTimer=setTimeout(()=>{this._renderTimer=null;this.renderFires(t);},60);});setTimeout(()=>this.map.invalidateSize(true),60);return this.map;
     }
     setBaseMap(key,mode='auto'){
@@ -50,41 +50,6 @@
     }
     toggleFires(show){if(show){if(!this.map.hasLayer(this.fireLayer))this.fireLayer.addTo(this.map);}else this.map.removeLayer(this.fireLayer);}
     toggleHeat(show){if(!show){if(this.frpHeat)this.map.removeLayer(this.frpHeat);return;}const candidates=this.fireVisible.filter(f=>U.insideRegion(f)&&Number.isFinite(f.frp)&&f.frp>=this.frpThreshold);const vals=candidates.map(f=>f.frp).filter(Number.isFinite).sort((a,b)=>a-b);const p95Idx=Math.floor(vals.length*0.95),p95=vals.length?Math.max(1,vals[p95Idx]):1;const pts=candidates.map(f=>[f.lat,f.lon,U.clamp(Math.log1p(f.frp)/Math.log1p(p95),0,1)]);if(this.frpHeat)this.map.removeLayer(this.frpHeat);this.frpHeat=L.heatLayer(pts,{radius:24,blur:20,maxZoom:11,max:1,pane:'riskPane'}).addTo(this.map);}
-    setFirePolygons(fc,show=true){
-      this.firePolygonLayer.clearLayers();this.firePolygonMarkerLayer.clearLayers();
-      if(this.map.hasLayer(this.firePolygonLayer))this.map.removeLayer(this.firePolygonLayer);
-      if(this.map.hasLayer(this.firePolygonMarkerLayer))this.map.removeLayer(this.firePolygonMarkerLayer);
-      document.querySelector('[data-legend="firePolygon"]')?.remove();
-      if(!show||!fc?.features?.length)return;
-      const cfg=C.firePolygons,features=fc.features.filter(f=>f.geometry?.coordinates?.length);
-      for(const f of features){
-        const p=f.properties||{};
-        const poly=L.geoJSON(f,{pane:'riskPane',style:{color:cfg.strokeColor,weight:cfg.strokeWeight,fillColor:cfg.fillColor,fillOpacity:cfg.fillOpacity,opacity:.7},interactive:true,pointToLayer:()=>null});
-        poly.eachLayer(l=>{
-          l.bindTooltip((()=>{const areaKm2=p.areaHa?`${U.round(p.areaHa/100,2)} km²`:'—';return `<strong>${U.escapeHtml(p.konum||'Yangın alanı')}</strong><br>${U.escapeHtml(p.il||'')}<br>Alan: ${areaKm2} · ${p.areaHa} ha<br>Tarih: ${p.date?U.formatLocal(new Date(p.date)):'—'}<br>Etkilenen: ${p.affectedPeople} kişi / ${p.affectedBuildings} bina<br>Kayıp: ${p.fatalities}<br><small>${cfg.source}</small>`;
-          })());
-          l.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:e.latlng.lat,lon:e.latlng.lng,firePolygon:f});});
-        });
-        this.firePolygonLayer.addLayer(poly);
-      }
-      const centroidLayer=L.featureGroup();
-      for(const f of features){
-        if(!f.geometry?.coordinates?.length)continue;
-        const firstRing=((f.geometry.type==='MultiPolygon'?f.geometry.coordinates[0][0]:f.geometry.coordinates[0])||[]);
-        if(!firstRing.length)continue;
-        const cx=firstRing.reduce((s,c)=>s+c[0],0)/firstRing.length,cy=firstRing.reduce((s,c)=>s+c[1],0)/firstRing.length,p=f.properties||{};
-        L.circleMarker([cy,cx],{pane:'riskPane',radius:6,color:cfg.markerColor,weight:2,fillColor:'#fff',fillOpacity:.8,interactive:true})
-          .bindTooltip(`<strong>${U.escapeHtml(p.konum||'Yangın alanı')}</strong> · ${p.areaHa||'?'} ha<br>${p.date?U.formatLocal(new Date(p.date)):''}`)
-          .addTo(this.firePolygonMarkerLayer).on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:cy,lon:cx,firePolygon:f});});
-        centroidLayer.addLayer(L.circleMarker([cy,cx]));
-      }
-      this.firePolygonLayer.addTo(this.map);
-      this.firePolygonMarkerLayer.addTo(this.map);
-      this.makeLegend('firePolygon','Güncel Yangın Alanları',`<div class="legendLine"><i style="background:${cfg.fillColor};opacity:${cfg.fillOpacity+0.3}"></i><span>Yanmış alan poligonları</span></div><div class="legendLine"><i style="background:${cfg.markerColor};border-radius:50%;width:8px;height:8px;display:inline-block"></i><span>Alan merkez işareti</span></div><div class="sourceNote">${cfg.source} · toplam ${features.length} alan</div>`);
-    }
-    toggleFirePolygons(show){
-      if(show){if(!this.map.hasLayer(this.firePolygonLayer))this.firePolygonLayer.addTo(this.map);if(!this.map.hasLayer(this.firePolygonMarkerLayer))this.firePolygonMarkerLayer.addTo(this.map);}else{if(this.map.hasLayer(this.firePolygonLayer))this.map.removeLayer(this.firePolygonLayer);if(this.map.hasLayer(this.firePolygonMarkerLayer))this.map.removeLayer(this.firePolygonMarkerLayer);}
-    }
     setSmoke(data,variable,showPoints=false){this.airData=data||[];this.airVariable=variable;this.smokeLayer.setData(this.airData,variable);this.airPointLayer.clearLayers();if(showPoints)this.showSmokePoints(true);this.updateSmokeLegend(variable);}
     showSmokePoints(show){this.airPointLayer.clearLayers();if(!show)return;const meta=C.smokeVariables[this.airVariable];for(const p of this.airData){if(!Number.isFinite(p.value))continue;const [r,g,b]=U.smokeColor(this.airVariable,p.value),m=L.circleMarker([p.lat,p.lon],{pane:'airPane',renderer:this.renderer,radius:3.5,stroke:true,color:'#e6edf4',weight:.45,fillColor:`rgb(${r},${g},${b})`,fillOpacity:.78});m.bindTooltip(`${meta.label}: <strong>${U.round(p.value,2)} ${p.unit||meta.unit}</strong><br>${p.validAt?U.formatLocal(new Date(p.validAt)):'—'}<br>${p.source}<br><small>Model örnekleme noktası; bilimsel çözünürlük ~11 km.</small>`);m.addTo(this.airPointLayer);}}
     clearSmoke(){this.airData=[];this.smokeLayer.setData([],'pm10_wildfires');this.airPointLayer.clearLayers();document.querySelector('[data-legend="smoke"]')?.remove();}
@@ -102,15 +67,15 @@
       let count=0;
       for(const a of analyses||[]){
         if(count>=C.downwind.maxCorridors||!a.wind||a.riskScore<35||!Number.isFinite(a.downwindDirection)||!U.insideRegion({lat:a.event.lat,lon:a.event.lon}))continue;
-        const center={lat:a.event.lat,lon:a.event.lon},pts=[[center.lat,center.lon]],steps=10;
+        const center={lat:a.event.lat,lon:a.event.lon},pts=[[center.lat,center.lon]],steps=10,maxKm=C.downwindMaxDistanceKm;
         for(let i=0;i<=steps;i++){
-          const bearing=a.downwindDirection-C.downwind.halfAngleDeg+(2*C.downwind.halfAngleDeg*i/steps),p=U.destination(center,bearing,C.downwind.distanceKm);
+          const bearing=a.downwindDirection-C.downwind.halfAngleDeg+(2*C.downwind.halfAngleDeg*i/steps),p=U.destination(center,bearing,maxKm);
           pts.push([p.lat,p.lon]);
         }
         pts.push([center.lat,center.lon]);
         const c=U.riskColor(a.riskBand.level),dw=a.downwindAssets||{lines:[],substations:[]};
         const poly=L.polygon(pts,{pane:'riskPane',color:c,weight:1.2,opacity:.58,fillColor:c,fillOpacity:.10,interactive:true});
-        poly.bindTooltip(`Rüzgâr bazlı izleme koridoru · ${C.downwind.distanceKm} km<br>${U.round(a.wind.speed,1)} km/h · taşıma yönü ${Math.round(a.downwindDirection)}°<br>Koridorda: <strong>${dw.lines.length} hat / ${dw.substations.length} TM</strong><br><strong>Duman tahmini değildir.</strong>`);
+        poly.bindTooltip(`Rüzgâr bazlı izleme koridoru · maksimum ${maxKm} km<br>${U.round(a.wind.speed,1)} km/h · taşıma yönü ${Math.round(a.downwindDirection)}°<br>Koridorda: <strong>${dw.lines.length} hat / ${dw.substations.length} TM</strong><br><strong>Duman tahmini değildir.</strong>`);
         poly.addTo(this.downwindLayer);
         for(const x of dw.lines.slice(0,4))L.polyline([[x.feature.a.lat,x.feature.a.lon],[x.feature.b.lat,x.feature.b.lon]],{pane:'riskPane',color:'#7be6ff',weight:4,opacity:.78,dashArray:'5 4',interactive:false}).addTo(this.downwindLayer);
         for(const x of dw.substations.slice(0,4))L.circleMarker([x.feature.lat,x.feature.lon],{pane:'riskPane',radius:7,color:'#7be6ff',weight:2,fillColor:'#0a2531',fillOpacity:.75,interactive:false}).addTo(this.downwindLayer);
@@ -118,7 +83,7 @@
       }
       if(count){
         this.downwindLayer.addTo(this.map);
-        this.makeLegend('downwind','Rüzgâr Bazlı İzleme Koridoru',`<div class="legendLine"><i style="background:#7be6ff"></i><span>Koridordaki şebeke varlığı</span></div><div class="sourceNote">Yangın olayından ${C.downwind.distanceKm} km, ±${C.downwind.halfAngleDeg}° sektör. Rüzgâr alanını operasyonel tarama için kullanır; gerçek duman yörüngesi değildir.</div>`);
+        this.makeLegend('downwind','Rüzgâr Bazlı İzleme Koridoru',`<div class="legendLine"><i style="background:#7be6ff"></i><span>Koridordaki şebeke varlığı</span></div><div class="sourceNote">Yangın olayından maksimum ${C.downwindMaxDistanceKm} km, ±${C.downwind.halfAngleDeg}° sektör. Rüzgâr alanını operasyonel tarama için kullanır; gerçek duman yörüngesi değildir.</div>`);
       }
     }
     toggleFwi(show,date){if(!show){if(this.fwiLayer)this.map.removeLayer(this.fwiLayer);document.querySelector('[data-legend="fwi"]')?.remove();return;}if(this.fwiLayer)this.map.removeLayer(this.fwiLayer);this.fwiLayer=L.tileLayer.wms(C.effisWms,{layers:C.effisFwiLayer,format:'image/png',transparent:true,version:'1.1.1',time:U.dateOnlyUtc(date),opacity:.43,pane:'fwiPane',attribution:'EFFIS / Copernicus'});let loaded=false;this.fwiLayer.on('tileload',()=>{if(!loaded){loaded=true;A.Events.emit('service',{id:'effis',state:'ok',count:null,note:`WMS ${C.effisFwiLayer} · TIME=${U.dateOnlyUtc(date)}`});}});this.fwiLayer.on('tileerror',()=>A.Events.emit('service',{id:'effis',state:'error',note:'WMS tile yüklenemedi'}));this.fwiLayer.addTo(this.map);this.makeLegend('fwi','EFFIS Fire Weather Index',`<div class="sourceNote">EFFIS WMS renkleri · ${U.dateOnlyUtc(date)} · meteorolojik yangın tehlikesi. Sayısal FWI değeri bu WMS tile katmanından türetilmez.</div>`);}
@@ -131,6 +96,34 @@
       this.effisBurntAreaLayer.on('tileerror',()=>A.Events.emit('service',{id:'effisBurntArea',state:'error',note:'Yanmış alan WMS tile yüklenemedi'}));
       this.effisBurntAreaLayer.addTo(this.map);
       this.makeLegend('burntArea','EFFIS Yanmış Alanlar',`<div class="sourceNote">EFFIS/GWIS NRT VIIRS-tabanlı algoritmik yanmış alan/yangın poligonu. Resmî saha perimetresi değildir. EFFIS / Copernicus. ${U.dateOnlyUtc(d)}</div>`);
+    }
+    roundToMtgSlot(date){const ms=Number(date instanceof Date?date.getTime():date),slot=(C.mtgGeoColourWms.slotMinutes||10)*60*1000;return new Date(Math.round(ms/slot)*slot);}
+    createMtgLayer(date){
+      const wms=C.mtgGeoColourWms,time=this.roundToMtgSlot(date).toISOString(),opacity=U.clamp(Number(localStorage.getItem('mtgOpacity'))||wms.defaultOpacity,.3,1);
+      const layer=L.tileLayer.wms(wms.url,{layers:wms.layer,format:wms.format,transparent:true,version:wms.version,crs:L.CRS?L.CRS.EPSG4326:null,srs:wms.crs,time,opacity,pane:'mtgPane',attribution:wms.attribution});
+      layer.on('tileload',()=>A.Events.emit('service',{id:'mtg',state:'ok',count:null,note:`WMS ${wms.layer} · TIME=${time}`}));
+      layer.on('tileerror',()=>A.Events.emit('service',{id:'mtg',state:'error',note:'MTG GeoColour WMS tile yüklenemedi'}));
+      this.mtgLayer=layer;this.mtgTime=time;
+      return layer;
+    }
+    toggleMtg(show,date){
+      if(!show){clearTimeout(this._mtgDebounceT);if(this.mtgLayer)this.map.removeLayer(this.mtgLayer);document.querySelector('[data-legend="mtg"]')?.remove();return;}
+      if(!this.mtgLayer)this.createMtgLayer(date||new Date()).addTo(this.map);
+      else if(!this.map.hasLayer(this.mtgLayer))this.map.addLayer(this.mtgLayer);
+      this.setMtgTime(date||new Date());
+      this.makeLegend('mtg','EUMETSAT MTG-I GeoColour',`<div class="sourceNote">${C.mtgGeoColourWms.source} · gerçek uydu görüntüsü (model değil).<br>Zaman: ${this.mtgTime||'—'} · 10 dk slotu. Bu zaman için kare bulunamazsa katman boş kalır.</div>`);
+    }
+    setMtgTime(date){
+      if(!this.mtgLayer)return;
+      const iso=this.roundToMtgSlot(date).toISOString();
+      if(iso===this.mtgTime)return;
+      clearTimeout(this._mtgDebounceT);
+      this._mtgDebounceT=setTimeout(()=>{
+        this.mtgTime=iso;
+        this.mtgLayer.setParams({time:iso});
+        const legend=document.querySelector('[data-legend="mtg"]');
+        if(legend)legend.querySelector('.legendBody').innerHTML=`<div class="sourceNote">${C.mtgGeoColourWms.source} · gerçek uydu görüntüsü (model değil).<br>Zaman: ${iso} · 10 dk slotu.</div>`;
+      },200);
     }
     setFootprint(events, show=true){
       this.footprintLayer.clearLayers();
@@ -213,19 +206,7 @@
     toggleEventEvolution(show){
       if(show){if(!this.map.hasLayer(this.evolutionLayer))this.evolutionLayer.addTo(this.map);}else{if(this.map.hasLayer(this.evolutionLayer))this.map.removeLayer(this.evolutionLayer);document.querySelector('[data-legend="evolution"]')?.remove();}
     }
-    setGfwMarkers(data){
-      this.gfwLayer.clearLayers();this.map.removeLayer(this.gfwLayer);
-      if(!data?.length)return;
-      for(const d of data){
-        if(!U.insideRegion(d))continue;
-        L.circleMarker([d.lat,d.lon],{pane:'firePane',radius:4,color:'#7c3aed',weight:1.5,fillColor:'#a78bfa',fillOpacity:0.5,interactive:true})
-          .bindTooltip(`<strong>GFW Uyarısı</strong><br>Tarih: ${d.detectedAt||'—'}<br>Güven: ${d.confidence||'high'}<br>Kaynak: Global Forest Watch`)
-          .addTo(this.gfwLayer);
-      }
-      this.gfwLayer.addTo(this.map);
-    }
-    clearGfwMarkers(){this.gfwLayer.clearLayers();this.map.removeLayer(this.gfwLayer);}
-    substationIcon(props){const raw=String(props?.voltage||'').split(/[;,]/).map(Number).filter(Number.isFinite),max=Math.max(0,...raw);const cls=max>=300000?'tm400':max>=66000?'tm154':'tmOther';return L.divIcon({className:'tmIconWrap',html:`<span class="tmIcon ${cls}">◆</span>`,iconSize:[18,18],iconAnchor:[9,9]});}
+    substationIcon(props){const raw=String(props?.voltage||'').split(/[;,]/).map(Number).filter(Number.isFinite),max=Math.max(0,...raw);const size=max>=300000?14:max>=154000?12:max>=66000?10:8;const cls=max>=300000?'critical':max>=154000?'high':max>=66000?'medium':'low';return L.divIcon({className:'substationIconWrap',html:`<span class="substationSquare substation-risk-${cls}" style="width:${size}px;height:${size}px"></span>`,iconSize:[size,size],iconAnchor:[size/2,size/2]});}
     async setGridGroup(key,data,show){if(this.gridLayers.has(key)){const layer=this.gridLayers.get(key);if(show&&!this.map.hasLayer(layer))layer.addTo(this.map);if(!show&&this.map.hasLayer(layer))this.map.removeLayer(layer);this.updateGridLegend();return;}if(!show)return;const cfg=C.gridSources[key],trFilter=f=>{if(key==='substations'){const c=f.geometry?.coordinates;return c&&U.insideRegion({lat:c[1],lon:c[0]});}const coords=f.geometry?.type==='LineString'?[f.geometry.coordinates]:f.geometry?.type==='MultiLineString'?f.geometry.coordinates:[];return coords.some(line=>line.some(c=>U.insideRegion({lat:c[1],lon:c[0]})));};let layer;if(key==='substations')layer=L.geoJSON(data,{filter:trFilter,pane:'gridPane',pointToLayer:(f,latlng)=>L.marker(latlng,{pane:'gridPane',icon:this.substationIcon(f.properties)}),onEachFeature:(f,l)=>{l.bindTooltip(this.gridTooltip(f.properties,true),{sticky:true});l.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:e.latlng.lat,lon:e.latlng.lng,gridFeature:{kind:'substation',properties:f.properties,geometry:f.geometry}});});}});else layer=L.geoJSON(data,{filter:trFilter,pane:'gridPane',style:()=>({pane:'gridPane',renderer:this.renderer,color:cfg.color,weight:cfg.weight,opacity:(key==='400'?0.82:0.76)}),onEachFeature:(f,l)=>{l.bindTooltip(this.gridTooltip(f.properties,false),{sticky:true});l.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:e.latlng.lat,lon:e.latlng.lng,gridFeature:{kind:'line',group:key,properties:f.properties,geometry:f.geometry}});});}});this.gridLayers.set(key,layer);layer.addTo(this.map);this.updateGridLegend();}
     gridTooltip(p,isSub){const v=U.formatVoltage(p.voltage)||U.formatVoltage(p.voltageGroup)||'Bilinmiyor';return `<strong>${isSub?'Trafo Merkezi':'İletim Hattı'}</strong><br>${U.escapeHtml(p.name||(isSub?'Adsız trafo merkezi':'Adsız OSM hattı'))}<br>Gerilim: ${U.escapeHtml(v)}${p.operator?`<br>${U.escapeHtml(p.operator)}`:''}<br><small>OSM / ODbL</small>`;}
     hideAllGrid(){for(const layer of this.gridLayers.values())if(this.map.hasLayer(layer))this.map.removeLayer(layer);this.updateGridLegend();}
