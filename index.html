@@ -7,13 +7,13 @@
   <title>Türkiye Wildfire Grid Risk Monitor</title>
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="css/styles.css?v=3.3.0" />
+  <link rel="stylesheet" href="css/styles.css?v=3.3.1" />
 </head>
 <body>
 <div id="appShell">
   <header class="topbar">
     <div class="brandBlock"><div class="brandIcon">🔥</div><div><h1>Türkiye Wildfire Grid Risk Monitor</h1><div class="subtitle">Orman yangını · duman taşınım bağlamı · 154/400 kV iletim şebekesi ve trafo merkezi etkisi</div></div></div>
-    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span class="domainPill">🇹🇷 VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.3.0</span><span id="lastUpdated">Son güncelleme: —</span></div>
+    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span class="domainPill">🇹🇷 VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.3.1</span><span id="lastUpdated">Son güncelleme: —</span></div>
   </header>
 
   <nav class="mainNav">
@@ -36,7 +36,6 @@
   <main>
     <section id="view-map" class="view active">
       <div class="mapWorkspace">
-        <div class="searchBox panelFloating"><input id="citySearch" type="search" placeholder="Türkiye içinde konum ara: İzmir, Muğla, Antalya..." autocomplete="off"/><button id="citySearchBtn">⌕</button><div id="searchResults" class="searchResults hidden"></div></div>
         <button id="legendToggleBtn" class="legendToggleBtn panelFloating">◫ Lejantları Göster</button>
 
         <aside class="layerPanel panelFloating">
@@ -166,7 +165,7 @@
           <div class="metric"><small>Koridor ≠ Duman Yörüngesi</small><strong>Rüzgâr koridoru gerçek duman modeli değildir.</strong><small>Basitleştirilmiş geometrik sektör taramasıdır. Gerçek duman taşınımı topografya, atmosferik kararlılık ve üst seviye rüzgâr profillerinden etkilenir.</small></div>
           <div class="metric"><small>Risk Skoru ≠ Arıza Olasılığı</small><strong>Skor operasyonel önceliklendirme içindir.</strong><small>Yangının şebekeye zarar verme olasılığını veya yangın davranışını modellemez. Saha koşulları, ekipman durumu ve müdahale kapasitesini dikkate almaz.</small></div>
           <div class="metric"><small>Uydu Boşlukları</small><strong>Tespitler gecikmeli ve kesintili olabilir.</strong><small>Bulut örtüsü, yoğun duman ve uydu geçiş zamanlaması nedeniyle bazı yangınlar tespit edilemeyebilir. En güncel veri için doğrudan resmî kaynaklara başvurun.</small></div>
-          <div class="metric"><small>Veri Gecikmesi</small><small>FIRMS: ~15-60 dk, CAMS: saatlik, Open-Meteo: 30-60 dk. Gerçek zamanlı değildir.</small></div>
+          <div class="metric"><small>Veri Gecikmesi</small><small>FIRMS global NRT: ≤3 sa, CAMS: saatlik, Open-Meteo: 30-60 dk. Gerçek zamanlı değildir.</small></div>
           <div class="metric"><small>Şebeke Kapsamı</small><small>Yalnız OSM'de bulunan 400/154 kV hatlar ve TM'ler. Özel şebeke varlıkları, dağıtım hatları ve SCADA verisi dahil değildir.</small></div>
         </div></article>
         <article class="card wide"><div class="cardHeader"><h2>🔗 Veri Kaynakları ve Referanslar</h2><span class="badge forecast">KAYNAK</span></div><div class="metricGrid" style="grid-template-columns:1fr 1fr;gap:8px">
@@ -205,13 +204,13 @@
   });
 })();
 </script>
-<script src="js/config.js?v=3.3.0"></script>
-<script src="js/utils.js?v=3.3.0"></script>
-<script src="js/api.js?v=3.3.0"></script>
-<script src="js/grid.js?v=3.3.0"></script>
-<script src="js/map.js?v=3.3.0"></script>
-<script src="js/export.js?v=3.3.0"></script>
-<script src="js/ui.js?v=3.3.0"></script>
-<script src="js/app.js?v=3.3.0"></script>
+<script src="js/config.js?v=3.3.1"></script>
+<script src="js/utils.js?v=3.3.1"></script>
+<script src="js/api.js?v=3.3.1"></script>
+<script src="js/grid.js?v=3.3.1"></script>
+<script src="js/map.js?v=3.3.1"></script>
+<script src="js/export.js?v=3.3.1"></script>
+<script src="js/ui.js?v=3.3.1"></script>
+<script src="js/app.js?v=3.3.1"></script>
 </body>
 </html>

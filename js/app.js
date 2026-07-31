@@ -19,13 +19,14 @@
       document.getElementById('firmsSource').value=A.FirmsAdapter.source();
       const wl=localStorage.getItem('windLevel');if(C.windLevels[wl])this.state.windLevel=wl;document.getElementById('windLevel').value=this.state.windLevel;document.getElementById('baseMapSelect').value=this.map.baseKey||'satellite';
       document.getElementById('frpThreshold').value=this.state.frpThreshold;document.getElementById('frpThresholdValue').textContent=`≥${this.state.frpThreshold} MW`;this.map.frpThreshold=this.state.frpThreshold;const cel=document.getElementById('frpCount');if(cel)cel.textContent='— olay gösteriliyor';
+      const rd=localStorage.getItem('firePolygonRangeDays');if(rd){const sel=document.getElementById('firePolygonRange');if(sel)sel.value=rd;}
     }
     bindUI(){
       document.getElementById('closeDetailBtn').addEventListener('click',()=>{this.ui.closeDetail();this.map.clearWindVector();});
       document.getElementById('baseMapSelect').addEventListener('change',e=>this.map.setBaseMap(e.target.value));
       document.getElementById('layerFires').addEventListener('change',e=>{this.state.firesEnabled=e.target.checked;this.map.toggleFires(e.target.checked);});
       document.getElementById('layerFrpHeat').addEventListener('change',e=>{this.state.heatEnabled=e.target.checked;this.map.toggleHeat(e.target.checked);});
-      document.getElementById('frpThreshold').addEventListener('input',e=>{const v=Number(e.target.value);this.state.frpThreshold=v;document.getElementById('frpThresholdValue').textContent=`≥${v} MW`;this.map.frpThreshold=v;this.map.renderFires(this.state.selectedTime);this.state.fireEvents=this.map.fireEventsVisible;this.updateImpact();const el=document.getElementById('frpCount');if(el)el.textContent=`${this.state.fireEvents.length.toLocaleString('tr-TR')} olay gösteriliyor`;});
+      document.getElementById('frpThreshold').addEventListener('input',e=>{const v=Number(e.target.value);this.state.frpThreshold=v;document.getElementById('frpThresholdValue').textContent=`≥${v} MW`;this.map.frpThreshold=v;this.map.renderFires(this.state.selectedTime);this.state.fireEvents=this.map.fireEventsVisible;this.updateImpact();this.renderFireLayers();const el=document.getElementById('frpCount');if(el)el.textContent=`${this.state.fireEvents.length.toLocaleString('tr-TR')} olay gösteriliyor`;});
       document.getElementById('layerFireGridImpact').addEventListener('change',e=>{this.state.impactEnabled=e.target.checked;this.map.setFireImpacts(this.state.fireImpacts,e.target.checked);});
       document.getElementById('layerDownwindCorridor').addEventListener('change',e=>{this.state.downwindEnabled=e.target.checked;if(e.target.checked)this.loadWindGrid(true);else this.map.setDownwindCorridors([],false);});
       document.getElementById('layerFirePolygons').addEventListener('change',e=>{this.state.firePolygonsEnabled=e.target.checked;if(e.target.checked){if(!this.state.firePolygonData)this.loadFirePolygons();else this.map.setFirePolygons(this.state.firePolygonData,true);}else this.map.setFirePolygons(null,false);});

@@ -95,6 +95,7 @@
         const sKey = key;
         return this.loadSingle(s, bbox, days, ctrl.signal, sKey).finally(() => clearTimeout(timer));
       }));
+      if(signal?.aborted){const e=new Error('Request aborted');e.kind='ABORTED';throw e;}
       const all = [];
       let successCount = 0;
       for (const r of results) {
@@ -196,8 +197,9 @@
 
   A.FirePolygonAdapter={
     _lastGoodMap:new Map(),
-    dateRange(){const ls=globalThis.localStorage;const s=ls?.getItem('firePolygonStart');const e=ls?.getItem('firePolygonEnd');if(s&&e)return{start:Number(s),end:Number(e)};return{start:C.firePolygonRange?.start||Date.now()-7*86400000,end:C.firePolygonRange?.end||Date.now()};},
-    setDateRange(start,end){localStorage.setItem('firePolygonStart',start);localStorage.setItem('firePolygonEnd',end);},
+    _rangeDays(ls){const d=ls?.getItem('firePolygonRangeDays');return d?Number(d):7;},
+    dateRange(){const ls=globalThis.localStorage;const days=this._rangeDays(ls);const end=Date.now();return{start:end-days*86400000,end,endMs:end};},
+    setDateRange(start,end){const days=Math.round((Date.now()-start)/86400000);localStorage.setItem('firePolygonRangeDays',String(days));localStorage.removeItem('firePolygonStart');localStorage.removeItem('firePolygonEnd');},
     _rangeKey(r){return `${new Date(r.start).toISOString().slice(0,10)}_${new Date(r.end).toISOString().slice(0,10)}`;},
     _lastGood(r){return this._lastGoodMap.get(this._rangeKey(r||this.dateRange()))||null;},
     _setLastGood(r,fc){this._lastGoodMap.set(this._rangeKey(r),{fc,at:Date.now()});},
@@ -254,14 +256,17 @@
           return{type:'FeatureCollection',features:[],_error:error,_rangeKey:rk};
         }
       }
-      if(features.length&&paginationComplete){
+      const partial=!paginationComplete;
+      if(features.length&&!partial){
         const fc={type:'FeatureCollection',features};
         this._setLastGood(range,fc);
       }
-      const rangeNote=range.start!==Date.now()-7*86400000||range.end!==Date.now()?` · aralık: ${rk}`:'';
-      const partial=paginationComplete?'':`, ${page+1} sayfadan ${page+1}. sayfada hata (kısmi veri)`;
-      report('firePolygon',{state:features.length?'ok':'empty',latency:Math.round(performance.now()-started),count:features.length,note:features.length?`${cfg.label} · ${cfg.source}${rangeNote}${partial}`:(error?'API hatası, veri yok':'Son 7 günde yangın alanı yok')});
-      return{type:'FeatureCollection',features,_rangeKey:rk,_partial:!paginationComplete};
+      const rdays=A.FirePolygonAdapter._rangeDays(globalThis.localStorage);
+      const rangeNote=rdays!==7?` · aralık: ${rk}`:'';
+      const partialNote=partial?` · ${page+1}. sayfada hata (kısmi veri)`:'';
+      const state=partial&&features.length?'warn':features.length?'ok':'empty';
+      report('firePolygon',{state,latency:Math.round(performance.now()-started),count:features.length,note:features.length?`${cfg.label} · ${cfg.source}${rangeNote}${partialNote}`:(error?'API hatası, veri yok':'Son 7 günde yangın alanı yok')});
+      return{type:'FeatureCollection',features,_rangeKey:rk,_partial:partial};
     }
   };
 })(window.AtmoApp);

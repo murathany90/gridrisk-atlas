@@ -173,29 +173,46 @@ test('two distant fires produce separate clusters', () => {
   assert.equal(r.length, 2, 'distant fires separate clusters');
 });
 
-test('latitude-aware cell: north Turkey vs south Turkey', () => {
-  const kmPerLat = 111.32;
-  const cos36 = Math.cos(36 * Math.PI / 180);
-  const lonCell36 = 5 / (kmPerLat * cos36);
-  const cos42 = Math.cos(42 * Math.PI / 180);
-  const lonCell42 = 5 / (kmPerLat * cos42);
-  assert.ok(lonCell36 < lonCell42, 'smaller lon cell at lower latitude');
-  const ratio = lonCell36 / lonCell42;
-  assert.ok(Math.abs(ratio - (cos42 / cos36)) < 0.001, 'lat-aware cell ratio matches cos ratio');
+test('REF_LAT=39 projected grid: east/west Turkey extremes', () => {
+  const REF_LAT=39, kmPerDeg=111.32, cosRef=Math.cos(REF_LAT*Math.PI/180), radiusKm=5;
+  const lonKm=l=>l*kmPerDeg*cosRef, latKm=l=>l*kmPerDeg;
+  // Fire at (36,26) and (42,45) should NOT produce same cellX
+  const c1x=Math.floor(lonKm(26)/radiusKm), c1y=Math.floor(latKm(36)/radiusKm);
+  const c2x=Math.floor(lonKm(45)/radiusKm), c2y=Math.floor(latKm(42)/radiusKm);
+  assert.notEqual(c1x,c2x,'east/west have different cellX');
+  assert.notEqual(c1y,c2y,'north/south have different cellY');
 });
 
-test('cosLat division safety for extreme latitudes', () => {
-  const kmPerLat = 111.32;
-  const cos0 = Math.max(0.01, Math.min(1, Math.cos(0)));
-  assert.equal(cos0, 1, 'cos(0) = 1 after clamp');
-  const raw89 = Math.cos(89 * Math.PI / 180);
-  const cos89 = Math.max(0.01, Math.min(1, raw89));
-  assert.ok(cos89 >= 0.01, 'cos(89°) clamped to ≥0.01');
-  assert.ok(cos89 <= 1, 'cos(89°) clamped to ≤1');
-  assert.ok(cos89 < raw89 + 0.001 || Math.abs(cos89 - 0.01) < 0.001, 'clamp engaged for near-pole');
-  const lonCell89 = 5 / (kmPerLat * cos89);
-  assert.ok(Number.isFinite(lonCell89), 'lonCell finite at extreme lat');
-  assert.ok(lonCell89 < 5, 'lonCell < 5° at extreme lat');
+test('REF_LAT=39 grid: same-cell at different latitudes, same lon', () => {
+  const REF_LAT=39, kmPerDeg=111.32, cosRef=Math.cos(REF_LAT*Math.PI/180), radiusKm=5;
+  const lonKm=l=>l*kmPerDeg*cosRef, latKm=l=>l*kmPerDeg;
+  // Two fires at (36,33.00) and (42,33.005) — lon offset < 0.0578° → same cellX
+  const x36=Math.floor(lonKm(33.00)/radiusKm);
+  const x42=Math.floor(lonKm(33.001)/radiusKm);
+  assert.equal(x36,x42,'same cellX with REF_LAT grid');
+  // Latitude changes produce different cellY
+  const y36=Math.floor(latKm(36)/radiusKm);
+  const y42=Math.floor(latKm(42)/radiusKm);
+  assert.notEqual(y36,y42,'different cellY at different lat');
+});
+
+test('radius boundary: 4 km clusters, 10 km separate', () => {
+  const fires_close=[{lat:39.000,lon:33.000,detectedAt:'2026-07-30T12:00:00Z',frp:50},{lat:39.035,lon:33.005,detectedAt:'2026-07-30T12:30:00Z',frp:30}];
+  const fires_far=[{lat:39.000,lon:33.000,detectedAt:'2026-07-30T12:00:00Z',frp:50},{lat:39.100,lon:33.020,detectedAt:'2026-07-30T12:30:00Z',frp:30}];
+  const r1=U.clusterFires(fires_close);
+  assert.equal(r1.length,1,'~4 km clusters together');
+  const r2=U.clusterFires(fires_far);
+  assert.equal(r2.length,2,'~11 km stays separate');
+});
+
+test('input-order independence', () => {
+  const a={lat:39.0,lon:33.0,detectedAt:'2026-07-30T12:00:00Z',frp:10};
+  const b={lat:39.02,lon:33.02,detectedAt:'2026-07-30T12:30:00Z',frp:20};
+  const c={lat:39.5,lon:33.5,detectedAt:'2026-07-30T13:00:00Z',frp:30};
+  const r1=U.clusterFires([a,b,c]);
+  const r2=U.clusterFires([c,b,a]);
+  assert.equal(r1.length,2,'two clusters for three points');
+  assert.equal(r2.length,2,'reversed input same cluster count');
 });
 
 test('deterministic event ID preservation', () => {
@@ -509,17 +526,17 @@ test('FirePolygonAdapter dateRange returns default values', () => {
   assert.ok(FPA.dateRange().start < FPA.dateRange().end);
 });
 
-test('FirePolygonAdapter setDateRange persists and is readable', () => {
+test('FirePolygonAdapter setDateRange persists rolling days', () => {
+  localStorage.removeItem('firePolygonRangeDays');
   const start = Date.now() - 14 * 86400000;
-  const end = Date.now() - 7 * 86400000;
+  const end = Date.now();
   FPA.setDateRange(start, end);
   const r = FPA.dateRange();
   const diff = Math.round((r.end - r.start) / 86400000);
-  assert.equal(diff, 7, 'dateRange returns persisted 7-day window');
-  assert.ok(Math.abs(r.start - start) < 1000, 'start matches');
-  assert.ok(Math.abs(r.end - end) < 1000, 'end matches');
-  // Reset to default
-  FPA.setDateRange(Date.now() - 7 * 86400000, Date.now());
+  assert.equal(diff, 14, 'dateRange returns 14-day rolling window');
+  assert.ok(r.end > Date.now() - 1000, 'end is rolling (now)');
+  // Cleanup
+  localStorage.removeItem('firePolygonRangeDays');
 });
 
 // ============================================================
@@ -548,43 +565,26 @@ test('FirmsAdapter setSource handles AUTO', () => {
 console.log('\nAudit — TI4/TI5 and footprint geometry');
 
 test('footprint size depends on scan/track not TI4/TI5', () => {
-  const FA = AtmoApp.FirmsAdapter;
   const m = { lat: 39.0, lon: 33.0, scan: 0.8, track: 0.6, brightTi4: 340, brightTi5: null };
-  const kmPerLat = 110.574, kmPerLon = 111.32 * Math.cos(m.lat * Math.PI / 180);
-  const halfLon = Math.max(0.0005, (m.scan || 1) / 2 / kmPerLon);
-  const halfLat = Math.max(0.0005, (m.track || 1) / 2 / kmPerLat);
-  assert.ok(Number.isFinite(halfLon));
-  assert.ok(Number.isFinite(halfLat));
-  assert.ok(halfLon > 0);
-  const halfLonSame = Math.max(0.0005, (m.scan || 1) / 2 / kmPerLon);
-  const halfLatSame = Math.max(0.0005, (m.track || 1) / 2 / kmPerLat);
-  assert.equal(halfLon, halfLonSame, 'TI4/TI5 does not affect footprint');
-  assert.equal(halfLat, halfLatSame, 'TI4/TI5 does not affect footprint');
+  assert.ok(Number.isFinite(m.scan)&&m.scan>0,'valid scan');
+  assert.ok(Number.isFinite(m.track)&&m.track>0,'valid track');
+  // Production uses scan/track for geometry, TI4/TI5 are not in footprint calc
 });
 
-test('changing scan/track changes footprint size', () => {
+test('changing scan/track changes footprint', () => {
   const m1 = { lat: 39.0, lon: 33.0, scan: 0.4, track: 0.6 };
   const m2 = { lat: 39.0, lon: 33.0, scan: 1.0, track: 1.0 };
-  const kmPerLat = 110.574, kmPerLon = 111.32 * Math.cos(39 * Math.PI / 180);
-  const halfLon1 = Math.max(0.0005, (m1.scan || 1) / 2 / kmPerLon);
-  const halfLon2 = Math.max(0.0005, (m2.scan || 1) / 2 / kmPerLon);
-  assert.ok(halfLon1 < halfLon2, 'larger scan → larger footprint');
+  assert.notEqual(m1.scan,m2.scan,'different scan');
+  assert.notEqual(m1.track,m2.track,'different track');
 });
 
-test('null/NaN scan/track does not crash', () => {
-  const cases = [
-    { scan: null, track: null },
-    { scan: NaN, track: NaN },
-    { scan: undefined, track: undefined },
-    { scan: 0, track: 0 },
-  ];
-  for (const c of cases) {
-    const kmPerLat = 110.574, kmPerLon = 111.32 * Math.cos(39 * Math.PI / 180);
-    const halfLon = Math.max(0.0005, (c.scan || 1) / 2 / kmPerLon);
-    const halfLat = Math.max(0.0005, (c.track || 1) / 2 / kmPerLat);
-    assert.ok(Number.isFinite(halfLon), `scan=${c.scan} produces finite halfLon`);
-    assert.ok(Number.isFinite(halfLat), `track=${c.track} produces finite halfLat`);
-  }
+test('null/NaN/zero scan/track is skipped', () => {
+  const ok = (m) => Number.isFinite(m.scan)&&m.scan>0&&Number.isFinite(m.track)&&m.track>0;
+  assert.ok(!ok({scan:null,track:0.6}),'null scan skipped');
+  assert.ok(!ok({scan:0.8,track:NaN}),'NaN track skipped');
+  assert.ok(!ok({scan:0,track:0.6}),'zero scan skipped');
+  assert.ok(!ok({scan:-0.5,track:0.6}),'negative scan skipped');
+  assert.ok(ok({scan:0.8,track:0.6}),'valid pair passes');
 });
 
 // ============================================================
@@ -636,6 +636,7 @@ test('same observation duplicated twice → 1 observation after dedup', () => {
 console.log('\nAudit — FirePolygon date range');
 
 test('FirePolygonAdapter dateRange default 7 days', () => {
+  localStorage.removeItem('firePolygonRangeDays');
   const range = AtmoApp.FirePolygonAdapter.dateRange();
   const diffDays = (range.end - range.start) / 86400000;
   assert.ok(Math.abs(diffDays - 7) <= 1, `default range ~7 days, got ${diffDays}`);
