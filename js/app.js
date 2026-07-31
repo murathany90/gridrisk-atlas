@@ -9,7 +9,7 @@
     async init(){
       this.ui.init();this.map.init(p=>this.selectPoint(p));this.bindUI();this.restoreSettings();this.ui.setTime(this.state.selectedTime);this.ui.setUpdated();
       A.Events.on('focusRisk',a=>{if(!a?.event)return;this.ui.showView('map');this.map.setView(a.event.lat,a.event.lon,10);this.selectPoint({lat:a.event.lat,lon:a.event.lon,fire:a.event.representative,fireEvent:a.event});});A.Events.on('basemapStatus',x=>A.Events.emit('service',{id:'basemap',state:'ok',note:`${x.key} · ${x.mode==='proxy'?'yerel tile proxy':'doğrudan tile'}`}));A.Events.on('basemapError',x=>{A.Events.emit('service',{id:'basemap',state:'error',note:x.note||'Altlık tile hatası'});this.ui.toast(x.note||'Harita altlığı yüklenemedi; OSM altlığına geçiliyor.','warn');});A.Events.on('outsideDataRegion',()=>this.ui.toast('Haritada serbestçe gezebilirsiniz; yangın/duman/meteoroloji veri sorguları yalnız Türkiye veri alanında çalışır.','warn'));
-      this.grid.loadCore().then(()=>{this.updateImpact();this.toggleGridMaster(true);}).catch(e=>this.ui.toast(`Şebeke core veri yüklenemedi: ${e.message}. start_windows.bat / localhost kullanın.`,'error'));
+      this.grid.loadCore().then(()=>{this.updateImpact();this.renderGridStaggered();}).catch(e=>this.ui.toast(`Şebeke core veri yüklenemedi: ${e.message}. start_windows.bat / localhost kullanın.`,'error'));
       this.healthCheck(false);this.loadSmokeGrid();this.loadWindGrid(true);
       if(A.CONFIG.firmsMapKey&&A.CONFIG.firmsMapKey!=='__FIRMS_MAP_KEY__')this.loadFirms();else A.Events.emit('service',{id:'firms',state:'warn',note:'MAP_KEY eksik; FIRMS katmanı pasif'});
       if(document.getElementById('layerGfw')?.checked)this.loadGfw();
@@ -62,6 +62,24 @@
       document.getElementById('exportCsvBtn').addEventListener('click',()=>A.ExportManager.csv(this.state));document.getElementById('exportJsonBtn').addEventListener('click',()=>A.ExportManager.json(this.state));document.getElementById('exportGeoJsonBtn').addEventListener('click',()=>A.ExportManager.geojson(this.state));
     }
     async toggleGridMaster(show){this.state.gridMaster=show;document.getElementById('gridSublayers').classList.toggle('disabledBlock',!show);if(!show){this.map.hideAllGrid();return;}await this.refreshGridLayers();}
+    async renderGridStaggered(){
+      if(!this.state.gridMaster)return;
+      const selected=new Set([...document.querySelectorAll('.gridLayer:checked')].map(x=>x.dataset.grid));
+      const order=['154','400','33','unknown','substations'].filter(k=>selected.has(k)&&C.gridSources[k]);
+      if(!order.length)return;
+      let delay=2000;
+      for(const key of order){
+        await new Promise(r=>setTimeout(r,delay));
+        if(!this.state.gridMaster||!document.getElementById('layerGridMaster')?.checked)break;
+        if(!document.querySelector(`.gridLayer[data-grid="${key}"]`)?.checked)continue;
+        try{
+          const data=this.grid.data.get(key);
+          if(!data){this.ui.toast(`Şebeke katmanı ${key}: veri yok`,'error');continue;}
+          await this.map.setGridGroup(key,data,true);
+        }catch(e){this.ui.toast(`Şebeke katmanı ${key}: ${e.message}`,'error');}
+        delay=1500;
+      }
+    }
     async refreshGridLayers(){const selected=new Set([...document.querySelectorAll('.gridLayer:checked')].map(x=>x.dataset.grid));for(const key of Object.keys(C.gridSources)){try{if(selected.has(key)){const data=await this.grid.loadGroup(key);await this.map.setGridGroup(key,data,true);}else if(this.map.gridLayers.has(key)){await this.map.setGridGroup(key,this.grid.data.get(key),false);}}catch(e){this.ui.toast(`Şebeke katmanı ${key}: ${e.message}`,'error');}}}
     setTimeOffset(hours,reload){const d=new Date(Date.now()+hours*3600e3);d.setUTCMinutes(0,0,0);this.state.selectedTime=d;this.ui.setTime(d);this.map.renderFires(d);this.state.fireEvents=this.map.fireEventsVisible;if(this.state.heatEnabled)this.map.toggleHeat(true);if(this.state.fwiEnabled)this.map.toggleFwi(true,d);if(this.state.effisBurntAreaEnabled)this.map.toggleEffisBurntArea(true,d);this.updateImpact();this.ui.renderExportSummary(this.state);this.renderFireLayers();if(reload)this.scheduleTimeReload(0);else this.scheduleTimeReload(300);}
     shiftTime(delta){const s=document.getElementById('timeSlider'),v=U.clamp(Number(s.value)+delta,Number(s.min),Number(s.max));s.value=String(v);this.setTimeOffset(v,true);}
