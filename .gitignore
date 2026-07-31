@@ -1,2 +1,17 @@
 node_modules/
 .server-port
+.env
+*.log
+tmp/
+temp/
+coverage/
+playwright-report/
+test-results/
+screenshots/
+*.bak
+*.orig
+*.rej
+*.tmp
+*.swp
+.DS_Store
+Thumbs.db
