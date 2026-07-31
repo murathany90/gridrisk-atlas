@@ -200,22 +200,27 @@
     _rangeDays(ls){const d=ls?.getItem('firePolygonRangeDays');return d?Number(d):7;},
     dateRange(){const ls=globalThis.localStorage;const days=this._rangeDays(ls);const end=Date.now();return{start:end-days*86400000,end,endMs:end};},
     setDateRange(start,end){const days=Math.round((Date.now()-start)/86400000);localStorage.setItem('firePolygonRangeDays',String(days));localStorage.removeItem('firePolygonStart');localStorage.removeItem('firePolygonEnd');},
+    cacheKey(days,t=Date.now()){const hourBucket=Math.floor(t/3600000);return`firePolygons:${days}:${hourBucket}`;},
+    emptyNote(days){const d=days??this._rangeDays(globalThis.localStorage);const map={1:'Son 24 saatte yangın alanı bulunmadı',3:'Son 3 günde yangın alanı bulunmadı',7:'Son 7 günde yangın alanı bulunmadı',30:'Son 30 günde yangın alanı bulunmadı'};return map[d]||`Son ${d} günde yangın alanı bulunmadı`;},
     _rangeKey(r){return `${new Date(r.start).toISOString().slice(0,10)}_${new Date(r.end).toISOString().slice(0,10)}`;},
     _lastGood(r){return this._lastGoodMap.get(this._rangeKey(r||this.dateRange()))||null;},
     _setLastGood(r,fc){this._lastGoodMap.set(this._rangeKey(r),{fc,at:Date.now()});},
+    _aborted(){const e=new Error('İstek iptal edildi');e.kind='ABORTED';return e;},
     async load(signal){
       const started=performance.now(),cfg=C.firePolygons;
       const range=this.dateRange();
       const rk=this._rangeKey(range);
+      const days=this._rangeDays(globalThis.localStorage);
       const cutoff=Math.min(range.start,range.end);
       const baseParams=`where=${encodeURIComponent(`date >= ${cutoff}`)}&outFields=date,il,konum,area_ha,impact_b,impact_p,olu_sayi&returnGeometry=true&f=geojson&outSR=4326`;
-      let features=[],page=0,error=null,paginationComplete=true;
+      let features=[],page=0,error=null,paginationComplete=true,limited=false;
       const MAX_PAGES=50;
       try{
         while(page<MAX_PAGES){
-          if(signal?.aborted)break;
+          if(signal?.aborted)throw this._aborted();
           const url=`${cfg.url}?${baseParams}&resultRecordCount=500&resultOffset=${page*500}`;
-          const {data}=await U.fetchJson(url,{signal,cacheKey:page===0?`firePolygons:${rk}`:null,ttl:C.cacheTtl.grid});
+          const {data}=await U.fetchJson(url,{signal,cacheKey:page===0?this.cacheKey(days):null,ttl:C.cacheTtl.grid});
+          if(signal?.aborted)throw this._aborted();
           if(!data?.features?.length)break;
           for(const f of data.features){
             const p=f.properties||{};
@@ -240,8 +245,10 @@
             features.push(...data.features);
           }
           if(!data.exceededTransferLimit)break;
+          limited=true;
           page++;
         }
+        if(limited)paginationComplete=false;
       }catch(e){
         if(e.kind==='ABORTED')throw e;
         paginationComplete=false;
@@ -257,15 +264,22 @@
         }
       }
       const partial=!paginationComplete;
+      if(partial&&limited){
+        const lg=this._lastGood(range);
+        if(lg){
+          report('firePolygon',{state:'stale',latency:Math.round(performance.now()-started),count:lg.fc.features.length,note:`${cfg.label} · son başarılı: ${lg.at?U.formatLocal(new Date(lg.at)):'—'} · aralık: ${rk} · sayfa sınırı nedeniyle kısmi veri`});
+          return{...lg.fc,_stale:true,_error:'Pagination safety limit (kısmi veri)',_rangeKey:rk};
+        }
+        report('firePolygon',{state:'warn',latency:Math.round(performance.now()-started),count:features.length,note:`${cfg.label} · ${cfg.source} · sayfa sınırı nedeniyle kısmi veri · aralık: ${rk}`});
+        return{type:'FeatureCollection',features,_rangeKey:rk,_partial:true};
+      }
       if(features.length&&!partial){
         const fc={type:'FeatureCollection',features};
         this._setLastGood(range,fc);
       }
-      const rdays=A.FirePolygonAdapter._rangeDays(globalThis.localStorage);
-      const rangeNote=rdays!==7?` · aralık: ${rk}`:'';
-      const partialNote=partial?` · ${page+1}. sayfada hata (kısmi veri)`:'';
+      const partialNote=partial?` · kısmi veri (${page+1}. sayfada hata)`:'';
       const state=partial&&features.length?'warn':features.length?'ok':'empty';
-      report('firePolygon',{state,latency:Math.round(performance.now()-started),count:features.length,note:features.length?`${cfg.label} · ${cfg.source}${rangeNote}${partialNote}`:(error?'API hatası, veri yok':'Son 7 günde yangın alanı yok')});
+      report('firePolygon',{state,latency:Math.round(performance.now()-started),count:features.length,note:features.length?`${cfg.label} · ${cfg.source} · aralık: ${rk}${partialNote}`:(error?'API hatası, veri yok':this.emptyNote(days))});
       return{type:'FeatureCollection',features,_rangeKey:rk,_partial:partial};
     }
   };
