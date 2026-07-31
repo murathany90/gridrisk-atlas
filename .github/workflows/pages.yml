@@ -29,13 +29,21 @@ jobs:
           "s/__FIRMS_MAP_KEY__/${{ secrets.FIRMS_MAP_KEY }}/g"
           js/config.js
 
+      - name: Stage runtime files
+        shell: bash
+        run: |
+          mkdir -p deploy
+          cp index.html deploy/
+          cp -r css js data deploy/
+          cp .nojekyll deploy/
+
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: 'deploy'
 
       - name: Deploy to Pages
         id: deployment

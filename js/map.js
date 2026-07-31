@@ -127,6 +127,7 @@
     setFootprint(events, show=true){
       this.footprintLayer.clearLayers();
       if(this.map.hasLayer(this.footprintLayer))this.map.removeLayer(this.footprintLayer);
+      document.querySelector('[data-legend="footprint"]')?.remove();
       if(!show||!events?.length)return;
       for(const ev of events){
         if(!ev.members?.length)continue;
@@ -145,11 +146,12 @@
       this.makeLegend('footprint','Piksel Ayak İzi',`<div class="legendLine"><i style="background:rgba(255,80,40,0.2);border:1px solid rgba(255,100,50,0.5)"></i><span>Her tespitin VIIRS/MODIS piksel boyutu (scan×track)</span></div><div class="sourceNote">Yalnızca olay üyesi tespitler için; piksel boyutu uydu açısına göre değişir.</div>`);
     }
     toggleFootprint(show){
-      if(show){if(!this.map.hasLayer(this.footprintLayer))this.footprintLayer.addTo(this.map);}else{if(this.map.hasLayer(this.footprintLayer))this.map.removeLayer(this.footprintLayer);}
+      if(show){if(!this.map.hasLayer(this.footprintLayer))this.footprintLayer.addTo(this.map);}else{if(this.map.hasLayer(this.footprintLayer))this.map.removeLayer(this.footprintLayer);document.querySelector('[data-legend="footprint"]')?.remove();}
     }
     setThermalEnvelope(events, show=true){
       this.thermalEnvelopeLayer.clearLayers();
       if(this.map.hasLayer(this.thermalEnvelopeLayer))this.map.removeLayer(this.thermalEnvelopeLayer);
+      document.querySelector('[data-legend="thermal"]')?.remove();
       if(!show||!events?.length)return;
       let count=0;
       for(const ev of events){
@@ -174,11 +176,12 @@
       }
     }
     toggleThermalEnvelope(show){
-      if(show){if(!this.map.hasLayer(this.thermalEnvelopeLayer))this.thermalEnvelopeLayer.addTo(this.map);}else{if(this.map.hasLayer(this.thermalEnvelopeLayer))this.map.removeLayer(this.thermalEnvelopeLayer);}
+      if(show){if(!this.map.hasLayer(this.thermalEnvelopeLayer))this.thermalEnvelopeLayer.addTo(this.map);}else{if(this.map.hasLayer(this.thermalEnvelopeLayer))this.map.removeLayer(this.thermalEnvelopeLayer);document.querySelector('[data-legend="thermal"]')?.remove();}
     }
     setEventEvolution(events, show=true){
       this.evolutionLayer.clearLayers();
       if(this.map.hasLayer(this.evolutionLayer))this.map.removeLayer(this.evolutionLayer);
+      document.querySelector('[data-legend="evolution"]')?.remove();
       if(!show||!events?.length)return;
       let count=0;
       for(const ev of events){
@@ -200,7 +203,7 @@
       }
     }
     toggleEventEvolution(show){
-      if(show){if(!this.map.hasLayer(this.evolutionLayer))this.evolutionLayer.addTo(this.map);}else{if(this.map.hasLayer(this.evolutionLayer))this.map.removeLayer(this.evolutionLayer);}
+      if(show){if(!this.map.hasLayer(this.evolutionLayer))this.evolutionLayer.addTo(this.map);}else{if(this.map.hasLayer(this.evolutionLayer))this.map.removeLayer(this.evolutionLayer);document.querySelector('[data-legend="evolution"]')?.remove();}
     }
     setGfwMarkers(data){
       this.gfwLayer.clearLayers();this.map.removeLayer(this.gfwLayer);

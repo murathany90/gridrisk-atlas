@@ -1,6 +1,7 @@
 (function(A){
   const U=A.Utils,C=A.CONFIG;
   function report(id,patch){A.Events.emit('service',{id,...patch});}
+  function isPages(){return location.hostname.endsWith('.github.io');}
   function normalizeArray(d){return Array.isArray(d)?d:[d];}
   function pkey(points){return points.map(p=>`${p.lat.toFixed(2)},${p.lon.toFixed(2)}`).join(';');}
   async function batches(points,size,fn){const out=[];for(let i=0;i<points.length;i+=size){const part=points.slice(i,i+size);out.push(...await fn(part,i/size));}return out;}
@@ -131,7 +132,7 @@
 
   A.AtmoHubAdapter={
     async discoverCapabilities(force=true){
-      if(location.protocol==='file:'){report('atmohub',{state:'warn',count:0,note:'Keşif için yerel Node sunucusu gerekli; public API doğrulanmış değil'});return{available:false,reason:'SERVER_REQUIRED'};}
+      if(location.protocol==='file:'||isPages()){report('atmohub',{state:'warn',count:0,note:isPages()?'GitHub Pages: keşif yalnız server.mjs (SUNUCU MODU) üzerinde çalışır; /api/atmohub/discover yok':'Keşif için yerel Node sunucusu gerekli; public API doğrulanmış değil'});return{available:false,reason:'SERVER_REQUIRED'};}
       try{const url=`${C.atmoHubDiscovery}?force=${force?'1':'0'}&t=${Date.now()}`;const {data,meta}=await U.fetchJson(url,{timeout:45000,ttl:0});const verified=data?.verified||[],candidates=data?.candidates||[],available=verified.length>0;report('atmohub',{state:available?'ok':'warn',latency:meta.cached?0:meta.latency,count:available?verified.length:candidates.length,note:available?`${verified.length} doğrulanabilir public veri/servis adayı bulundu`:(candidates.length?`${candidates.length} portal/bundle adayı bulundu; henüz smoke/fire API olarak doğrulanmadı`:'Portal tarandı; doğrulanmış public smoke/fire API bulunamadı')});return{available,verified,candidates,reason:available?null:'NO_VERIFIED_PUBLIC_API',...data};}catch(e){report('atmohub',{state:'warn',count:0,note:'Portal/bundle keşfi başarısız; CAMS wildfire PM10 fallback aktif'});return{available:false,reason:e.kind||'DISCOVERY_FAILED',error:e.message||String(e)};}
     }
   };
@@ -162,6 +163,7 @@
     status:'NOT_CONFIGURED',
     note:'EUMETSAT Data Store credentials sunucuda yapılandırılmamış. Server /api/mtg/active_fires → 501.',
     async load(signal){
+      if(location.protocol==='file:'||isPages()){report('mtg',{state:'warn',note:'Sunucu modu gerekli · /api/mtg/active_fires yalnız server.mjs üzerinde çalışır; MTG pasif'});return[];}
       const started=performance.now();
       try{
         const bbox=U.regionBboxString();
@@ -202,7 +204,7 @@
     setDateRange(start,end){const days=Math.round((Date.now()-start)/86400000);localStorage.setItem('firePolygonRangeDays',String(days));localStorage.removeItem('firePolygonStart');localStorage.removeItem('firePolygonEnd');},
     cacheKey(days,t=Date.now()){const hourBucket=Math.floor(t/3600000);return`firePolygons:${days}:${hourBucket}`;},
     emptyNote(days){const d=days??this._rangeDays(globalThis.localStorage);const map={1:'Son 24 saatte yangın alanı bulunmadı',3:'Son 3 günde yangın alanı bulunmadı',7:'Son 7 günde yangın alanı bulunmadı',30:'Son 30 günde yangın alanı bulunmadı'};return map[d]||`Son ${d} günde yangın alanı bulunmadı`;},
-    _rangeKey(r){return `${new Date(r.start).toISOString().slice(0,10)}_${new Date(r.end).toISOString().slice(0,10)}`;},
+    _rangeKey(r){const days=Math.round((r.end-r.start)/86400000);const hourBucket=Math.floor(r.end/3600000);return`${days}:${hourBucket}`;},
     _lastGood(r){return this._lastGoodMap.get(this._rangeKey(r||this.dateRange()))||null;},
     _setLastGood(r,fc){this._lastGoodMap.set(this._rangeKey(r),{fc,at:Date.now()});},
     _aborted(){const e=new Error('İstek iptal edildi');e.kind='ABORTED';return e;},
@@ -213,7 +215,7 @@
       const days=this._rangeDays(globalThis.localStorage);
       const cutoff=Math.min(range.start,range.end);
       const baseParams=`where=${encodeURIComponent(`date >= ${cutoff}`)}&outFields=date,il,konum,area_ha,impact_b,impact_p,olu_sayi&returnGeometry=true&f=geojson&outSR=4326`;
-      let features=[],page=0,error=null,paginationComplete=true,limited=false;
+      let features=[],page=0,error=null,paginationComplete=true,lastExceeded=false;
       const MAX_PAGES=50;
       try{
         while(page<MAX_PAGES){
@@ -245,10 +247,10 @@
             features.push(...data.features);
           }
           if(!data.exceededTransferLimit)break;
-          limited=true;
+          lastExceeded=true;
           page++;
         }
-        if(limited)paginationComplete=false;
+        if(page>=MAX_PAGES&&lastExceeded)paginationComplete=false;
       }catch(e){
         if(e.kind==='ABORTED')throw e;
         paginationComplete=false;
@@ -264,7 +266,8 @@
         }
       }
       const partial=!paginationComplete;
-      if(partial&&limited){
+      const safetyLimit=partial&&page>=MAX_PAGES&&lastExceeded;
+      if(safetyLimit){
         const lg=this._lastGood(range);
         if(lg){
           report('firePolygon',{state:'stale',latency:Math.round(performance.now()-started),count:lg.fc.features.length,note:`${cfg.label} · son başarılı: ${lg.at?U.formatLocal(new Date(lg.at)):'—'} · aralık: ${rk} · sayfa sınırı nedeniyle kısmi veri`});
