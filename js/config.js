@@ -35,7 +35,7 @@ window.AtmoApp = window.AtmoApp || {};
     effisBurntAreaLayer: 'effis.nrt.ba.poly',
     atmoHubPortal: 'https://portal.atmohub.gr/',
     atmoHubDiscovery: '/api/atmohub/discover',
-    timeline: { minHours: -24, maxHours: 72, playStepHours: 3, playIntervalMs: 1500 },
+    timeline: { minHours: -48, maxHours: 12, playStepHours: 3, playIntervalMs: 1500 },
     cacheTtl: { air: 30*60*1000, weather: 20*60*1000, geocode: 60*60*1000, firms: 7*60*1000, grid: 24*60*60*1000 },
     firmsSources: ['VIIRS_NOAA21_NRT','VIIRS_NOAA20_NRT','VIIRS_SNPP_NRT','MODIS_NRT'],
     gfwApiKey: '__GFW_API_KEY__',
