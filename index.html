@@ -7,13 +7,13 @@
   <title>Türkiye Wildfire Grid Risk Monitor</title>
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="css/styles.css?v=3.3.3" />
+  <link rel="stylesheet" href="css/styles.css?v=3.3.4" />
 </head>
 <body>
 <div id="appShell">
   <header class="topbar">
     <div class="brandBlock"><div class="brandIcon">🔥</div><div><h1>Türkiye Wildfire Grid Risk Monitor</h1><div class="subtitle">Orman yangını · duman taşınım bağlamı · 154/400 kV iletim şebekesi ve trafo merkezi etkisi</div></div></div>
-    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span class="domainPill">🇹🇷 VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.3.3</span><span id="lastUpdated">Son güncelleme: —</span></div>
+    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span class="domainPill">🇹🇷 VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.3.4</span><span id="lastUpdated">Son güncelleme: —</span></div>
   </header>
 
   <nav class="mainNav">
@@ -82,16 +82,16 @@
               <select id="firePolygonRange" style="margin:4px 0 0 24px;font-size:11px;padding:2px 4px"><option value="1">24 saat</option><option value="3">3 gün</option><option value="7" selected>7 gün</option><option value="30">30 gün</option></select>
               <p class="layerHint">Koridor gerçek duman modeli değildir; mevcut rüzgâr alanıyla aşağı-rüzgâr şebeke taramasını destekler.</p>
             </div>
-            <div class="layerGroup gridGroup"><h3>⚡ İletim Şebekesi <span class="defaultOff">varsayılan kapalı</span></h3>
+            <div class="layerGroup gridGroup"><h3>⚡ İletim Şebekesi</h3>
               <label class="masterLayer"><input id="layerGridMaster" type="checkbox" checked/> Şebeke katmanını aç</label>
-              <div id="gridSublayers" class="subLayers disabledBlock">
+              <div id="gridSublayers" class="subLayers">
                 <label><input class="gridLayer" data-grid="400" type="checkbox" checked/> <i class="lineSwatch s400"></i> 400 kV sınıfı</label>
                 <label><input class="gridLayer" data-grid="154" type="checkbox" checked/> <i class="lineSwatch s154"></i> 154 kV sınıfı</label>
                 <label><input class="gridLayer" data-grid="substations" type="checkbox"/> ◆ Trafo merkezleri</label>
                 <label><input class="gridLayer" data-grid="33" type="checkbox"/> <i class="lineSwatch s33"></i> 20–66 kV</label>
                 <label><input class="gridLayer" data-grid="unknown" type="checkbox"/> <i class="lineSwatch sunk"></i> Gerilimi bilinmeyen</label>
               </div>
-              <p class="layerHint">Risk çekirdeği görünürlükten bağımsız 400/154 kV hatları ve TM'leri kullanır. Haritada yalnız hatlar + TM gösterilir.</p>
+              <p class="layerHint">Risk çekirdeği görünürlükten bağımsız 400/154 kV hatları ve TM'leri kullanır. Haritada yalnız hatlar + TM gösterilir. 400/154 kV varsayılan açık; sayfa açılışında performans için kademeli yüklenir.</p>
             </div>
           </div>
         </aside>
@@ -204,13 +204,13 @@
   });
 })();
 </script>
-<script src="js/config.js?v=3.3.3"></script>
-<script src="js/utils.js?v=3.3.3"></script>
-<script src="js/api.js?v=3.3.3"></script>
-<script src="js/grid.js?v=3.3.3"></script>
-<script src="js/map.js?v=3.3.3"></script>
-<script src="js/export.js?v=3.3.3"></script>
-<script src="js/ui.js?v=3.3.3"></script>
-<script src="js/app.js?v=3.3.3"></script>
+<script src="js/config.js?v=3.3.4"></script>
+<script src="js/utils.js?v=3.3.4"></script>
+<script src="js/api.js?v=3.3.4"></script>
+<script src="js/grid.js?v=3.3.4"></script>
+<script src="js/map.js?v=3.3.4"></script>
+<script src="js/export.js?v=3.3.4"></script>
+<script src="js/ui.js?v=3.3.4"></script>
+<script src="js/app.js?v=3.3.4"></script>
 </body>
 </html>
