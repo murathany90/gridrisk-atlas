@@ -46,6 +46,7 @@
       attribution: 'Imagery © EUMETSAT 2026',
       defaultOpacity: 0.85,
       slotMinutes: 10,
+      maxBackfillSlots: 12,
       source: 'EUMETSAT MTG-I FCI · gerçek uydu görüntüsü'
     },
     baseMaps: {

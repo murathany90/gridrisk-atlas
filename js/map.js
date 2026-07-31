@@ -101,8 +101,15 @@
     createMtgLayer(date){
       const wms=C.mtgGeoColourWms,time=this.roundToMtgSlot(date).toISOString(),opacity=U.clamp(Number(localStorage.getItem('mtgOpacity'))||wms.defaultOpacity,.3,1);
       const layer=L.tileLayer.wms(wms.url,{layers:wms.layer,format:wms.format,transparent:true,version:wms.version,crs:L.CRS?L.CRS.EPSG4326:null,srs:wms.crs,time,opacity,pane:'mtgPane',attribution:wms.attribution});
-      layer.on('tileload',()=>A.Events.emit('service',{id:'mtg',state:'ok',count:null,note:`WMS ${wms.layer} · TIME=${time}`}));
-      layer.on('tileerror',()=>A.Events.emit('service',{id:'mtg',state:'error',note:'MTG GeoColour WMS tile yüklenemedi'}));
+      let backfill=0;
+      layer.on('tileload',()=>{backfill=0;A.Events.emit('service',{id:'mtg',state:'ok',count:null,note:`WMS ${wms.layer} · TIME=${layer.wmsParams.time}`});});
+      layer.on('tileerror',()=>{
+        const maxBack=wms.maxBackfillSlots??12;
+        if(backfill>=maxBack){A.Events.emit('service',{id:'mtg',state:'error',note:`MTG GeoColour: ${layer.wmsParams.time} için uydu görüntüsü bulunamadı (arşiv dışı slot)`});return;}
+        backfill++;
+        const cur=Date.parse(layer.wmsParams.time);
+        if(Number.isFinite(cur))layer.setParams({time:this.roundToMtgSlot(cur-wms.slotMinutes*60000).toISOString()});
+      });
       this.mtgLayer=layer;this.mtgTime=time;
       return layer;
     }
@@ -111,7 +118,7 @@
       if(!this.mtgLayer)this.createMtgLayer(date||new Date()).addTo(this.map);
       else if(!this.map.hasLayer(this.mtgLayer))this.map.addLayer(this.mtgLayer);
       this.setMtgTime(date||new Date());
-      this.makeLegend('mtg','EUMETSAT MTG-I GeoColour',`<div class="sourceNote">${C.mtgGeoColourWms.source} · gerçek uydu görüntüsü (model değil).<br>Zaman: ${this.mtgTime||'—'} · 10 dk slotu. Bu zaman için kare bulunamazsa katman boş kalır.</div>`);
+      this.makeLegend('mtg','EUMETSAT MTG-I GeoColour',`<div class="sourceNote">${C.mtgGeoColourWms.source} · gerçek uydu görüntüsü (model değil).<br>Zaman: ${this.mtgTime||'—'} · 10 dk slotu. Arşivde bulunmayan slotlarda en yakın geçmiş slota geri sarılır (en çok 2 sa).</div>`);
     }
     setMtgTime(date){
       if(!this.mtgLayer)return;

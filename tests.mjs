@@ -433,6 +433,7 @@ test('mtgGeoColourWms config points at EUMETSAT WMS GeoColour layer', () => {
   assert.ok(m.url.includes('eumetview.eumetsat.int/geoserv/wms'), 'EUMETSAT WMS endpoint');
   assert.equal(m.layer, 'mtg_fd:rgb_geocolour', 'GeoColour layer id');
   assert.equal(m.slotMinutes, 10, '10-minute slot cadence');
+  assert.equal(m.maxBackfillSlots, 12, 'backfill cap 12 slots (2 h)');
   assert.equal(m.version, '1.1.1', 'WMS 1.1.1 (EPSG:4326 srs)');
   assert.equal(m.format, 'image/png', 'PNG format only');
   assert.equal(m.crs, 'EPSG:4326', 'EPSG:4326 projection');
@@ -786,6 +787,8 @@ test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.1.1, EPSG:4326, PNG, 
   assert.ok(mtgSrc.includes("layers:wms.layer"), 'layer from config (mtg_fd:rgb_geocolour)');
   assert.ok(mapTxt.includes('this.mtgLayer.setParams({time:iso})'), 'setParams update path present');
   assert.ok(mtgSrc.includes("pane:'mtgPane'"), 'tiles rendered into mtg pane');
+  assert.ok(mtgSrc.includes('maxBackfillSlots'), 'slot backfill cap wired');
+  assert.ok(mtgSrc.includes('layer.setParams({time:this.roundToMtgSlot('), 'tileerror walks back one slot via setParams');
 });
 
 // ── v3.3.4 mobile-responsive / overflow contract ──
