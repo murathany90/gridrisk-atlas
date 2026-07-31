@@ -105,7 +105,7 @@
       layer.on('tileload',()=>{backfill=0;A.Events.emit('service',{id:'mtg',state:'ok',count:null,note:`WMS ${wms.layer} · TIME=${layer.wmsParams.time}`});});
       layer.on('tileerror',()=>{
         const maxBack=wms.maxBackfillSlots??12;
-        if(backfill>=maxBack){A.Events.emit('service',{id:'mtg',state:'error',note:`MTG GeoColour: ${layer.wmsParams.time} için uydu görüntüsü bulunamadı (arşiv dışı slot)`});return;}
+        if(backfill>=maxBack){A.Events.emit('service',{id:'mtg',state:'error',note:`MTG GeoColour: ${layer.wmsParams.time} için uydu görüntüsü alınamadı (arşivde yok veya kaynak yanıt vermiyor)`});return;}
         backfill++;
         const cur=Date.parse(layer.wmsParams.time);
         if(Number.isFinite(cur))layer.setParams({time:this.roundToMtgSlot(cur-wms.slotMinutes*60000).toISOString()});
