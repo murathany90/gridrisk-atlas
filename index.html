@@ -7,13 +7,13 @@
   <title>Türkiye Wildfire Grid Risk Monitor</title>
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="css/styles.css?v=3.4.2" />
+  <link rel="stylesheet" href="css/styles.css?v=3.4.3" />
 </head>
 <body>
 <div id="appShell">
   <header class="topbar">
     <div class="brandBlock"><div class="brandIcon">🔥</div><div><h1>Türkiye Wildfire Grid Risk Monitor</h1><div class="subtitle">Orman yangını · duman taşınım bağlamı · 154/400 kV iletim şebekesi ve trafo merkezi etkisi</div></div></div>
-    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span class="domainPill">🇹🇷 VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.4.2</span><span id="lastUpdated">Son güncelleme: —</span></div>
+    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span class="domainPill">🇹🇷 VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.4.3</span><span id="lastUpdated">Son güncelleme: —</span></div>
   </header>
 
   <nav class="mainNav">
@@ -68,17 +68,17 @@
             <div class="layerGroup"><h3>🔥 Yangın / Doğrulama</h3>
               <label><input id="layerFires" type="checkbox" checked/> FIRMS termal tespit / yangın olayları</label>
               <label><input id="layerFrpHeat" type="checkbox"/> FRP yoğunluğu</label>
-              <label class="rangeLine">Min. FRP filtresi <input id="frpThreshold" type="range" min="0" max="200" step="5" value="50"/><span id="frpThresholdValue">≥50 MW</span></label>
+              <label class="rangeLine">Min. FRP filtresi <input id="frpThreshold" type="range" min="0" max="200" step="5" value="30"/><span id="frpThresholdValue">≥30 MW</span></label>
               <span id="frpCount" class="layerHint" style="display:block;margin-top:2px">— olay gösteriliyor</span>
               <label><input id="layerFootprint" type="checkbox"/> Piksel ayak izi (scan×track)</label>
-              <label><input id="layerThermalEnvelope" type="checkbox"/> Tahmini termal yayılım</label>
+              <label><input id="layerThermalEnvelope" type="checkbox" checked/> Tahmini termal yayılım</label>
               <label><input id="layerEventEvolution" type="checkbox"/> Olay evrim izi</label>
-              <label><input id="layerEffisBurntArea" type="checkbox"/> EFFIS Yanmış Alanlar — DOĞRULAMA</label>
+              <label><input id="layerEffisBurntArea" type="checkbox" checked/> EFFIS Yanmış Alanlar — DOĞRULAMA</label>
               <p class="layerHint">Zoom &lt;9: 5 km / 6 saat olay kümeleri. Zoom ≥9: tekil FIRMS hotspotları. Hotspot yangın perimetresi değildir. EFFIS Yanmış Alanlar, GWIS NRT uydu tabanlı algoritmik poligondur; resmî saha perimetresi değildir.</p>
             </div>
             <div class="layerGroup"><h3>⚠ Şebeke Etki Analizi</h3>
               <label><input id="layerFireGridImpact" type="checkbox" checked/> Öncelik halkaları + riskli varlık vurgusu</label>
-              <label><input id="layerDownwindCorridor" type="checkbox"/> Rüzgâr bazlı yayılım koridoru</label>
+              <label><input id="layerDownwindCorridor" type="checkbox" checked/> Rüzgâr bazlı yayılım koridoru</label>
               <p class="layerHint">Koridor gerçek duman modeli değildir; mevcut rüzgâr alanıyla aşağı-rüzgâr şebeke taramasını destekler.</p>
             </div>
             <div class="layerGroup gridGroup"><h3>⚡ İletim Şebekesi</h3>
@@ -203,13 +203,13 @@
   });
 })();
 </script>
-<script src="js/config.js?v=3.4.2"></script>
-<script src="js/utils.js?v=3.4.2"></script>
-<script src="js/api.js?v=3.4.2"></script>
-<script src="js/grid.js?v=3.4.2"></script>
-<script src="js/map.js?v=3.4.2"></script>
-<script src="js/export.js?v=3.4.2"></script>
-<script src="js/ui.js?v=3.4.2"></script>
-<script src="js/app.js?v=3.4.2"></script>
+<script src="js/config.js?v=3.4.3"></script>
+<script src="js/utils.js?v=3.4.3"></script>
+<script src="js/api.js?v=3.4.3"></script>
+<script src="js/grid.js?v=3.4.3"></script>
+<script src="js/map.js?v=3.4.3"></script>
+<script src="js/export.js?v=3.4.3"></script>
+<script src="js/ui.js?v=3.4.3"></script>
+<script src="js/app.js?v=3.4.3"></script>
 </body>
 </html>

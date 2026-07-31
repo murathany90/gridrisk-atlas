@@ -1,5 +1,19 @@
 # Geliştirme Kaydı — Türkiye Wildfire Grid Risk Monitor v3.2.0
 
+# v3.4.3 — Varsayılan Katmanlar + FRP 30 + Tek Tip TM Karesi
+
+**Branch:** `fix/v3.4.3-default-layers-substation-style`
+
+**Değişiklikler:**
+- **FRP varsayılanı 50 → 30 MW**: `js/config.js`'e `frpThreshold: 30` eklendi (tek kaynak). `js/app.js` state (`frpThreshold:C.frpThreshold`), `js/map.js` constructor (`this.frpThreshold=C.frpThreshold`) ve `index.html` slider (`value="30"`, `≥30 MW`) hepsi aynı sabiti kullanır — magic number yok, reset/default tutarlı.
+- **Varsayılan katmanlar AÇIK**: `index.html`'de `layerThermalEnvelope`, `layerEffisBurntArea`, `layerDownwindCorridor` checkbox'ları `checked` oldu; `app.js` state'te `effisBurntAreaEnabled:true`, `downwindEnabled:true`; `init()` içine `if(this.state.effisBurntAreaEnabled)this.map.toggleEffisBurntArea(true,this.state.selectedTime)` eklendi (EFFIS BA ilk açılışta uygulanır). localStorage kayıtları varsa kullanıcı tercihi korunur.
+- **Tek tip TM risk karesi**: `js/map.js` içinde üç ikon fabrikası (`substationIcon`, `riskSubstationIcon`, `sectorSubstationIcon`) aynı 10×10 kareyi üretir: `<span class="substationSquare substation-risk">`. `css/styles.css`'te seviye sınıfları (`substation-risk-critical/high/medium/low`) ve eski inline boyut/renk şablonları kaldırıldı; tek kural: `.substationSquare.substation-risk{width:10px;height:10px;background:#000;border:2px solid #2f80ff;box-sizing:border-box}`. Risk ve koridor lejant örnekleri de aynı stile geçti.
+- **Sürüm 3.4.3**: `package.json`, `js/config.js` (`appVersion`), `index.html` (buildPill + `?v=` cache-busting), `server.mjs` (`APP_VERSION`), `README.md`.
+
+**Testler:** `tests.mjs` — FRP 30 tek kaynak/slider/label, üç katman varsayılan açık + init uygulaması, üç ikon fabrikası eşit 10×10 kare, eski seviye-boyut/renk kalıntısı yok.
+
+---
+
 ## 1. TileLayer `_getSubdomain` Hatası Düzeltildi
 
 **Dosya:** `js/map.js:29`

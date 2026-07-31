@@ -2,7 +2,7 @@
 (function(A){
   A.CONFIG = {
     appName: 'Türkiye Wildfire Grid Risk Monitor',
-    appVersion: '3.4.2',
+    appVersion: '3.4.3',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
     mapMinZoom: 2,
@@ -100,6 +100,7 @@
       '700hPa': {label:'700 hPa rüzgârı',speed:'wind_speed_700hPa',direction:'wind_direction_700hPa'}
     },
     fireClustering: { radiusKm: 5, timeHours: 6 },
+    frpThreshold: 30,
     downwindMaxDistanceKm: 30,
     downwind: { halfAngleDeg: 22, maxCorridors: 30 },
     impactBands: [

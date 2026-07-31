@@ -3,7 +3,7 @@
   class Application{
     constructor(){
       this.ui=new A.UIManager();this.map=new A.MapManager();this.grid=new A.GridRepository();
-      this.state={selectedTime:new Date(),smokeVariable:'pm10_wildfires',smokeData:[],wildfireSummaryData:[],fireData:[],fireEvents:[],fireImpacts:[],windData:[],windEnabled:true,windLevel:'10m',fwiEnabled:false,effisBurntAreaEnabled:false,mtgEnabled:false,firesEnabled:true,heatEnabled:false,impactEnabled:true,downwindEnabled:false,smokePoints:false,gridMaster:true,selectedPoint:null,frpThreshold:50};
+      this.state={selectedTime:new Date(),smokeVariable:'pm10_wildfires',smokeData:[],wildfireSummaryData:[],fireData:[],fireEvents:[],fireImpacts:[],windData:[],windEnabled:true,windLevel:'10m',fwiEnabled:false,effisBurntAreaEnabled:true,mtgEnabled:false,firesEnabled:true,heatEnabled:false,impactEnabled:true,downwindEnabled:true,smokePoints:false,gridMaster:true,selectedPoint:null,frpThreshold:C.frpThreshold};
       this.controllers={air:null,wind:null,firms:null,detail:null};this.reqSeq={air:0,wind:0,firms:0,detail:0};this.moveTimer=null;this.timeTimer=null;this.playTimer=null;this.lastApiCall=0;this.resizeT=null;
     }
     async init(){
@@ -11,6 +11,7 @@
       A.Events.on('focusRisk',a=>{if(!a?.event)return;this.ui.showView('map');this.map.setView(a.event.lat,a.event.lon,10);this.selectPoint({lat:a.event.lat,lon:a.event.lon,fire:a.event.representative,fireEvent:a.event});});A.Events.on('basemapStatus',x=>A.Events.emit('service',{id:'basemap',state:'ok',note:`${x.key} · ${x.mode==='proxy'?'yerel tile proxy':'doğrudan tile'}`}));A.Events.on('basemapError',x=>{A.Events.emit('service',{id:'basemap',state:'error',note:x.note||'Altlık tile hatası'});this.ui.toast(x.note||'Harita altlığı yüklenemedi; OSM altlığına geçiliyor.','warn');});A.Events.on('outsideDataRegion',()=>this.ui.toast('Haritada serbestçe gezebilirsiniz; yangın/duman/meteoroloji veri sorguları yalnız Türkiye veri alanında çalışır.','warn'));
       this.grid.loadCore().then(()=>{this.updateImpact();this.renderGridStaggered();}).catch(e=>this.ui.toast(`Şebeke core veri yüklenemedi: ${e.message}. start_windows.bat / localhost kullanın.`,'error'));
       this.healthCheck(false);this.loadSmokeGrid();this.loadWindGrid(true);
+      if(this.state.effisBurntAreaEnabled)this.map.toggleEffisBurntArea(true,this.state.selectedTime);
       if(A.CONFIG.firmsMapKey&&A.CONFIG.firmsMapKey!=='__FIRMS_MAP_KEY__')this.loadFirms();else A.Events.emit('service',{id:'firms',state:'warn',note:'MAP_KEY eksik; FIRMS katmanı pasif'});
       this.map.map.on('moveend',()=>{clearTimeout(this.moveTimer);this.moveTimer=setTimeout(()=>{const now=Date.now();if(now-this.lastApiCall<5000)return;this.lastApiCall=now;this.loadSmokeGrid();setTimeout(()=>this.loadWindGrid(),600);},2000);});
       window.addEventListener('resize',()=>this.scheduleResize());window.addEventListener('orientationchange',()=>this.scheduleResize());
