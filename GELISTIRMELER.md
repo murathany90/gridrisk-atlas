@@ -183,3 +183,34 @@
 
 ## Testler
 - 84 → **101 test**; `node tests.mjs` 101/101 PASS (canlı EUMETView contract dahil).
+
+---
+
+# v3.4.2 — MTG Küçük Düzeltmeler
+
+**Branch:** `fix/v3.4.2-mtg-small-fixes`
+
+## Backfill bütçesi sıfırlama
+**Dosya:** `js/map.js` — `MtgFrameManager.applyUserTime(iso)`
+
+**Sorun:** Yeni kullanıcı/timeline zamanı geldiğinde `backfillAttempt` sıfırlanmıyordu; böylece önceki zaman seçiminden kalan backfill sayacı yeni seçimin bütçesini kısaltıyordu (örn. önceki seçim 5 backfill yapmışsa yeni seçim en fazla 7 backfill yapabiliyordu).
+
+**Çözüm:** `applyUserTime` artık `backfillAttempt = 0` ile başlar — her yeni kullanıcı isteği kendi tam 12-slot bütçesini alır. Reset **yalnız** kullanıcı zamanı yolunda (`applyUserTime`) çalışır; `applyBackfill()` bütçeyi değiştirmez; aynı frame için max 12 limiti aynen korunur.
+
+## Tekrarlanan UTC eki
+**Dosya:** `js/map.js` — `mtgFmt()`
+
+**Sorun:** `mtgFmt()` çıktısı zaten `" UTC"` içeriyor; lejant ve service-monitor şablonları buna bir ` UTC` daha ekliyordu → "Seçilen: 14:30 UTC UTC" benzeri hatalı metinler.
+
+**Çözüm:** Tüm MTG metin şablonlarındaki gereksiz ` UTC` ekleri kaldırıldı:
+- Lejant: `Seçilen: ${mtgFmt(req)}` / `Uydu karesi: ${mtgFmt(disp)}`
+- Service monitor ok: `· İstenen: ${mtgFmt(...)}`
+- Backfill notu: `Gecikmeli frame · İstenen: ${mtgFmt(...)} · ${mtgFmt(target)} deneniyor`
+- No-frame notu: `Arşivde görüntü yok · ${mtgFmt(req)}`
+- Repo genelinde `UTC UTC` oluşturacak şablon kalmadı (statik regex testi ile korunur).
+
+## Testler
+- **101 → 104 test**; yeni regression testleri:
+  - request A → 5 backfill, request B → `backfillAttempt === 0` (bütçe sıfırlanır), B kendi 12-slot bütçesini sonuna kadar kullanır → exhausted.
+  - `applyBackfill` bütçeyi sıfırlamaz.
+  - MTG metinlerinde çift `UTC` yok; her zaman damgasında tam bir `UTC`.

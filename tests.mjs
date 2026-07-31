@@ -801,7 +801,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.4.1'"), 'config appVersion 3.4.1');
+  assert.ok(cfgTxt2.includes("appVersion: '3.4.2'"), 'config appVersion 3.4.2');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -899,6 +899,63 @@ test('v3.4.1 — max 12 backfill slots then exhausted, no endless loop', async (
   assert.ok(events.some(e => e[0] === 'exhausted'), 'exhausted emitted after 12 slots');
   assert.ok(guard < 50, 'loop terminated');
   mgr.dispose();
+});
+
+// ============================================================
+// v3.4.2 — MTG hotfix: backfill budget reset + single-UTC texts
+// ============================================================
+console.log('\nv3.4.2 — MTG backfill budget reset + UTC texts');
+
+test('v3.4.2 — applyUserTime resets backfill budget for a new user request', async () => {
+  const { mgr, events } = makeFrameManager();
+  let seq = mgr.applyUserTime('2026-07-30T14:30:00.000Z');
+  for (let i = 0; i < 5; i++) {
+    mgr.tileError(seq);
+    await settle(mgr);
+    const bf = events.filter(e => e[0] === 'backfill').at(-1);
+    assert.ok(bf, 'backfill emitted');
+    seq = mgr.applyBackfill(bf[2]);
+  }
+  assert.equal(mgr.backfillAttempt, 5, 'request A consumed 5 backfills');
+  assert.ok(mgr.backfillAttempt < 12, 'request A still within budget');
+
+  let seqB = mgr.applyUserTime('2026-07-31T06:10:00.000Z');
+  assert.notEqual(seqB, null, 'new user request starts a new frame');
+  assert.equal(mgr.backfillAttempt, 0, 'new user request resets the budget');
+
+  let guard = 0;
+  while (guard++ < 50) {
+    mgr.tileError(seqB);
+    const before = events.filter(e => e[0] === 'backfill').length;
+    await settle(mgr);
+    if (events.filter(e => e[0] === 'backfill').length === before) break;
+    seqB = mgr.applyBackfill(events.filter(e => e[0] === 'backfill').at(-1)[2]);
+  }
+  assert.equal(mgr.backfillAttempt, 12, 'request B can use its own full 12-slot budget');
+  assert.ok(events.some(e => e[0] === 'exhausted'), 'B exhausted only after its own 12 slots');
+  mgr.dispose();
+});
+
+test('v3.4.2 — applyBackfill does not reset the budget', async () => {
+  const { mgr, events } = makeFrameManager();
+  let seq = mgr.applyUserTime('2026-07-30T14:30:00.000Z');
+  mgr.tileError(seq);
+  await settle(mgr);
+  assert.equal(mgr.backfillAttempt, 1, 'first backfill counted');
+  const bf = events.find(e => e[0] === 'backfill');
+  mgr.applyBackfill(bf[2]);
+  assert.equal(mgr.backfillAttempt, 1, 'applyBackfill leaves budget untouched');
+  mgr.dispose();
+});
+
+test('v3.4.2 — MTG texts never repeat UTC (mtgFmt already appends it)', () => {
+  const src = readFileSync('js/map.js', 'utf8');
+  assert.ok(!src.includes('UTC UTC'), 'no "UTC UTC" literal in map.js');
+  assert.ok(!/mtgFmt\([^)]*\)\s+UTC/.test(src), 'no mtgFmt(...) immediately followed by another UTC');
+  const mk = iso => iso ? iso.slice(11, 16) + ' UTC' : '—';
+  const legend = `Seçilen: ${mk('2026-07-30T14:30:00.000Z')}<br>Uydu karesi: ${mk('2026-07-30T14:10:00.000Z')}`;
+  assert.ok(!legend.includes('UTC UTC'), 'legend split has no double UTC');
+  assert.equal((legend.match(/UTC/g) || []).length, 2, 'exactly one UTC per timestamp');
 });
 
 test('v3.4.1 — invalid WMS response stops backfill and reports error', async () => {
@@ -1011,12 +1068,13 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.4.1 version bump to 3.4.1 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.4.1'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.4.1'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.4.1'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.4.1'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.4.1"'), 'package.json version');
+test('v3.4.2 version bump to 3.4.2 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.4.2'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.4.2'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.4.2'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.4.2'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.4.2"'), 'package.json version');
+  assert.equal(htmlTxt.includes('3.4.1'), false, 'no stale 3.4.1 in index.html');
   assert.equal(htmlTxt.includes('3.4.0'), false, 'no stale 3.4.0 in index.html');
 });
 
