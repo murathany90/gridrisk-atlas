@@ -1309,5 +1309,48 @@ test('v3.3.4 JS: debounced invalidateSize on resize/orientation + panel collapse
   assert.ok(/collapseBtn'\)\?\.addEventListener\('click',e=>\{const body=document\.getElementById\('layerPanelBody'\);body\.classList\.toggle\('hidden'\);e\.currentTarget\.textContent=body\.classList\.contains\('hidden'\)\?'\+':'−';if\(document\.getElementById\('view-map'\)\?\.classList\.contains\('active'\)\)setTimeout\(\(\)=>A\.app\?\.map\?\.map\?\.invalidateSize\(\),30\);/.test(uiTxt), 'collapse triggers invalidateSize');
 });
 
+// ── v3.3.5 landscape phone + tablet KPI + safe-area top ──
+const cfgTxt = readFileSync('js/config.js', 'utf8');
+const srvTxt = readFileSync('server.mjs', 'utf8');
+const pkgTxt = readFileSync('package.json', 'utf8');
+
+test('v3.3.5 CSS: landscape phone breakpoint (max-height:500px landscape)', () => {
+  assert.ok(/@media \(max-height:500px\) and \(orientation:landscape\)\{/.test(cssTxt), 'landscape breakpoint present');
+  assert.ok(/\.topbar\{height:calc\(44px \+ env\(safe-area-inset-top\)\);padding:0 10px;padding-top:env\(safe-area-inset-top\)\}/.test(cssTxt), 'landscape topbar 44px + safe-area top');
+  assert.ok(/\.kpiBar\{height:64px;grid-template-columns:repeat\(6,minmax\(96px,1fr\)\);padding:4px 6px\}/.test(cssTxt), 'landscape KPI rail 64px (no 118px grid)');
+  assert.ok(/main\{height:calc\(100% - 144px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'landscape main calc -> map >=55%');
+  assert.ok(/\.layerPanel\{top:50px;right:8px;width:240px;max-height:calc\(100% - 62px\)\}/.test(cssTxt), 'landscape layer panel height');
+  assert.ok(/\.timelineBtn\{min-height:30px;padding:3px 6px;font-size:9px\}/.test(cssTxt), 'landscape compact timeline');
+});
+
+test('v3.3.5 CSS: tablet 768-1200 keeps all 6 KPIs in rail', () => {
+  assert.equal(cssTxt.includes('.kpiCard:nth-child(n+4){display:none}'), false, 'nth-child(n+4) hiding removed');
+  assert.ok(/@media\(max-width:1200px\)\{\.topMeta #lastUpdated\{display:none\}\.kpiBar\{grid-template-columns:repeat\(6,minmax\(110px,1fr\)\);height:88px;overflow-x:auto;scroll-snap-type:x proximity/.test(cssTxt), 'tablet 6-col KPI rail with proximity snap');
+  assert.ok(/main\{height:calc\(100% - 194px\)\}/.test(cssTxt), 'tablet main height calc(100% - 194px)');
+});
+
+test('v3.3.5 CSS: desktop >1200 KPI grid unchanged', () => {
+  assert.ok(/\.kpiBar\{height:82px;display:grid;grid-template-columns:repeat\(6,1fr\);gap:7px;padding:7px 10px/.test(cssTxt), 'desktop 6-col grid 82px preserved');
+});
+
+test('v3.3.5 CSS: scroll-snap proximity on mobile + tablet rails', () => {
+  const matches = cssTxt.match(/scroll-snap-type:x proximity/g) || [];
+  assert.ok(matches.length >= 2, 'proximity snap on both rails, found ' + matches.length);
+});
+
+test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
+  assert.ok(/\.topbar\{height:calc\(56px \+ env\(safe-area-inset-top\)\);padding-top:env\(safe-area-inset-top\)\}/.test(cssTxt), 'mobile topbar height + safe-area top');
+  assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
+});
+
+test('v3.3.5 version bump to 3.3.5 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.3.5'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.3.5'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.3.5'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.3.5'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.3.5"'), 'package.json version');
+  assert.equal(htmlTxt.includes('3.3.4'), false, 'no stale 3.3.4 in index.html');
+});
+
 // ── Run ──
 await run();
