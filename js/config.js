@@ -1,8 +1,8 @@
-window.AtmoApp = window.AtmoApp || {};
+﻿window.AtmoApp = window.AtmoApp || {};
 (function(A){
   A.CONFIG = {
     appName: 'Türkiye Wildfire Grid Risk Monitor',
-    appVersion: '3.3.6',
+    appVersion: '3.3.7',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
     mapMinZoom: 2,

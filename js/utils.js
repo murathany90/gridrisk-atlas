@@ -111,6 +111,7 @@
     riskScoreBand(score){return C().riskScoreBands.find(b=>score>=b.min)||C().riskScoreBands.at(-1);},
     ageHours(detectedAt,reference=new Date()){const a=Date.parse(detectedAt),b=new Date(reference).getTime();return Number.isFinite(a)?Math.max(0,(b-a)/3600000):24;},
     ageOpacity(detectedAt,reference){const h=this.ageHours(detectedAt,reference);return h<=3?.95:h<=12?.75:h<=24?.5:.28;},
+    formatVoltage(v){if(!v)return null;const s=String(v).trim(),groups={'300-500kV':'300–500 kV','66-300kV':'66–300 kV','20-66kV':'20–66 kV','<20kV':'<20 kV','unknown':'Bilinmiyor'};if(groups[s])return groups[s];const nums=String(s).split(/[^0-9.]+/).map(Number).filter(n=>Number.isFinite(n)&&n>0);if(!nums.length)return null;const n=Math.max(...nums);if(n>=1000){const kv=n/1000;return `${kv%1===0?kv:kv.toFixed(1)} kV`;}return `${n} V`;},
     confidenceWeight,
     adaptiveGrid(bounds,zoom,maxPoints=220){
       const b=this.clampBounds(bounds);if(b.east<=b.west||b.north<=b.south)return[];

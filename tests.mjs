@@ -1344,13 +1344,13 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.3.6 version bump to 3.3.6 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.3.6'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.3.6'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.3.6'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.3.6'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.3.6"'), 'package.json version');
-  assert.equal(htmlTxt.includes('3.3.5'), false, 'no stale 3.3.5 in index.html');
+test('v3.3.7 version bump to 3.3.7 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.3.7'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.3.7'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.3.7'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.3.7'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.3.7"'), 'package.json version');
+  assert.equal(htmlTxt.includes('3.3.6'), false, 'no stale 3.3.6 in index.html');
 });
 
 // ── FIRMS hexagon markers + Ayarlar tab rename ──
@@ -1373,6 +1373,35 @@ test('v3.3.6 map: FIRMS cluster + individual detections use HexagonMarker', () =
   assert.ok(clusterCount === 1, 'cluster branch uses hexagon');
   assert.ok(pointCount === 1, 'individual branch uses hexagon');
   assert.equal(renderFires.includes('L.circleMarker'), false, 'no circle markers in FIRMS render path');
+});
+
+// ── grid hover tooltips (v3.3.7) ──
+const utilsTxt = readFileSync('js/utils.js', 'utf8');
+
+test('v3.3.7 utils: formatVoltage renders raw, multi and group voltages', () => {
+  assert.ok(utilsTxt.includes("formatVoltage(v){"), 'formatVoltage helper exists');
+  assert.ok(utilsTxt.includes("'300-500kV':'300–500 kV'"), '300-500kV group label');
+  assert.ok(utilsTxt.includes("'unknown':'Bilinmiyor'"), 'unknown group label');
+  assert.ok(utilsTxt.includes('Math.max(...nums)'), 'multi-voltage takes max');
+  assert.ok(utilsTxt.includes('kv%1===0?kv:kv.toFixed(1)'), 'kV shown integer when whole');
+});
+
+test('v3.3.7 map: grid tooltip binds name + formatted voltage + operator + OSM attribution', () => {
+  assert.ok(mapTxt.includes("`<strong>${isSub?'Trafo Merkezi':'İletim Hattı'}</strong><br>"), 'tooltip header by type');
+  assert.ok(mapTxt.includes("U.escapeHtml(p.name||(isSub?'Adsız trafo merkezi':'Adsız OSM hattı'))"), 'name fallback');
+  assert.ok(mapTxt.includes('Gerilim: ${U.escapeHtml(v)}'), 'formatted voltage line');
+  assert.ok(mapTxt.includes("${p.operator?`<br>${U.escapeHtml(p.operator)}`:''}"), 'operator line');
+  assert.ok(mapTxt.includes('<small>OSM / ODbL</small>'), 'OSM attribution');
+  assert.ok(mapTxt.includes('gridTooltip(f.properties,true),{sticky:true}'), 'substation tooltip sticky');
+});
+
+test('v3.3.7 map: no preferCanvas double-canvas blocking hover on grid lines', () => {
+  assert.equal(mapTxt.includes('preferCanvas:true'), false, 'preferCanvas removed from map options');
+  assert.ok(mapTxt.includes("this.renderer=L.canvas({padding:.4})"), 'shared canvas renderer kept');
+  assert.ok(cssTxt.includes('.leaflet-pane{pointer-events:none}'), 'panes click-through');
+  assert.ok(cssTxt.includes('.leaflet-pane>canvas.leaflet-smoke-canvas{pointer-events:none}'), 'smoke canvas none');
+  assert.ok(cssTxt.includes('.leaflet-pane>svg{pointer-events:none}'), 'svg roots none');
+  assert.ok(cssTxt.includes('.leaflet-pane>svg .leaflet-interactive{pointer-events:visiblePainted}'), 'svg interactive paths only');
 });
 
 // ── Run ──
