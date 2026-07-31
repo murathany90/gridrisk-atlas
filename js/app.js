@@ -13,7 +13,7 @@
       this.healthCheck(false);this.loadSmokeGrid();this.loadWindGrid(true);
       if(A.CONFIG.firmsMapKey&&A.CONFIG.firmsMapKey!=='__FIRMS_MAP_KEY__')this.loadFirms();else A.Events.emit('service',{id:'firms',state:'warn',note:'MAP_KEY eksik; FIRMS katmanı pasif'});
       if(document.getElementById('layerGfw')?.checked)this.loadGfw();
-      this.map.map.on('moveend',()=>{clearTimeout(this.moveTimer);this.moveTimer=setTimeout(()=>{const now=Date.now();if(now-this.lastApiCall<4000)return;this.lastApiCall=now;this.loadSmokeGrid();setTimeout(()=>this.loadWindGrid(true),600);},2000);});
+      this.map.map.on('moveend',()=>{clearTimeout(this.moveTimer);this.moveTimer=setTimeout(()=>{const now=Date.now();if(now-this.lastApiCall<5000)return;this.lastApiCall=now;this.loadSmokeGrid();setTimeout(()=>this.loadWindGrid(),600);},2000);});
     }
     restoreSettings(){
       document.getElementById('firmsSource').value=A.FirmsAdapter.source();
@@ -71,7 +71,7 @@
       try{let selected,wf;if(variable==='pm10_wildfires'){selected=await A.OpenMeteoAir.grid(pts,variable,this.state.selectedTime,ctrl.signal);wf=selected;}else{[selected,wf]=await Promise.all([A.OpenMeteoAir.grid(pts,variable,this.state.selectedTime,ctrl.signal),A.OpenMeteoAir.grid(pts,'pm10_wildfires',this.state.selectedTime,ctrl.signal)]);}if(seq!==this.reqSeq.air)return;this.state.smokeData=selected;this.state.wildfireSummaryData=wf;this.map.setSmoke(selected,variable,this.state.smokePoints);const nearest=selected.find(x=>x.validAt)?.validAt;this.ui.setNearestNote(nearest?`CAMS/Open-Meteo model zamanı: ${U.formatUtc(new Date(nearest))} · Türkiye ile kesişen viewport · ${selected.length} örnek nokta`:'Duman/aerosol için model verisi bulunamadı.');this.ui.updateEnvironmentalKpis(this.state.wildfireSummaryData,this.state.windData);this.ui.renderExportSummary(this.state);this.ui.setUpdated();}catch(e){if(e.kind!=='ABORTED')this.ui.toast(`Duman/aerosol katmanı: ${e.kind||e.message}`,'error');}
     }
     async loadWindGrid(force=false){
-      if(!force&&!this.state.windEnabled&&!this.state.downwindEnabled)return;this.controllers.wind?.abort();const ctrl=new AbortController();this.controllers.wind=ctrl;const seq=++this.reqSeq.wind,pts=U.adaptiveGrid(this.map.bounds(),Math.max(2,this.map.zoom()-1),60);
+      if(!force&&!this.state.windEnabled&&!this.state.downwindEnabled)return;this.controllers.wind?.abort();const ctrl=new AbortController();this.controllers.wind=ctrl;const seq=++this.reqSeq.wind,pts=U.adaptiveGrid(this.map.bounds(),Math.max(2,this.map.zoom()-1),25);
       if(!pts.length){this.state.windData=[];this.map.setWind([],this.state.windLevel);this.updateImpact();this.ui.updateEnvironmentalKpis(this.state.wildfireSummaryData,[]);return;}
       try{const data=await A.OpenMeteoWeather.grid(pts,this.state.selectedTime,this.state.windLevel,ctrl.signal);if(seq!==this.reqSeq.wind)return;this.state.windData=data;this.map.setWind(data,this.state.windLevel);this.map.toggleWind(this.state.windEnabled);this.updateImpact();this.ui.updateEnvironmentalKpis(this.state.wildfireSummaryData,this.state.windData);this.ui.renderExportSummary(this.state);}catch(e){if(e.kind!=='ABORTED')this.ui.toast(`Rüzgâr katmanı: ${e.kind||e.message}`,'error');}
     }
