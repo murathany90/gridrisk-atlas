@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
-title Turkey Wildfire Grid Risk Monitor v3.2.0
+title Turkey Wildfire Grid Risk Monitor v3.4.3
 cls
 echo ============================================================
-echo  Turkey Wildfire Grid Risk Monitor v3.2.0
+echo  Turkey Wildfire Grid Risk Monitor v3.4.3
 echo ============================================================
 echo.
 where node >nul 2>&1
