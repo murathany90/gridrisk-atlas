@@ -19,6 +19,7 @@ global.localStorage = {
   clear() { storage.clear(); }
 };
 global.performance = { now: () => 0 };
+global.location = { protocol: 'https:', hostname: 'localhost' };
 global.setTimeout = setTimeout; global.clearTimeout = clearTimeout;
 global.AbortController = AbortController;
 
@@ -723,7 +724,8 @@ test('date range note appears in load result', async () => {
   mockFetch([{ type: 'Feature', properties: { date: '2026-07-30', il: 'Antalya', area_ha: 500 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }]);
   const r = await FPA.load(new AbortController().signal);
   assert.ok(r._rangeKey, 'result has _rangeKey');
-  assert.ok(r._rangeKey.includes('2026'), 'rangeKey contains date');
+  assert.ok(/^\d+:\d+$/.test(r._rangeKey), `rangeKey uses days:hourBucket format, got ${r._rangeKey}`);
+  assert.ok(r._rangeKey.startsWith('3:'), `rangeKey reflects 3-day preset, got ${r._rangeKey}`);
   // Reset
   FPA.setDateRange(Date.now() - 7 * 86400000, Date.now());
 });
@@ -1098,6 +1100,159 @@ test('fetchText removes external abort listener on success and abort', async () 
   try { await p; } catch (e) { err = e; }
   assert.equal(err.kind, 'ABORTED');
   assert.equal(s2.listenerCount(), 0, 'text abort cleanup');
+});
+
+// ============================================================
+// v3.3.3 — FirePolygon pagination completed next page = ok
+// ============================================================
+console.log('\nv3.3.3 — FirePolygon pagination completed next page');
+
+test('page1 exceeded=true then page2 exceeded=false → ok, lastGood saved', async () => {
+  await resetAdapter();
+  FPA.setDateRange(Date.now() - 30 * 86400000, Date.now());
+  let call = 0, note = '';
+  const off = AtmoApp.Events.on('service', p => { if (p.id === 'firePolygon') note = p.note; });
+  global.fetch = async () => {
+    call++;
+    const exceeded = call === 1;
+    return { ok: true, status: 200, json: async () => ({ type: 'FeatureCollection', features: [{ type: 'Feature', properties: { date: '2026-07-01', il: 'Antalya', area_ha: 100 }, geometry: { type: 'Polygon', coordinates: [[[0,0],[1,0],[1,1],[0,1],[0,0]]] } }], exceededTransferLimit: exceeded }) };
+  };
+  const r = await FPA.load(new AbortController().signal);
+  off();
+  assert.equal(call, 2, 'two pages fetched');
+  assert.equal(r._partial, false, 'NOT partial — page 2 completed the dataset');
+  assert.equal(r._stale, undefined, 'not stale');
+  assert.equal(r.features.length, 2, 'both pages accumulated');
+  assert.equal(FPA._lastGoodMap.size, 1, 'complete multi-page result stored as lastGood');
+  assert.ok(!note.includes('kısmi'), 'report ok without partial note: ' + note);
+});
+
+// ============================================================
+// v3.3.3 — Legend cleanup on off / empty
+// ============================================================
+console.log('\nv3.3.3 — Legend cleanup');
+
+test('toggle off and empty dataset remove footprint/thermal/evolution legends', () => {
+  const proto = AtmoApp.MapManager.prototype;
+  const map = { hasLayer: () => true, removeLayer() {}, addTo() {} };
+  const layer = { clearLayers() {} };
+  const seen = [];
+  const origQ = document.querySelector;
+  document.querySelector = (sel) => { seen.push(sel); return null; };
+  try {
+    proto.setFootprint.call({ map, footprintLayer: layer }, [], true);
+    proto.toggleFootprint.call({ map, footprintLayer: layer }, false);
+    proto.setThermalEnvelope.call({ map, thermalEnvelopeLayer: layer }, [], true);
+    proto.toggleThermalEnvelope.call({ map, thermalEnvelopeLayer: layer }, false);
+    proto.setEventEvolution.call({ map, evolutionLayer: layer }, [], true);
+    proto.toggleEventEvolution.call({ map, evolutionLayer: layer }, false);
+  } finally { document.querySelector = origQ; }
+  assert.ok(seen.includes('[data-legend="footprint"]'), 'footprint legend selector removed on off/empty');
+  assert.ok(seen.includes('[data-legend="thermal"]'), 'thermal legend selector removed on off/empty');
+  assert.ok(seen.includes('[data-legend="evolution"]'), 'evolution legend selector removed on off/empty');
+});
+
+// ============================================================
+// v3.3.3 — FirePolygon lastGood rolling range key (days:hourBucket)
+// ============================================================
+console.log('\nv3.3.3 — FirePolygon lastGood rolling range key');
+
+test('rangeKey format is days:hourBucket', () => {
+  const k = FPA._rangeKey({ start: Date.now() - 3 * 86400000, end: Date.now() });
+  assert.ok(/^3:\d+$/.test(k), `got ${k}`);
+});
+
+test('rangeKey differs when rolling window moves to next hour bucket (same calendar days)', () => {
+  const endA = new Date('2026-07-30T10:30:00Z').getTime();
+  const endB = new Date('2026-07-30T11:45:00Z').getTime();
+  const kA = FPA._rangeKey({ start: endA - 86400000, end: endA });
+  const kB = FPA._rangeKey({ start: endB - 86400000, end: endB });
+  assert.ok(/^1:\d+$/.test(kA), `1d key format: ${kA}`);
+  assert.notEqual(kA, kB, 'same calendar date pair, different hour bucket → different key');
+});
+
+test('lastGood lookup is hour-bucket scoped; 24h-old window not matched', async () => {
+  await resetAdapter();
+  const endA = new Date('2026-07-30T10:30:00Z').getTime();
+  const endB = new Date('2026-07-30T11:45:00Z').getTime();
+  FPA._setLastGood({ start: endA - 86400000, end: endA }, { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { il: 'Antalya' } }] });
+  const lgA = FPA._lastGood({ start: endA - 86400000, end: endA });
+  const lgB = FPA._lastGood({ start: endB - 86400000, end: endB });
+  const lgOld = FPA._lastGood({ start: endA - 86400000, end: endA + 86400000 });
+  assert.ok(lgA, 'same range returns lastGood');
+  assert.equal(lgB, null, 'next-hour window (same calendar pair) does not match lastGood');
+  assert.equal(lgOld, null, '24h-old window does not match current lastGood');
+  FPA._lastGoodMap.clear();
+});
+
+// ============================================================
+// v3.3.3 — GitHub Pages: no fake server calls
+// ============================================================
+console.log('\nv3.3.3 — GitHub Pages mode guards');
+
+test('MTG on GitHub Pages: no fetch, warn Sunucu modu gerekli', async () => {
+  const orig = global.location;
+  global.location = { protocol: 'https:', hostname: 'murathany90.github.io' };
+  let calls = 0;
+  global.fetch = async () => { calls++; return { ok: true, json: async () => ({ features: [] }) }; };
+  let note = '';
+  const off = AtmoApp.Events.on('service', p => { if (p.id === 'mtg') note = p.note; });
+  try {
+    const r = await AtmoApp.MtgAdapter.load(new AbortController().signal);
+    assert.equal(r.length, 0);
+    assert.equal(calls, 0, 'no /api/mtg/active_fires call on GitHub Pages');
+    assert.ok(note.includes('Sunucu modu gerekli'), 'warn note: ' + note);
+  } finally { off(); global.location = orig; }
+});
+
+test('MTG on local server still calls proxy', async () => {
+  const orig = global.location;
+  global.location = { protocol: 'http:', hostname: 'localhost' };
+  let calls = 0;
+  global.fetch = async () => { calls++; return { ok: true, json: async () => ({ status: 'NOT_CONFIGURED' }) }; };
+  try {
+    const r = await AtmoApp.MtgAdapter.load(new AbortController().signal);
+    assert.equal(calls, 1, 'proxy called on local server');
+    assert.equal(r.length, 0, 'NOT_CONFIGURED response → empty result');
+  } finally { global.location = orig; }
+});
+
+test('AtmoHub discovery on GitHub Pages: SERVER_REQUIRED without fetch', async () => {
+  const orig = global.location;
+  global.location = { protocol: 'https:', hostname: 'murathany90.github.io' };
+  let calls = 0;
+  global.fetch = async () => { calls++; return { ok: true, json: async () => ({ verified: [] }) }; };
+  try {
+    const r = await AtmoApp.AtmoHubAdapter.discoverCapabilities(true);
+    assert.equal(r.available, false);
+    assert.equal(r.reason, 'SERVER_REQUIRED');
+    assert.equal(calls, 0, 'no /api/atmohub/discover call on GitHub Pages');
+  } finally { global.location = orig; }
+});
+
+test('AtmoHub discovery on localhost still calls server', async () => {
+  const orig = global.location;
+  global.location = { protocol: 'http:', hostname: 'localhost' };
+  let calls = 0;
+  global.fetch = async () => { calls++; return { ok: true, json: async () => ({ verified: [{ url: 'https://x/api' }] }) }; };
+  try {
+    const r = await AtmoApp.AtmoHubAdapter.discoverCapabilities(false);
+    assert.equal(calls, 1, 'server discovery called on localhost');
+    assert.equal(r.available, true, 'verified candidate → available');
+  } finally { global.location = orig; }
+});
+
+test('GFW key missing: returns empty with warn, no fetch', async () => {
+  let calls = 0;
+  global.fetch = async () => { calls++; return { ok: true, json: async () => ({ data: [] }) }; };
+  let note = '';
+  const off = AtmoApp.Events.on('service', p => { if (p.id === 'gfw') note = p.note; });
+  try {
+    const r = await AtmoApp.GfwAdapter.load(new AbortController().signal);
+    assert.equal(r.length, 0);
+    assert.equal(calls, 0, 'no GFW fetch when key missing');
+    assert.ok(note.includes('GFW'), 'warn note mentions GFW: ' + note);
+  } finally { off(); }
 });
 
 // ── Run ──

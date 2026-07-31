@@ -41,7 +41,9 @@
       document.getElementById('layerFootprint').addEventListener('change',e=>{this.map.toggleFootprint(e.target.checked);if(e.target.checked&&this.state.fireEvents.length)this.map.setFootprint(this.state.fireEvents,true);});
       document.getElementById('layerThermalEnvelope').addEventListener('change',e=>{this.map.toggleThermalEnvelope(e.target.checked);if(e.target.checked&&this.state.fireEvents.length)this.map.setThermalEnvelope(this.state.fireEvents,true);});
       document.getElementById('layerEventEvolution').addEventListener('change',e=>{this.map.toggleEventEvolution(e.target.checked);if(e.target.checked&&this.state.fireEvents.length)this.map.setEventEvolution(this.state.fireEvents,true);});
-      document.getElementById('layerGfw').addEventListener('change',e=>{if(e.target.checked)this.loadGfw();else this.removeGfw();});
+      const gfwEl=document.getElementById('layerGfw');
+      if(gfwEl&&(!C.gfwApiKey||C.gfwApiKey==='__GFW_API_KEY__')){gfwEl.disabled=true;gfwEl.checked=false;const note=document.createElement('span');note.className='layerWarn';note.textContent='Yapılandırılmamış (GFW_API_KEY yok)';gfwEl.parentElement?.appendChild(note);}
+      gfwEl?.addEventListener('change',e=>{if(e.target.checked)this.loadGfw();else this.removeGfw();});
       const rangeSelect=document.getElementById('firePolygonRange');
       if(rangeSelect)rangeSelect.addEventListener('change',e=>{
         const days=Number(e.target.value);
@@ -79,6 +81,7 @@
       this.controllers.firms?.abort();const ctrl=new AbortController();this.controllers.firms=ctrl;const seq=++this.reqSeq.firms;try{const data=await A.FirmsAdapter.load(ctrl.signal);if(seq!==this.reqSeq.firms)return;this.state.fireData=data;this.map.setFires(data,this.state.selectedTime);this.map.toggleFires(this.state.firesEnabled);this.state.fireEvents=this.map.fireEventsVisible;if(this.state.heatEnabled)this.map.toggleHeat(true);this.updateImpact();this.ui.renderExportSummary(this.state);this.ui.setUpdated();this.renderFireLayers();}catch(e){if(e.kind==='ABORTED')return;if(e.kind==='AUTH_REQUIRED'){document.getElementById('kpiFireEvents').textContent='KEY';document.getElementById('kpiDetectionsNote').textContent='NASA FIRMS MAP_KEY eksik';this.ui.toast('GitHub Secret\'a FIRMS_MAP_KEY ekleyin.','warn');return;}this.ui.toast(`FIRMS: ${e.kind||e.message}`,'warn');}
     }
     async loadGfw(){
+      if(!C.gfwApiKey||C.gfwApiKey==='__GFW_API_KEY__'){this.ui.toast('GFW yapılandırılmamış (GFW_API_KEY eksik); katman pasif.','warn');return;}
       this.controllers.gfw?.abort();const ctrl=new AbortController();this.controllers.gfw=ctrl;const seq=++this.reqSeq.gfw;
       try{const data=await A.GfwAdapter.load(ctrl.signal);if(seq!==this.reqSeq.gfw)return;this.state.gfwData=data;this.map.setGfwMarkers(data);}catch(e){if(e.kind!=='ABORTED')this.ui.toast(`GFW: ${e.kind||e.message}`,'warn');}
     }
