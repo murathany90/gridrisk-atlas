@@ -10,7 +10,7 @@ global.document = {
   getElementById(id) { if (id === 'legendStack') return { querySelector() { return null; }, appendChild() {} }; return null; },
   querySelector() { return null; }
 };
-global.L = { Layer: class {}, DomUtil: { create() { return {}; }, setPosition() {} }, DomEvent: { stopPropagation() {} } };
+global.L = { Layer: class {}, CircleMarker: class {}, point(x, y) { return { x, y }; }, DomUtil: { create() { return {}; }, setPosition() {} }, DomEvent: { stopPropagation() {} } };
 const storage = new Map();
 global.localStorage = {
   getItem(k) { return storage.get(k) ?? null; },
@@ -1259,6 +1259,7 @@ test('GFW key missing: returns empty with warn, no fetch', async () => {
 const cssTxt = readFileSync('css/styles.css', 'utf8');
 const htmlTxt = readFileSync('index.html', 'utf8');
 const appTxt = readFileSync('js/app.js', 'utf8');
+const mapTxt = readFileSync('js/map.js', 'utf8');
 const uiTxt = readFileSync('js/ui.js', 'utf8');
 
 test('v3.3.4 CSS: dynamic viewport height support', () => {
@@ -1343,13 +1344,35 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.3.5 version bump to 3.3.5 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.3.5'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.3.5'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.3.5'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.3.5'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.3.5"'), 'package.json version');
-  assert.equal(htmlTxt.includes('3.3.4'), false, 'no stale 3.3.4 in index.html');
+test('v3.3.6 version bump to 3.3.6 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.3.6'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.3.6'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.3.6'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.3.6'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.3.6"'), 'package.json version');
+  assert.equal(htmlTxt.includes('3.3.5'), false, 'no stale 3.3.5 in index.html');
+});
+
+// ── FIRMS hexagon markers + Ayarlar tab rename ──
+test('v3.3.6 nav: settings tab renamed to Ayarlar', () => {
+  assert.ok(htmlTxt.includes('<button class="navBtn" data-view="settings">⚙ Ayarlar</button>'), 'nav button label');
+  assert.equal(htmlTxt.includes('Ayarlar / Kaynaklar'), false, 'no old label in index.html');
+});
+
+test('v3.3.6 map: HexagonMarker class draws 6-vertex regular hexagon via canvas renderer', () => {
+  assert.ok(mapTxt.includes('class HexagonMarker extends L.CircleMarker'), 'hexagon class exists');
+  assert.ok(mapTxt.includes('for(let i=0;i<6;i++)'), '6 vertices');
+  assert.ok(mapTxt.includes('Math.PI/3*i'), '60-degree vertex spacing');
+  assert.ok(mapTxt.includes("this._parts=[pts];this._renderer._updatePoly(this,true)"), 'canvas polygon path drawn');
+});
+
+test('v3.3.6 map: FIRMS cluster + individual detections use HexagonMarker', () => {
+  const renderFires = mapTxt.slice(mapTxt.indexOf('renderFires(selectedTime){'), mapTxt.indexOf('toggleFires(show)'));
+  const clusterCount = (mapTxt.match(/new HexagonMarker\(\[ev\.lat,ev\.lon\]/g) || []).length;
+  const pointCount = (mapTxt.match(/new HexagonMarker\(\[f\.lat,f\.lon\]/g) || []).length;
+  assert.ok(clusterCount === 1, 'cluster branch uses hexagon');
+  assert.ok(pointCount === 1, 'individual branch uses hexagon');
+  assert.equal(renderFires.includes('L.circleMarker'), false, 'no circle markers in FIRMS render path');
 });
 
 // ── Run ──

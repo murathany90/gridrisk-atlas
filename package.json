@@ -1,1 +1,1 @@
-{"name":"turkey-wildfire-grid-risk-monitor","version":"3.3.5","private":true,"type":"module","scripts":{"start":"node server.mjs"},"engines":{"node":">=18"}}
+{"name":"turkey-wildfire-grid-risk-monitor","version":"3.3.6","private":true,"type":"module","scripts":{"start":"node server.mjs"},"engines":{"node":">=18"}}
