@@ -144,3 +144,42 @@
 | `js/ui.js` | Sort state, sort click handler, renderImpact sıralama, firesRendered sayaç |
 | `index.html` | FRP slider, Bilgi sekmesi, sort data attrs, nav butonu, sayaç span |
 | `css/styles.css` | Sort arrow CSS, sortable th stilleri |
+
+---
+
+# v3.4.1 — MTG WMS + Trafo Risk Sembolü Düzeltmesi
+
+**Branch:** `fix/v3.4.1-mtg-risk-symbols`
+
+## MTG WMS endpoint ve protokol
+- Endpoint resmi **EUMETView GeoServer**'a taşındı: `https://view.eumetsat.int/geoserver/wms` (eski EUMETView GeoServer URL'i tüm repodan kaldırıldı; o adres SPA HTML döndürüyordu).
+- GetCapabilities'a göre **WMS 1.3.0**'a geçildi (`srs` parametresi kaldırıldı; 1.3.0 + EPSG:4326 eksen sırası lat,lon — Leaflet `crs: L.CRS.EPSG4326` ile BBOX'ı otomatik y,x gönderir).
+- Canlı contract testi: GetCapabilities → layer `mtg_fd:rgb_geocolour` → TIME arşivi (start/end/PT10M) → 64×64 GetMap → HTTP 200 + `image/png` + PNG magic byte doğrulaması. Ağ yoksa **SKIPPED — network unavailable**.
+
+## Time-slot hesabı
+- `Math.round` kaldırıldı → **`Math.floor(ms/slot)*slot`** (12:56 → 12:50, asla 13:00).
+- `Math.min(slot, latestAllowedNowSlot)` uygulandı: timeline +3h/+12h konumunda MTG son mevcut gerçek frame'de kalır (gelecek frame üretilmez); lejantta "Uydu görüntüsü: son mevcut gerçek frame" notu.
+
+## Frame-bazlı backfill (`MtgFrameManager`)
+- State: `frameSeq`, `requestedFrame`, `lastUserTime`, `displayedTime`, `loadedTileCount`, `failedTileCount`, `backfillAttempt`.
+- Tile'lar `tileloadstart`'ta `dataset.frameSeq` ile damgalanır; stale (eski frame) tile eventleri yeni frame'i etkilemez.
+- Bir frame'de **en az 1 başarılı tile → OK**; tamamen başarısız → 3 sn settle penceresi sonrası **yalnız bir kez** 10 dk geri sarılır; maksimum 12 slot; sonunda `no-frame` ("Arşivde görüntü yok").
+- İlk başarısızlıkta küçük 64×64 **probe** yapılır: HTML/SPA yanıtı → `Geçersiz WMS yanıtı` (backfill durdurulur), ağ hatası → `WMS bağlantı hatası`.
+
+## Gösterilen zaman ayrımı
+- `mtgRequestedTime` (kullanıcı seçimi) ve `mtgDisplayedTime` (ekrandaki gerçek frame) ayrı tutulur.
+- Lejant: "Seçilen: 14:30 UTC / Uydu karesi: 14:10 UTC"; service monitor: "Bağlı · Frame: …" / "Gecikmeli frame · İstenen: … · Gösterilen: …".
+
+## MTG 10 dk playback
+- MTG açıkken playback adımı 10 dk/frame (`timeline.mtgPlayStepMinutes: 10`), kapalıyken mevcut 3 saat; `setTimeOffset` MTG modunda dakikaları korur (`setUTCSeconds(0,0)`).
+- WMS katmanı reuse + 200 ms debounce + stale-frame ignore; 48 sa geçmiş sınırı mevcut timeline min değeriyle korunur.
+
+## Riskli trafo merkezleri kare
+- `setFireImpacts` en yakın TM ve rüzgâr koridoru TM'leri artık kare (`riskSubstationIcon`, `sectorSubstationIcon`); boyutlar risk seviyesine göre: kritik 14 / yüksek 12 / orta 10 / izleme 8 px; risk rengi korunur; hat gösterimi değişmedi.
+- Risk lejantına kare TM sembolü, koridor lejantına kare TM satırı eklendi.
+
+## Service monitor
+- Yeni durumlar: `loading` (Yükleniyor), `ok` (Bağlı), `backfill` (Gecikmeli frame), `no-frame` (Kare yok), `error` (Hata / Geçersiz WMS yanıtı / bağlantı hatası).
+
+## Testler
+- 84 → **101 test**; `node tests.mjs` 101/101 PASS (canlı EUMETView contract dahil).
