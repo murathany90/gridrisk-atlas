@@ -1,15 +1,16 @@
-﻿# Türkiye Wildfire Grid Risk Monitor v3.4.1
+﻿# Türkiye Wildfire Grid Risk Monitor v3.4.2
 
 > **Harita serbesttir; veri Türkiye ile sınırlıdır.** GitHub Pages'te GITHUB PAGES modunda çalışır.
 
 
+- **v3.4.2** MTG hotfix: yeni timeline/kullanıcı zamanı seçimi backfill bütçesini sıfırlar (`backfillAttempt = 0` — her istek kendi 12-slot bütçesini alır, `applyBackfill` bütçeyi değiştirmez); `mtgFmt()` zaten `" UTC"` eklediği için lejant/service-monitor/backfill metinlerindeki tekrarlanan `UTC` eki kaldırıldı.
 - **v3.4.1** MTG GeoColour resmi EUMETView endpoint'ine taşındı (`view.eumetsat.int/geoserver/wms`, WMS 1.3.0), zaman slotu floor + gelecek-clamp (gelecek frame üretilmez), frame-bazlı backfill (tile değil frame; en çok 12 slot), gösterilen vs istenen frame zamanı ayrımı, MTG açıkken 10 dk playback, riskli trafo merkezleri kare sembollerle, service monitor yeni durumları (loading/backfill/no-frame/Geçersiz WMS yanıtı).
 - **v3.4** EUMETSAT MTG-I FCI **GeoColour gerçek uydu görüntüsü** (WMS, 10 dk slot, timeline senkronu) eklendi; AtmoHub, AFAD/İhtiyaç Haritası FirePolygon, GFW ve eski MTG active-fire adapter'ları tamamen kaldırıldı. EFFIS Burnt Area birincil doğrulama poligonu yapıldı.
 - **v3.3** Multi-source fire data fusion: AUTO Multi-VIIRS (NOAA-21/NOAA-20/S-NPP paralel + dedup), pixel footprint, thermal envelope, event evolution trail, EFFIS Burnt Area WMS.
 - Runtime mode detection: `file:` → DOSYA MODU, `localhost`/`127.0.0.1` → SUNUCU MODU, GitHub Pages → GITHUB PAGES, diğer HTTPS → WEB MODU.
 - `index.html` doğrudan (`file://`) açıldığında şebeke GeoJSON'ları `.js` fallback dosyalarından yüklenir. Bu modda FIRMS Node proxy çalışmaz; MTG/EFFIS uydu katmanları doğrudan tarayıcıdan EUMETSAT WMS'e gider.
 
-# Türkiye Wildfire Grid Risk Monitor v3.4.1
+# Türkiye Wildfire Grid Risk Monitor v3.4.2
 
 Türkiye içindeki orman yangını termal tespitlerini, yangın kaynaklı yüzey PM10 model bileşenini, rüzgârı, EFFIS Fire Weather Index ve Burnt Area katmanlarını, EUMETSAT MTG-I GeoColour gerçek uydu görüntüsünü ve kullanıcı tarafından sağlanan OpenStreetMap iletim şebekesi verisini aynı haritada birleştiren yerel web uygulaması.
 
@@ -23,6 +24,12 @@ Genel hava kalitesi izlemek yerine şu operasyonel sorulara odaklanır:
 - Rüzgâr alanının aşağı-rüzgâr tarafında hangi şebeke koridorları izlenmeli?
 - Gerçek uydu görüntüsü (MTG GeoColour) ne gösteriyor?
 - Hangi olaylar önce incelenmeli?
+
+## v3.4.2 değişiklikleri
+
+- **Backfill bütçesi sıfırlama**: `MtgFrameManager.applyUserTime(iso)` artık yeni kullanıcı/timeline zamanı geldiğinde `backfillAttempt = 0` yapar — her yeni seçim kendi 12-slot bütçesini alır; `applyBackfill()` bütçeyi değiştirmez; aynı frame için max 12 limiti korunur.
+- **Tek UTC eki**: `mtgFmt()` zaten `" UTC"` ürettiği için lejant ("Seçilen: 14:30 UTC / Uydu karesi: 14:10 UTC") ve service-monitor notlarındaki ("İstenen: … UTC", "Arşivde görüntü yok · … UTC", backfill notu) tekrarlanan `UTC` ekleri kaldırıldı. Repo genelinde `UTC UTC` kalmadı (test ile korunur).
+- Testler **104/104** (3 yeni regression testi: A→5 backfill sonrası B sıfırlanır ve kendi 12 bütçesini kullanır; `applyBackfill` bütçeyi sıfırlamaz; MTG metinlerinde çift UTC yok).
 
 ## v3.4.1 değişiklikleri
 

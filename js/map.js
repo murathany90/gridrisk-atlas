@@ -29,7 +29,7 @@
     static roundToSlot(ms,slot){return new Date(Math.floor(ms/slot)*slot);}
     latestAllowed(){return MtgFrameManager.roundToSlot(Date.now(),this.slot);}
     normalize(date){const ms=Number(date instanceof Date?date.getTime():date),s=MtgFrameManager.roundToSlot(ms,this.slot),max=this.latestAllowed();return s.getTime()>max.getTime()?max:s;}
-    applyUserTime(iso){this.lastUserTime=iso;if(iso===this.requestedFrame)return null;return this._start(iso);}
+    applyUserTime(iso){this.lastUserTime=iso;this.backfillAttempt=0;if(iso===this.requestedFrame)return null;return this._start(iso);}
     applyBackfill(iso){return this._start(iso);}
     _start(iso){if(this._settleT){clearTimeout(this._settleT);this._settleT=null;}this.frameSeq++;this.requestedFrame=iso;this.loadedTileCount=0;this.failedTileCount=0;this._probeDone=false;this.on.start?.(iso,this.frameSeq);return this.frameSeq;}
     tileLoad(seq){if(seq!==this.frameSeq)return;this.loadedTileCount++;if(this._settleT){clearTimeout(this._settleT);this._settleT=null;}if(this.loadedTileCount===1){this.displayedTime=this.requestedFrame;this.on.ok?.(this.requestedFrame,this.frameSeq);}}
@@ -143,9 +143,9 @@
       const wms=C.mtgGeoColourWms,mm=this;
       const mgr=this._mtgFrameMgr=new MtgFrameManager(wms,{
         start:(iso)=>{A.Events.emit('service',{id:'mtg',state:'loading',note:`MTG GeoColour · frame ${mtgFmt(iso)} yükleniyor`});mm.updateMtgLegend();},
-        ok:(iso)=>{mm.mtgDisplayedTime=iso;A.Events.emit('service',{id:'mtg',state:'ok',count:null,note:`Bağlı · Frame: ${mtgFmt(iso)}${iso!==mgr.lastUserTime?` · İstenen: ${mtgFmt(mgr.lastUserTime)} UTC`:''}`});mm.updateMtgLegend();},
-        backfill:(req,target,n)=>{A.Events.emit('service',{id:'mtg',state:'backfill',note:`Gecikmeli frame · İstenen: ${mtgFmt(mgr.lastUserTime||req)} UTC · ${mtgFmt(target)} deneniyor (${n}/${mgr.maxBack})`});mgr.applyBackfill(target);mm.mtgLayer.setParams({time:target});mm.updateMtgLegend();},
-        exhausted:(req,n)=>{A.Events.emit('service',{id:'mtg',state:'no-frame',note:`Arşivde görüntü yok · ${mtgFmt(req)} UTC (${n} slot tarandı)`});mm.updateMtgLegend();},
+        ok:(iso)=>{mm.mtgDisplayedTime=iso;A.Events.emit('service',{id:'mtg',state:'ok',count:null,note:`Bağlı · Frame: ${mtgFmt(iso)}${iso!==mgr.lastUserTime?` · İstenen: ${mtgFmt(mgr.lastUserTime)}`:''}`});mm.updateMtgLegend();},
+        backfill:(req,target,n)=>{A.Events.emit('service',{id:'mtg',state:'backfill',note:`Gecikmeli frame · İstenen: ${mtgFmt(mgr.lastUserTime||req)} · ${mtgFmt(target)} deneniyor (${n}/${mgr.maxBack})`});mgr.applyBackfill(target);mm.mtgLayer.setParams({time:target});mm.updateMtgLegend();},
+        exhausted:(req,n)=>{A.Events.emit('service',{id:'mtg',state:'no-frame',note:`Arşivde görüntü yok · ${mtgFmt(req)} (${n} slot tarandı)`});mm.updateMtgLegend();},
         invalid:(req)=>{A.Events.emit('service',{id:'mtg',state:'error',note:'Geçersiz WMS yanıtı · kaynak görüntü döndürmüyor'});},
         network:(req)=>{A.Events.emit('service',{id:'mtg',state:'error',note:'WMS bağlantı hatası'})},
         probe:(iso)=>mm.probeMtgTime(iso)
@@ -180,9 +180,9 @@
     }
     mtgLegendBody(){
       const mgr=this._mtgFrameMgr,req=mgr?.lastUserTime,disp=mgr?.displayedTime,lines=[`${C.mtgGeoColourWms.source} · gerçek uydu görüntüsü (model değil).`];
-      if(req&&disp&&req!==disp)lines.push(`Seçilen: ${mtgFmt(req)} UTC<br>Uydu karesi: ${mtgFmt(disp)} UTC`);
-      else if(disp)lines.push(`Uydu karesi: ${mtgFmt(disp)} UTC`);
-      else if(req)lines.push(`Seçilen: ${mtgFmt(req)} UTC · yükleniyor`);
+      if(req&&disp&&req!==disp)lines.push(`Seçilen: ${mtgFmt(req)}<br>Uydu karesi: ${mtgFmt(disp)}`);
+      else if(disp)lines.push(`Uydu karesi: ${mtgFmt(disp)}`);
+      else if(req)lines.push(`Seçilen: ${mtgFmt(req)} · yükleniyor`);
       if(mgr&&mgr.lastUserTime&&mgr.lastUserTime>=mgr.latestAllowed().toISOString())lines.push('Uydu görüntüsü: son mevcut gerçek frame.');
       return `<div class="sourceNote">${lines.join('<br>')}</div>`;
     }
