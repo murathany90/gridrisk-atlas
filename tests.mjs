@@ -810,7 +810,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.5.0'"), 'config appVersion 3.5.0');
+  assert.ok(cfgTxt2.includes("appVersion: '3.5.1'"), 'config appVersion 3.5.1');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1078,12 +1078,12 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.5.0 version bump in all runtime files', () => {
-  assert.ok(htmlTxt.includes('v3.5.0'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.5.0'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.5.0'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.5.0'"), 'server.mjs APP_VERSION');
-  assert.equal(JSON.parse(pkgTxt).version, '3.5.0', 'package.json version');
+test('v3.5.1 version bump in all runtime files', () => {
+  assert.ok(htmlTxt.includes('v3.5.1'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.5.1'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.5.1'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.5.1'"), 'server.mjs APP_VERSION');
+  assert.equal(JSON.parse(pkgTxt).version, '3.5.1', 'package.json version');
   assert.equal(htmlTxt.includes('3.4.7'), false, 'no stale 3.4.7 in index.html');
   assert.equal(htmlTxt.includes('3.4.6'), false, 'no stale 3.4.6 in index.html');
   assert.equal(htmlTxt.includes('3.4.5'), false, 'no stale 3.4.5 in index.html');
@@ -1163,10 +1163,10 @@ test('v3.5.0 utils: formatVoltage renders normalized actual kV values', () => {
 
 test('v3.5.0 map: tooltip separates operational class from actual OSM voltage', () => {
   assert.ok(mapTxt.includes("title=isSub?'Trafo Merkezi':'İletim Hattı'"), 'tooltip header by type');
-  assert.ok(mapTxt.includes("U.escapeHtml(p.name||(isSub?'Adsız trafo merkezi':'Adsız OSM hattı'))"), 'name fallback');
-  assert.ok(mapTxt.includes('Hat sınıfı: ${U.escapeHtml'), 'operational class line');
+  assert.ok(mapTxt.includes("p.name||p.ref||p.displayLabel||"), 'name/ref/displayLabel fallback');
+  assert.ok(mapTxt.includes('Şebeke sınıfı: ${U.escapeHtml'), 'operational class line');
   assert.ok(mapTxt.includes('Gerçek OSM gerilimi: ${U.escapeHtml(actual)}'), 'actual voltage line');
-  assert.ok(mapTxt.includes('rows.push(U.escapeHtml(p.operator))'), 'operator line');
+  assert.ok(mapTxt.includes('Operatör: ${U.escapeHtml(p.operator)}'), 'operator line');
   assert.ok(mapTxt.includes('<small>OpenStreetMap / ODbL 1.0</small>'), 'OSM attribution');
   assert.ok(mapTxt.includes('gridTooltip(f.properties,true),{sticky:true}'), 'substation tooltip sticky');
 });
@@ -1194,9 +1194,9 @@ test('v3.4.1 — MTG playback steps 10 min per frame while enabled, else 3 h', (
 
 test('v3.4.1 — nearest-risk substation marker is a square (riskSubstationIcon)', () => {
   assert.ok(mapTxt.includes('riskSubstationIcon('), 'riskSubstationIcon helper exists');
-  assert.ok(mapTxt.includes('this.riskSubstationIcon(a.riskBand.level,c)'), 'nearest substation uses square marker');
+  assert.ok(mapTxt.includes('icon:this.riskSubstationIcon()'), 'nearest substation uses square marker');
   const riskSrc = mapTxt.slice(mapTxt.indexOf('setFireImpacts'), mapTxt.indexOf('makeLegend(\'risk\''));
-  assert.ok(riskSrc.includes("if(s&&s.distanceKm<=C.substationRiskDisplayDistanceKm)L.marker([s.feature.lat,s.feature.lon]"), 'substation rendered as guarded 5 km square marker');
+  assert.ok(riskSrc.includes('this.riskSubstationCandidates(analyses)'), 'substation rendered from guarded/deduplicated candidates');
   assert.equal(riskSrc.includes('L.circleMarker([s.feature.lat'), false, 'no circleMarker for TM symbol');
   assert.equal(mapTxt.includes('{critical:14,high:12,medium:10,watch:8,low:8}'), false, 'no per-level square sizes');
 });
@@ -1213,7 +1213,7 @@ test('v3.4.11 — downwind corridor draws no TM markers (sector squares removed)
 
 test('v3.4.1 — risk legend shows square TM symbol', () => {
   const riskLegend = mapTxt.slice(mapTxt.indexOf("this.makeLegend('risk'"), mapTxt.indexOf('this.makeLegend(\'risk\'') + 900);
-  assert.ok(riskLegend.includes('Riskli trafo merkezi (kare)'), 'legend line labels square TM');
+  assert.ok(riskLegend.includes('trafo merkezi (kare)'), 'legend line labels square TM');
   assert.ok(riskLegend.includes('substationSquare'), 'legend uses square class');
   assert.equal(mapTxt.includes('Koridordaki trafo merkezi'), false, 'downwind legend no longer marks TM symbol (v3.4.11)');
 });
@@ -1650,7 +1650,7 @@ test('v3.4.9 — invariant: beyond 5 km the max possible score stays below Yüks
 
 test('v3.4.9 — map.js: substation square marker guarded via substationRiskDisplayDistanceKm + legend note', () => {
   assert.equal(C().substationRiskDisplayDistanceKm, 5, 'config single source for TM display cap');
-  assert.ok(mapTxt.includes('s&&s.distanceKm<=C.substationRiskDisplayDistanceKm'), 'square marker guard reads config cap');
+  assert.ok(mapTxt.includes('s.distanceKm>C.substationRiskDisplayDistanceKm'), 'square marker guard reads config cap');
   assert.equal(mapTxt.includes('if(s)L.marker'), false, 'unguarded substation marker removed');
   assert.ok(mapTxt.includes('en fazla ${C.substationRiskDisplayDistanceKm} km'), 'legend states 5 km cap');
 });
@@ -1680,7 +1680,7 @@ test('v3.4.12 — table shows only the nearest line; TM never shown as asset', (
   assert.ok(uiTxt.includes('Yakın iletim hattı bulunamadı'), 'table no-line fallback');
   assert.equal(uiTxt.includes("useLine?'Hat':'TM'"), false, 'no TM kind in table');
   assert.equal(uiTxt.includes('a.nearest.line'), false, 'table never reads a.nearest.line');
-  assert.ok(uiTxt.includes("props?.name||'Adsız hat'"), 'line name fallback uses cleaned runtime schema');
+  assert.ok(uiTxt.includes('this.assetLabel(props)'), 'line name fallback uses name/ref/displayLabel runtime schema');
 });
 
 test('v3.4.12 — analysis cards use EN YAKIN HAT and line-only distance', () => {
@@ -1840,7 +1840,7 @@ test('v3.5.0 — UI selector is Turkish, accessible and keeps a 40px touch targe
   assert.ok(htmlTxt.includes('<option value="ES">İspanya</option>'));
   assert.ok(htmlTxt.includes('<option value="FR">Fransa</option>'));
   assert.ok(htmlTxt.includes('aria-label="Ülke seçin"'));
-  assert.ok(htmlTxt.includes('css/styles.css?v=3.5.0&amp;r=touch40'), 'responsive CSS revision is cache-safe');
+  assert.ok(htmlTxt.includes('css/styles.css?v=3.5.1&amp;r=osmrepair'), 'responsive CSS revision is cache-safe');
   assert.ok(cssTxt.includes('.countryControl select{width:128px;min-height:40px'));
   assert.equal(/countryControl select\{min-height:(?:3[0-9]|[0-9])px/.test(cssTxt), false, 'landscape override cannot shrink below 40px');
 });
@@ -1869,20 +1869,27 @@ test('v3.5.0 — country timezone is dynamic and no GMT+3 literal remains', () =
   AtmoApp.applyCountryConfig('TR', JSON.parse(readFileSync('data/countries/TR/boundary.geojson', 'utf8')));
 });
 
-test('v3.5.0 — manifests match runtime counts and expose France partial status', () => {
-  const expected = {
-    TR: { rawFeatureCount: 11070, grid400Count: 1006, grid154Count: 3565, substationCount: 4948, partial: false },
-    ES: { rawFeatureCount: 19116, grid400Count: 3535, grid154Count: 11723, substationCount: 3852, partial: false },
-    FR: { rawFeatureCount: 71639, grid400Count: 19766, grid154Count: 36204, substationCount: 15655, partial: true }
-  };
-  for (const [code, values] of Object.entries(expected)) {
+test('v3.5.1 — manifests match runtime counts and ES/FR are complete', () => {
+  for (const code of ['TR', 'ES', 'FR']) {
     const manifest = JSON.parse(readFileSync(`data/countries/${code}/manifest.json`, 'utf8'));
-    for (const [key, value] of Object.entries(values)) assert.equal(manifest[key], value, `${code} ${key}`);
+    const files = {
+      grid400Count: 'grid_400.geojson',
+      grid154Count: 'grid_154.geojson',
+      substationCount: 'substations.geojson',
+    };
+    for (const [key, filename] of Object.entries(files)) {
+      const data = JSON.parse(readFileSync(`data/countries/${code}/${filename}`, 'utf8'));
+      assert.equal(manifest[key], data.features.length, `${code} ${key}`);
+    }
     assert.equal(manifest.invalidGeometryCount, 0);
     assert.equal(manifest.duplicateAssetCount, 0);
+    if (code !== 'TR') {
+      assert.ok(manifest.sourceContribution);
+      assert.equal(manifest.partial, false, `${code} complete`);
+      assert.equal(manifest.failedRequests, 0, `${code} no failed tiles`);
+      assert.equal(manifest.suspectedGapTileCount, 0, `${code} no unresolved suspected tiles`);
+    }
   }
-  assert.equal(JSON.parse(readFileSync('data/countries/FR/manifest.json', 'utf8')).failedRequests, 14);
-  assert.ok(uiTxt.includes('Kısmi şebeke verisi'));
 });
 
 test('v3.5.0 — country cache keys and stale-response guards cover all async paths', () => {
@@ -2006,4 +2013,72 @@ test('v3.5.0 — Pages stages only generated country runtime data', () => {
 });
 
 // ── Run ──
+console.log('\nv3.5.1 — OSM completeness, labels and substation risk markers');
+
+test('v3.5.1 — ES and FR runtime layers contain visible substations', () => {
+  for (const code of ['ES', 'FR']) {
+    const data = JSON.parse(readFileSync(`data/countries/${code}/substations.geojson`, 'utf8'));
+    assert.ok(data.features.length > 0, `${code} substation marker source > 0`);
+    assert.ok(data.features.every(feature => feature.geometry?.type === 'Point'), `${code} runtime substations are points`);
+  }
+});
+
+test('v3.5.1 — country loading clears stale selected-asset detail content', () => {
+  assert.ok(uiTxt.includes("document.getElementById('detailTitle').textContent='Haritadan bir nokta seçin'"));
+  assert.ok(uiTxt.includes("document.getElementById('detailContent').innerHTML='Yangın olayı, hat veya trafo merkezi seçerek duman, rüzgâr ve şebeke etkisini inceleyin.'"));
+});
+
+test('v3.5.1 — line palette and actual voltage remain separate', () => {
+  assert.equal(C().gridSources['400'].color, '#d7191c');
+  assert.equal(C().gridSources['154'].color, '#111111');
+  assert.ok(mapTxt.includes('Gerçek OSM gerilimi'));
+  assert.ok(mapTxt.includes('Şebeke sınıfı'));
+  assert.ok(uiTxt.includes('<small>Gerçek OSM gerilimi</small>'));
+  assert.ok(uiTxt.includes('<small>Şebeke sınıfı</small>'));
+});
+
+test('v3.5.1 — labels use real name, ref, displayLabel fallback order', () => {
+  assert.ok(uiTxt.includes("p.name||p.ref||p.displayLabel||fallback"));
+  assert.ok(mapTxt.includes("p.name||p.ref||p.displayLabel||"));
+  assert.ok(uiTxt.includes('<small>Hat adı</small>'));
+  assert.ok(uiTxt.includes('<small>Referans</small>'));
+  assert.ok(uiTxt.includes('<small>Tanımlayıcı</small>'));
+});
+
+test('v3.5.1 — 4.9 km low-score TM renders, 5.1 km high-score TM does not', () => {
+  const manager = new AtmoApp.MapManager();
+  const sub = distanceKm => ({ distanceKm, feature: { id: 'sub-1', lat: 40, lon: 30, props: { assetId: 'TR-substation-node-1' } } });
+  const low = { riskScore: 10, nearest: { substation: sub(4.9) } };
+  const high = { riskScore: 90, nearest: { substation: sub(5.1) } };
+  assert.equal(manager.riskSubstationCandidates([low]).length, 1);
+  assert.equal(manager.riskSubstationCandidates([high]).length, 0);
+});
+
+test('v3.5.1 — duplicate TM uses one marker from the highest-risk event', () => {
+  const manager = new AtmoApp.MapManager();
+  const feature = { id: 'same', lat: 40, lon: 30, props: { assetId: 'FR-substation-node-9' } };
+  const selected = manager.riskSubstationCandidates([
+    { riskScore: 20, nearest: { substation: { distanceKm: 2, feature } } },
+    { riskScore: 80, nearest: { substation: { distanceKm: 4, feature } } },
+  ]);
+  assert.equal(selected.length, 1);
+  assert.equal(selected[0].riskScore, 80);
+});
+
+test('v3.5.1 — line highlight threshold remains 55 and TM marker is independent', () => {
+  const impacts = mapTxt.slice(mapTxt.indexOf('riskSubstationCandidates('), mapTxt.indexOf("this.makeLegend('risk'"));
+  assert.ok(impacts.includes('if(a.riskScore>=55)'));
+  assert.ok(impacts.includes('for(const a of this.riskSubstationCandidates(analyses))'));
+  const candidates = impacts.slice(0, impacts.indexOf('setFireImpacts('));
+  assert.equal(candidates.includes('riskScore>=55'), false, 'TM candidate selection has no 55+ gate');
+});
+
+test('v3.5.1 — substation culling is viewport-aware and not file-stride based', () => {
+  assert.ok(mapTxt.includes('substationRenderData(data)'));
+  assert.ok(mapTxt.includes("this.map.getBounds().pad(.12)"));
+  assert.ok(mapTxt.includes('latLngToContainerPoint'));
+  assert.ok(mapTxt.includes('refreshSubstationLayer()'));
+  assert.equal(mapTxt.includes('i%stride'), false);
+});
+
 await run();

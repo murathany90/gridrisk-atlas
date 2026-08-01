@@ -1,0 +1,15 @@
+{
+  "createdAt": "2026-08-01T15:48:41.740457Z",
+  "geojsonFile": "spain_osm_power_grid_50kv_plus_available.geojson",
+  "featureCount": 1770,
+  "counts": {
+    "substation": 1767,
+    "cable": 3
+  },
+  "voltageRangeKv": [
+    132.0,
+    400.0
+  ],
+  "complete": false,
+  "reason": "AC line source file exceeded the execution environment transfer limit."
+}

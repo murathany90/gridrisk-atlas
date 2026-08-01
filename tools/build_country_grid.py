@@ -1,330 +1,309 @@
 #!/usr/bin/env python3
-"""Validate raw OSM power exports and build compact country runtime datasets.
-
-The Spain and France source files intentionally remain at the repository root as
-import inputs.  Pages serves only the generated ``data/countries`` tree.
-"""
+"""Build compact, boundary-safe TR/ES/FR runtime grid datasets."""
 
 from __future__ import annotations
 
 import argparse
 import json
-import math
 import re
-import urllib.request
+import sys
 from collections import Counter
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any
+
+from shapely.geometry import GeometryCollection, LineString, MultiLineString, mapping, shape
 
 
 ROOT = Path(__file__).resolve().parents[1]
-OUTPUT_ROOT = ROOT / "data" / "countries"
-BOUNDARY_SOURCE_URL = (
-    "https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/"
-    "geojson/ne_10m_admin_0_countries.geojson"
+sys.path.insert(0, str(ROOT / "py_osm_download"))
+
+from osm_grid_common import (  # noqa: E402
+    ATTRIBUTION,
+    LICENSE,
+    LINE_TYPES,
+    atomic_json_write,
+    choose_preferred_feature,
+    feature_key,
+    load_boundary,
+    normalized_osm_type,
+    normalize_osm_id,
+    parse_feature_voltages_kv,
+    valid_geojson_geometry,
+    voltage_class,
 )
 
+
+OUTPUT_ROOT = ROOT / "data" / "countries"
+DISPLAY_CLASS = {"400": "400 kV sınıfı", "154": "154 kV sınıfı"}
 COUNTRIES = {
     "TR": {
         "nameTr": "Türkiye",
-        "iso3": "TUR",
+        "coverage": "Türkiye",
         "sources": [
             ROOT / "raw" / "TR" / "grid_400.geojson",
             ROOT / "raw" / "TR" / "grid_154.geojson",
             ROOT / "raw" / "TR" / "grid_33.geojson",
             ROOT / "raw" / "TR" / "substations.geojson",
         ],
-        "expected": None,
-        "partial": False,
-        "failedRequests": 0,
     },
     "ES": {
         "nameTr": "İspanya",
-        "iso3": "ESP",
+        "coverage": "İspanya ana karası ve Balear Adaları; Kanarya Adaları kapsam dışıdır",
         "sources": [ROOT / "spain_osm_power_grid_50kv_plus_full.geojson"],
-        "expected": {"features": 19_116, "LineString": 15_264, "Point": 3_852},
-        "partial": False,
-        "failedRequests": 0,
     },
     "FR": {
         "nameTr": "Fransa",
-        "iso3": "FRA",
+        "coverage": "Metropolitan Fransa ve Korsika; denizaşırı bölgeler kapsam dışıdır",
         "sources": [ROOT / "france_osm_power_grid_50kv_plus_full.geojson"],
-        "expected": {"features": 71_639, "LineString": 55_981, "Point": 15_658},
-        "partial": True,
-        "failedRequests": 14,
     },
 }
 
-LINE_POWER_TYPES = {"line", "minor_line", "cable"}
-SUPPORTED_GEOMETRIES = {"Point", "LineString", "MultiLineString"}
-DISPLAY_CLASS = {"400": "400 kV sınıfı", "154": "154 kV sınıfı"}
 
-
-def _positive_numbers(value: Any) -> list[float]:
-    if value is None or isinstance(value, bool):
-        return []
-    if isinstance(value, (list, tuple, set)):
-        out: list[float] = []
-        for item in value:
-            out.extend(_positive_numbers(item))
-        return out
-    if isinstance(value, (int, float)):
-        raw = float(value)
-        return [raw / 1000 if raw > 10_000 else raw] if math.isfinite(raw) and raw > 0 else []
-    out = []
-    for token in re.split(r"[;,\s|/]+", str(value).strip()):
-        if not token:
-            continue
-        try:
-            raw = float(token)
-        except ValueError:
-            continue
-        if math.isfinite(raw) and raw > 0:
-            out.append(raw / 1000 if raw > 10_000 else raw)
-    return out
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
 
 
 def normalize_voltage_kv(properties: dict[str, Any]) -> float | None:
-    """Return the maximum valid kV using the required source-field priority."""
-
-    for key in ("voltageMaxKv", "voltagesKv", "voltageRaw", "voltage"):
-        values = _positive_numbers(properties.get(key))
-        if values:
-            value = max(values)
-            return int(value) if value.is_integer() else value
-    return None
-
-
-def voltage_class(actual_voltage_kv: float | None) -> str | None:
-    if actual_voltage_kv is None:
+    values = parse_feature_voltages_kv(properties)
+    value = max(values) if values else None
+    if value is None:
         return None
-    if 300 <= actual_voltage_kv <= 550:
-        return "400"
-    if 50 <= actual_voltage_kv < 300:
-        return "154"
-    return None
-
-
-def _positions(coordinates: Any) -> Iterable[tuple[float, float]]:
-    if (
-        isinstance(coordinates, (list, tuple))
-        and len(coordinates) >= 2
-        and all(isinstance(value, (int, float)) for value in coordinates[:2])
-    ):
-        yield float(coordinates[0]), float(coordinates[1])
-        return
-    if isinstance(coordinates, (list, tuple)):
-        for item in coordinates:
-            yield from _positions(item)
+    return int(value) if float(value).is_integer() else value
 
 
 def valid_geometry(geometry: Any) -> bool:
-    if not isinstance(geometry, dict) or geometry.get("type") not in SUPPORTED_GEOMETRIES:
-        return False
-    coordinates = geometry.get("coordinates")
-    positions = list(_positions(coordinates))
-    if not positions:
-        return False
-    if geometry["type"] in {"LineString", "MultiLineString"} and len(positions) < 2:
-        return False
-    return all(
-        math.isfinite(lon)
-        and math.isfinite(lat)
-        and -180 <= lon <= 180
-        and -90 <= lat <= 90
-        for lon, lat in positions
-    )
+    return valid_geojson_geometry(geometry)
 
 
 def normalize_line_geometries(geometry: dict[str, Any]) -> list[dict[str, Any]]:
-    """Return runtime LineStrings, splitting a supported MultiLineString into parts."""
-
-    if geometry.get("type") == "MultiLineString":
-        return [
-            {"type": "LineString", "coordinates": coordinates}
-            for coordinates in geometry.get("coordinates", [])
-        ]
-    return [geometry]
+    candidate = shape(geometry)
+    if candidate.geom_type == "LineString":
+        return [mapping(candidate)]
+    if candidate.geom_type == "MultiLineString":
+        return [mapping(part) for part in candidate.geoms if not part.is_empty and part.length > 0]
+    return []
 
 
-def _source_id(properties: dict[str, Any], fallback_index: int) -> str:
-    for key in ("osm_id", "osm_id2", "osmId", "id", "OBJECTID"):
-        value = properties.get(key)
-        if value not in (None, ""):
-            text = re.sub(r"[^A-Za-z0-9_.:-]+", "-", str(value).strip())
-            if text:
-                return text
-    return f"source-{fallback_index}"
+def _extract_lines(candidate) -> list[LineString]:
+    if candidate.is_empty:
+        return []
+    if candidate.geom_type == "LineString":
+        return [candidate] if candidate.length > 0 else []
+    if candidate.geom_type == "MultiLineString":
+        return [line for line in candidate.geoms if not line.is_empty and line.length > 0]
+    if candidate.geom_type == "GeometryCollection":
+        return [line for part in candidate.geoms for line in _extract_lines(part)]
+    return []
 
 
-def _runtime_properties(
-    country_code: str,
-    properties: dict[str, Any],
-    asset_type: str,
-    actual_voltage_kv: float | None,
-    grid_class: str | None,
-    source_id: str,
-) -> dict[str, Any]:
-    power_type = str(properties.get("power") or properties.get("elementType") or "").lower()
-    result: dict[str, Any] = {
-        "assetId": f"{country_code}-{asset_type}-{source_id}",
-        "countryCode": country_code,
-        "assetType": asset_type,
-        "actualVoltageKv": actual_voltage_kv,
-        "gridClass": grid_class,
-        "name": properties.get("name") or None,
-        "operator": properties.get("operator") or None,
-        "osmId": properties.get("osm_id")
-        or properties.get("osm_id2")
-        or properties.get("osmId")
-        or None,
-        "source": "OpenStreetMap",
-        "sourceLicense": "ODbL 1.0",
-    }
-    if asset_type == "line":
-        result.update(
-            {
-                "displayClass": DISPLAY_CLASS[grid_class],
-                "voltageRaw": properties.get("voltageRaw", properties.get("voltage")),
-                "powerType": power_type,
-            }
-        )
-    return result
+def _clip_line(geometry: dict[str, Any], boundary) -> tuple[list[dict[str, Any]], bool]:
+    candidate = shape(geometry)
+    if not candidate.intersects(boundary):
+        return [], False
+    clipped = candidate.intersection(boundary)
+    lines = _extract_lines(clipped)
+    return [mapping(line) for line in lines], not clipped.equals(candidate)
 
 
-def _empty_collection(country_code: str, layer: str) -> dict[str, Any]:
-    return {
-        "type": "FeatureCollection",
-        "metadata": {
-            "countryCode": country_code,
-            "layer": layer,
-            "source": "OpenStreetMap",
-            "license": "ODbL 1.0",
-            "attribution": "© OpenStreetMap contributors",
-        },
-        "features": [],
-    }
+def _substation_point(geometry: dict[str, Any], boundary) -> tuple[dict[str, Any] | None, bool]:
+    candidate = shape(geometry)
+    if not candidate.intersects(boundary):
+        return None, False
+    if candidate.geom_type == "Point":
+        return (mapping(candidate), False) if boundary.covers(candidate) else (None, False)
+    clipped = candidate.intersection(boundary)
+    if clipped.is_empty:
+        return None, False
+    point = clipped.representative_point()
+    return mapping(point), True
+
+
+def _bounds(boundary) -> list[float]:
+    return [round(value, 6) for value in boundary.bounds]
+
+
+def _load_boundary_collection(country_code: str) -> tuple[dict[str, Any], Any]:
+    path = OUTPUT_ROOT / country_code / "boundary.geojson"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return data, load_boundary(path)
 
 
 def _load_sources(country_code: str, config: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     features: list[dict[str, Any]] = []
-    metadata: dict[str, Any] = {}
+    combined_metadata: dict[str, Any] = {}
+    providers: list[str] = []
     for path in config["sources"]:
         if not path.exists():
             raise FileNotFoundError(f"Missing raw source: {path.relative_to(ROOT)}")
         data = json.loads(path.read_text(encoding="utf-8"))
         if data.get("type") != "FeatureCollection" or not isinstance(data.get("features"), list):
             raise ValueError(f"Invalid FeatureCollection: {path.relative_to(ROOT)}")
+        metadata = data.get("metadata") or {}
+        if country_code in {"ES", "FR"}:
+            actual = (metadata.get("filters") or {}).get("countryCode")
+            if actual != country_code:
+                raise ValueError(f"{country_code}: raw metadata countryCode is {actual!r}")
         source_features = data["features"]
         if country_code == "TR" and path.stem == "substations":
             source_features = [
-                {
-                    **feature,
-                    "properties": {"power": "substation", **(feature.get("properties") or {})},
-                }
+                {**feature, "properties": {"power": "substation", **(feature.get("properties") or {})}}
                 for feature in source_features
             ]
         features.extend(source_features)
-        metadata.update(data.get("metadata") or {})
-    if country_code in {"ES", "FR"}:
-        actual_code = (metadata.get("filters") or {}).get("countryCode")
-        if actual_code != country_code:
-            raise ValueError(f"{country_code}: raw metadata countryCode is {actual_code!r}")
-    return features, metadata
+        combined_metadata.update(metadata)
+        for provider in metadata.get("sourceProviders") or [metadata.get("source")]:
+            if provider and provider not in providers:
+                providers.append(provider)
+    combined_metadata["sourceProviders"] = providers
+    return features, combined_metadata
 
 
-def _validate_expected(country_code: str, features: list[dict[str, Any]], config: dict[str, Any]) -> None:
-    expected = config.get("expected")
-    if not expected:
-        return
-    geometries = Counter((feature.get("geometry") or {}).get("type") for feature in features)
-    actual = {"features": len(features), "LineString": geometries["LineString"], "Point": geometries["Point"]}
-    if actual != expected:
-        raise ValueError(f"{country_code}: raw count mismatch; expected={expected}, actual={actual}")
+def _clean_text(value: Any) -> str | None:
+    if value in (None, ""):
+        return None
+    text = str(value).strip()
+    return text or None
 
 
-def _natural_earth() -> dict[str, Any]:
-    with urllib.request.urlopen(BOUNDARY_SOURCE_URL, timeout=60) as response:
-        return json.load(response)
+def _format_voltage(value: float | int | None) -> str:
+    if value is None:
+        return "Bilinmeyen gerilim"
+    return f"{float(value):g} kV"
 
 
-def _select_boundary(country_code: str, iso3: str, source: dict[str, Any]) -> dict[str, Any]:
-    match = next(
-        (f for f in source.get("features", []) if (f.get("properties") or {}).get("ADM0_A3") == iso3),
-        None,
-    )
-    if not match:
-        raise ValueError(f"Natural Earth boundary missing for {country_code}/{iso3}")
-    geometry = match["geometry"]
-    polygons = geometry["coordinates"] if geometry["type"] == "MultiPolygon" else [geometry["coordinates"]]
-
-    def keep(polygon: list[Any]) -> bool:
-        outer = polygon[0]
-        xs = [position[0] for position in outer]
-        ys = [position[1] for position in outer]
-        if country_code == "ES":
-            # Mainland, adjacent coastal islands and Balearics; Canaries and north-African enclaves excluded.
-            return max(ys) >= 36 and min(xs) >= -10.5 and max(xs) <= 5.5
-        if country_code == "FR":
-            # Metropolitan France, Corsica and adjacent metropolitan islands only.
-            return min(ys) >= 41 and max(ys) <= 52 and min(xs) >= -6 and max(xs) <= 10
-        return True
-
-    selected = [polygon for polygon in polygons if keep(polygon)]
-    if not selected:
-        raise ValueError(f"Boundary filter removed every polygon for {country_code}")
-    return {"type": "MultiPolygon", "coordinates": selected}
+def _display_label(properties: dict[str, Any], actual_voltage: float | int | None, osm_id: str | None) -> tuple[str, str]:
+    name = _clean_text(properties.get("name"))
+    ref = _clean_text(properties.get("ref"))
+    from_name = _clean_text(properties.get("from"))
+    to_name = _clean_text(properties.get("to"))
+    operator = _clean_text(properties.get("operator"))
+    if name:
+        return name, "osm-name"
+    if ref:
+        return ref, "osm-ref"
+    if from_name and to_name:
+        return f"{from_name} – {to_name}", "osm-from-to"
+    suffix = f"OSM {osm_id}" if osm_id else "OSM kimliği yok"
+    voltage = _format_voltage(actual_voltage)
+    if operator:
+        return f"{operator} · {voltage} · {suffix}", "generated-identifier"
+    return f"{voltage} · {suffix}", "generated-identifier"
 
 
-def _bounds_from_geometry(geometry: dict[str, Any]) -> list[float]:
-    positions = list(_positions(geometry.get("coordinates")))
-    return [
-        round(min(lon for lon, _ in positions), 6),
-        round(min(lat for _, lat in positions), 6),
-        round(max(lon for lon, _ in positions), 6),
-        round(max(lat for _, lat in positions), 6),
-    ]
+def _runtime_properties(
+    country_code: str,
+    properties: dict[str, Any],
+    *,
+    asset_type: str,
+    power_type: str,
+    actual_voltages: list[float],
+    grid_class: str | None,
+    osm_type: str,
+    osm_id: str | None,
+    asset_suffix: str,
+) -> dict[str, Any]:
+    actual = max(actual_voltages) if actual_voltages else None
+    display_label, label_source = _display_label(properties, actual, osm_id)
+    result = {
+        "assetId": f"{country_code}-{asset_type}-{osm_type}-{asset_suffix}",
+        "countryCode": country_code,
+        "assetType": asset_type,
+        "powerType": power_type,
+        "osmType": osm_type,
+        "osmId": osm_id,
+        "actualVoltagesKv": [int(value) if float(value).is_integer() else value for value in actual_voltages],
+        "actualVoltageKv": int(actual) if actual is not None and float(actual).is_integer() else actual,
+        "gridClass": grid_class,
+        "displayClass": DISPLAY_CLASS.get(grid_class),
+        "name": _clean_text(properties.get("name")),
+        "ref": _clean_text(properties.get("ref")),
+        "operator": _clean_text(properties.get("operator")),
+        "from": _clean_text(properties.get("from")),
+        "to": _clean_text(properties.get("to")),
+        "displayLabel": display_label,
+        "labelSource": label_source,
+        "voltageRaw": properties.get("voltage") if properties.get("voltage") not in (None, "") else properties.get("voltageRaw"),
+        "circuits": _clean_text(properties.get("circuits")),
+        "cables": _clean_text(properties.get("cables")),
+        "frequency": _clean_text(properties.get("frequency")),
+        "location": _clean_text(properties.get("location")),
+        "sourceProvider": _clean_text(properties.get("sourceProvider")) or "OpenStreetMap",
+        "sourceFallback": properties.get("sourceFallback"),
+        "sourceLicense": LICENSE,
+        "osmTimestamp": _clean_text(properties.get("osm_timestamp")) or _clean_text(properties.get("osmTimestamp")),
+    }
+    return result
 
 
-def build_country(country_code: str, boundary_source: dict[str, Any]) -> dict[str, Any]:
+def _empty_collection(country_code: str, layer: str, providers: list[str]) -> dict[str, Any]:
+    return {
+        "type": "FeatureCollection",
+        "metadata": {
+            "countryCode": country_code,
+            "layer": layer,
+            "sourceProviders": providers,
+            "license": LICENSE,
+            "attribution": ATTRIBUTION,
+        },
+        "features": [],
+    }
+
+
+def _download_state(metadata: dict[str, Any]) -> tuple[bool, int, list[Any]]:
+    diagnostics = metadata.get("downloadDiagnostics") or {}
+    partial = bool(diagnostics.get("partial", metadata.get("partial", False)))
+    failed_requests = int(diagnostics.get("failedRequests", metadata.get("failedRequests", 0)) or 0)
+    failed_tiles = diagnostics.get("failedTiles", metadata.get("failedTiles", [])) or []
+    return partial, failed_requests, failed_tiles
+
+
+def build_country(country_code: str, _boundary_source: dict[str, Any] | None = None) -> dict[str, Any]:
     config = COUNTRIES[country_code]
+    boundary_collection, boundary = _load_boundary_collection(country_code)
     raw_features, raw_metadata = _load_sources(country_code, config)
-    _validate_expected(country_code, raw_features, config)
-
+    providers = [str(value) for value in raw_metadata.get("sourceProviders") or ["OpenStreetMap"]]
     outputs = {
-        "400": _empty_collection(country_code, "400"),
-        "154": _empty_collection(country_code, "154"),
-        "substations": _empty_collection(country_code, "substations"),
+        "400": _empty_collection(country_code, "400", providers),
+        "154": _empty_collection(country_code, "154", providers),
+        "substations": _empty_collection(country_code, "substations", providers),
     }
     counts = Counter()
+    source_contribution = Counter()
     seen_assets: set[str] = set()
+    unique_raw: dict[str, dict[str, Any]] = {}
 
-    for index, feature in enumerate(raw_features, start=1):
+    for feature in raw_features:
+        if not valid_geometry(feature.get("geometry")):
+            counts["invalidGeometryCount"] += 1
+            continue
+        key = feature_key(country_code, feature)
+        if key in unique_raw:
+            counts["duplicateCount"] += 1
+            unique_raw[key] = choose_preferred_feature(unique_raw[key], feature)
+        else:
+            unique_raw[key] = feature
+
+    for fallback_index, feature in enumerate(unique_raw.values(), start=1):
         properties = feature.get("properties") or {}
-        geometry = feature.get("geometry")
+        geometry = feature["geometry"]
         raw_country = properties.get("countryCode") or (raw_metadata.get("filters") or {}).get("countryCode")
         if raw_country and raw_country != country_code:
             counts["countryCodeMismatchCount"] += 1
             continue
-        if not valid_geometry(geometry):
-            counts["invalidGeometryCount"] += 1
-            continue
-        power_type = str(properties.get("power") or properties.get("elementType") or "").lower()
-        geom_type = geometry["type"]
-        is_line = power_type in LINE_POWER_TYPES and geom_type in {"LineString", "MultiLineString"}
-        is_substation = power_type == "substation" and geom_type == "Point"
+        power_type = str(properties.get("power") or properties.get("elementType") or "").strip().lower()
+        is_line = power_type in LINE_TYPES and geometry["type"] in {"LineString", "MultiLineString"}
+        is_substation = power_type == "substation" and geometry["type"] in {"Point", "Polygon", "MultiPolygon"}
         if not (is_line or is_substation):
             counts["unsupportedFeatureCount"] += 1
             continue
-
-        actual_voltage_kv = normalize_voltage_kv(properties)
-        grid_class = voltage_class(actual_voltage_kv)
-        if actual_voltage_kv is not None and actual_voltage_kv < 50:
+        actual_voltages = parse_feature_voltages_kv(properties)
+        actual = max(actual_voltages) if actual_voltages else None
+        grid_class = voltage_class(actual)
+        if actual is not None and actual < 50:
             counts["excludedBelow50Count"] += 1
             continue
-        if actual_voltage_kv is not None and actual_voltage_kv > 550:
+        if actual is not None and actual > 550:
             counts["excludedAbove550Count"] += 1
             continue
         if is_line and grid_class is None:
@@ -334,20 +313,38 @@ def build_country(country_code: str, boundary_source: dict[str, Any]) -> dict[st
             counts["excludedUnclassifiedCount"] += 1
             continue
 
-        source_id = _source_id(properties, index)
-        asset_type = "line" if is_line else "substation"
         if is_line:
-            # OSM/ArcGIS exports can reuse the same numeric identifier for a line
-            # and a cable record; power type keeps the runtime identity stable.
-            source_id = f"{power_type}-{source_id}"
-        line_geometries = normalize_line_geometries(geometry)
-        if geom_type == "MultiLineString":
-            counts["normalizedMultiLineCount"] += 1
+            runtime_geometries, clipped = _clip_line(geometry, boundary)
+            if not runtime_geometries:
+                counts["outsideBoundaryCount"] += 1
+                continue
+            if clipped:
+                counts["boundaryClippedLineCount"] += 1
+        else:
+            runtime_point, converted = _substation_point(geometry, boundary)
+            if runtime_point is None:
+                counts["outsideBoundaryCount"] += 1
+                continue
+            runtime_geometries = [runtime_point]
+            if converted:
+                counts["representativePointCount"] += 1
 
-        for part_index, normalized_geometry in enumerate(line_geometries, start=1):
-            part_source_id = source_id if len(line_geometries) == 1 else f"{source_id}-part-{part_index}"
+        osm_id = normalize_osm_id(properties)
+        osm_type = normalized_osm_type(power_type, geometry["type"], properties)
+        base_suffix = re.sub(r"[^A-Za-z0-9_.:-]+", "-", osm_id or f"geometry-{fallback_index}")
+        asset_type = "line" if is_line else "substation"
+        for part_index, runtime_geometry in enumerate(runtime_geometries, start=1):
+            suffix = base_suffix if len(runtime_geometries) == 1 else f"{base_suffix}-part-{part_index}"
             runtime_properties = _runtime_properties(
-                country_code, properties, asset_type, actual_voltage_kv, grid_class, part_source_id
+                country_code,
+                properties,
+                asset_type=asset_type,
+                power_type=power_type,
+                actual_voltages=actual_voltages,
+                grid_class=grid_class,
+                osm_type=osm_type,
+                osm_id=osm_id,
+                asset_suffix=suffix,
             )
             asset_id = runtime_properties["assetId"]
             if asset_id in seen_assets:
@@ -356,89 +353,91 @@ def build_country(country_code: str, boundary_source: dict[str, Any]) -> dict[st
             seen_assets.add(asset_id)
             target = grid_class if is_line else "substations"
             outputs[target]["features"].append(
-                {"type": "Feature", "properties": runtime_properties, "geometry": normalized_geometry}
+                {"type": "Feature", "properties": runtime_properties, "geometry": runtime_geometry}
             )
+            provider = runtime_properties["sourceProvider"]
+            source_contribution[provider] += 1
+            if is_line:
+                counts["validLineCount"] += 1
+                counts[f"grid{grid_class}Count"] += 1
+                counts["namedLineCount"] += bool(runtime_properties["name"])
+                counts["referencedLineCount"] += bool(runtime_properties["ref"])
+                counts["operatorLineCount"] += bool(runtime_properties["operator"])
+            else:
+                counts["validSubstationCount"] += 1
 
     if counts["countryCodeMismatchCount"]:
         raise ValueError(f"{country_code}: {counts['countryCodeMismatchCount']} countryCode mismatches")
     if counts["duplicateAssetCount"]:
         raise ValueError(f"{country_code}: {counts['duplicateAssetCount']} duplicate runtime asset IDs")
 
-    boundary_geometry = _select_boundary(country_code, config["iso3"], boundary_source)
-    bounds = _bounds_from_geometry(boundary_geometry)
-    country_dir = OUTPUT_ROOT / country_code
-    country_dir.mkdir(parents=True, exist_ok=True)
-    boundary = {
-        "type": "FeatureCollection",
-        "metadata": {
-            "countryCode": country_code,
-            "source": "Natural Earth 1:10m Admin 0 Countries",
-            "sourceUrl": BOUNDARY_SOURCE_URL,
-            "license": "Public domain",
-        },
-        "features": [
-            {
-                "type": "Feature",
-                "properties": {"countryCode": country_code, "nameTr": config["nameTr"]},
-                "geometry": boundary_geometry,
-            }
-        ],
-    }
-
-    partial = bool((raw_metadata.get("downloadDiagnostics") or {}).get("partial", config["partial"]))
-    failed_requests = int(
-        (raw_metadata.get("downloadDiagnostics") or {}).get("failedRequests", config["failedRequests"])
-    )
+    partial, failed_requests, failed_tiles = _download_state(raw_metadata)
+    diagnostics = raw_metadata.get("downloadDiagnostics") or {}
     manifest = {
         "countryCode": country_code,
         "countryNameTr": config["nameTr"],
-        "generatedAt": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
-        "source": "OpenStreetMap",
-        "license": "ODbL 1.0",
+        "generatedAt": utc_now(),
+        "downloadedAt": raw_metadata.get("downloadedAt") or raw_metadata.get("exportedAt"),
+        "sourceProviders": providers,
+        "license": LICENSE,
+        "attribution": ATTRIBUTION,
         "minimumVoltageKv": 50,
         "maximumIncludedVoltageKv": 550,
         "classification": {"400": "300-550 kV", "154": "50-299.999 kV"},
+        "partial": partial,
+        "failedRequests": failed_requests,
+        "failedTiles": failed_tiles,
         "rawFeatureCount": len(raw_features),
+        "validLineCount": counts["validLineCount"],
+        "validSubstationCount": counts["validSubstationCount"],
         "grid400Count": len(outputs["400"]["features"]),
         "grid154Count": len(outputs["154"]["features"]),
         "substationCount": len(outputs["substations"]["features"]),
         "excludedBelow50Count": counts["excludedBelow50Count"],
         "excludedAbove550Count": counts["excludedAbove550Count"],
         "excludedUnclassifiedCount": counts["excludedUnclassifiedCount"],
+        "outsideBoundaryCount": counts["outsideBoundaryCount"],
         "invalidGeometryCount": counts["invalidGeometryCount"],
         "unsupportedFeatureCount": counts["unsupportedFeatureCount"],
+        "duplicateCount": counts["duplicateCount"],
         "duplicateAssetCount": counts["duplicateAssetCount"],
-        "normalizedMultiLineCount": counts["normalizedMultiLineCount"],
-        "partial": partial,
-        "failedRequests": failed_requests,
-        "bounds": bounds,
+        "boundaryClippedLineCount": counts["boundaryClippedLineCount"],
+        "representativePointCount": counts["representativePointCount"],
+        "namedLineCount": counts["namedLineCount"],
+        "referencedLineCount": counts["referencedLineCount"],
+        "operatorLineCount": counts["operatorLineCount"],
+        "sourceContribution": dict(sorted(source_contribution.items())),
+        "suspectedGapTileCount": int(diagnostics.get("suspectedGapTileCount") or 0),
+        "coverage": config["coverage"],
+        "bounds": _bounds(boundary),
     }
-
     payloads = {
-        "boundary.geojson": boundary,
+        "boundary.geojson": boundary_collection,
         "grid_400.geojson": outputs["400"],
         "grid_154.geojson": outputs["154"],
         "substations.geojson": outputs["substations"],
         "manifest.json": manifest,
     }
+    country_dir = OUTPUT_ROOT / country_code
     for filename, payload in payloads.items():
-        (country_dir / filename).write_text(
-            json.dumps(payload, ensure_ascii=False, separators=(",", ":")), encoding="utf-8"
-        )
+        atomic_json_write(country_dir / filename, payload)
     return manifest
 
 
 def validate_runtime(country_code: str) -> dict[str, Any]:
     country_dir = OUTPUT_ROOT / country_code
+    boundary = load_boundary(country_dir / "boundary.geojson")
     manifest = json.loads((country_dir / "manifest.json").read_text(encoding="utf-8"))
     seen: set[str] = set()
-    counts = {}
+    counts: dict[str, int] = {}
     for filename in ("grid_400.geojson", "grid_154.geojson", "substations.geojson"):
         data = json.loads((country_dir / filename).read_text(encoding="utf-8"))
         counts[filename] = len(data["features"])
         for feature in data["features"]:
-            if not valid_geometry(feature.get("geometry")):
+            if country_code in {"ES", "FR"} and not valid_geometry(feature.get("geometry")):
                 raise ValueError(f"{country_code}/{filename}: invalid runtime geometry")
+            if country_code in {"ES", "FR"} and not shape(feature["geometry"]).intersects(boundary):
+                raise ValueError(f"{country_code}/{filename}: geometry outside boundary")
             properties = feature.get("properties") or {}
             if properties.get("countryCode") != country_code:
                 raise ValueError(f"{country_code}/{filename}: countryCode leakage")
@@ -448,26 +447,32 @@ def validate_runtime(country_code: str) -> dict[str, Any]:
             seen.add(asset_id)
             if any(key in properties for key in ("tags", "OBJECTID", "osm_id", "osm_id2")):
                 raise ValueError(f"{country_code}/{filename}: raw-only property leaked")
-    if counts["grid_400.geojson"] != manifest["grid400Count"]:
-        raise ValueError(f"{country_code}: grid400 manifest mismatch")
-    if counts["grid_154.geojson"] != manifest["grid154Count"]:
-        raise ValueError(f"{country_code}: grid154 manifest mismatch")
-    if counts["substations.geojson"] != manifest["substationCount"]:
-        raise ValueError(f"{country_code}: substation manifest mismatch")
+            if filename != "substations.geojson":
+                actual = properties.get("actualVoltageKv")
+                if voltage_class(actual) != properties.get("gridClass"):
+                    raise ValueError(f"{country_code}/{filename}: invalid voltage class")
+                if country_code in {"ES", "FR"} and (not properties.get("displayLabel") or not properties.get("labelSource")):
+                    raise ValueError(f"{country_code}/{filename}: missing display label")
+    expected = {
+        "grid_400.geojson": manifest["grid400Count"],
+        "grid_154.geojson": manifest["grid154Count"],
+        "substations.geojson": manifest["substationCount"],
+    }
+    if counts != expected:
+        raise ValueError(f"{country_code}: runtime counts do not match manifest: {counts} != {expected}")
+    if country_code in {"ES", "FR"} and (manifest["partial"] or manifest["failedRequests"]):
+        raise ValueError(f"{country_code}: production runtime cannot be partial")
     return manifest
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--country", choices=["TR", "ES", "FR", "ALL"], default="ALL")
+    parser.add_argument("--country", choices=["TR", "ES", "FR", "ESFR", "ALL"], default="ESFR")
     parser.add_argument("--validate-runtime", action="store_true")
     args = parser.parse_args()
-    country_codes = list(COUNTRIES) if args.country == "ALL" else [args.country]
-    if args.validate_runtime:
-        manifests = [validate_runtime(code) for code in country_codes]
-    else:
-        boundary_source = _natural_earth()
-        manifests = [build_country(code, boundary_source) for code in country_codes]
+    country_codes = list(COUNTRIES) if args.country == "ALL" else ["ES", "FR"] if args.country == "ESFR" else [args.country]
+    manifests = [validate_runtime(code) for code in country_codes] if args.validate_runtime else [build_country(code) for code in country_codes]
+    if not args.validate_runtime:
         manifests = [validate_runtime(code) for code in country_codes]
     for manifest in manifests:
         print(json.dumps(manifest, ensure_ascii=False, indent=2))

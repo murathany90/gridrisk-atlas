@@ -1,0 +1,391 @@
+{
+  "country": "FR",
+  "generatedAt": "2026-08-01T23:38:43.649645Z",
+  "existing": {
+    "path": "C:\\yazilim_projeler\\zormanyangini\\turkey_wildfire_grid_risk_monitor_v3_2\\temp\\grid_repair_baseline\\france_osm_power_grid_50kv_plus_full.geojson",
+    "fileSizeBytes": 70992070,
+    "sourceTimestamp": "2026-08-01T17:43:00.265347Z",
+    "sourceProviders": [
+      "OpenStreetMap / ArcGIS OSM Europe feature layers"
+    ],
+    "partial": true,
+    "failedRequests": 14,
+    "downloadTransparency": true,
+    "rawFeatureCount": 71639,
+    "validLineCount": 30731,
+    "validSubstationCount": 65,
+    "grid400LineCount": 7503,
+    "grid154LineCount": 23228,
+    "outsideBoundaryCount": 15969,
+    "invalidGeometryCount": 0,
+    "duplicateCount": 0,
+    "voltageParseFailureCount": 0,
+    "voltageFieldMismatchCount": 24874,
+    "nameLineCount": 6005,
+    "refLineCount": 0,
+    "operatorLineCount": 29976,
+    "nameLineRatio": 0.195405,
+    "refLineRatio": 0.0,
+    "operatorLineRatio": 0.975432,
+    "voltageParseSuccessRatio": 0.429878,
+    "osmTimestampCoverageRatio": 0.429878,
+    "suspectedGapTileCount": 0,
+    "exceededTransferLimitTileCount": 0,
+    "danglingEndpointCount": 21892,
+    "danglingEndpointRatio": 0.356188,
+    "productionGatesPassed": false
+  },
+  "fresh": {
+    "path": "C:\\yazilim_projeler\\zormanyangini\\turkey_wildfire_grid_risk_monitor_v3_2\\py_osm_download\\output\\france_osm_power_grid_50kv_plus_full.geojson",
+    "fileSizeBytes": 37210193,
+    "sourceTimestamp": "2026-08-01T23:01:46.368253Z",
+    "sourceProviders": [
+      "ArcGIS OSM Europe",
+      "OpenStreetMap Overpass API"
+    ],
+    "partial": false,
+    "failedRequests": 0,
+    "downloadTransparency": true,
+    "rawFeatureCount": 41065,
+    "validLineCount": 36633,
+    "validSubstationCount": 4432,
+    "grid400LineCount": 8804,
+    "grid154LineCount": 27829,
+    "outsideBoundaryCount": 0,
+    "invalidGeometryCount": 0,
+    "duplicateCount": 0,
+    "voltageParseFailureCount": 0,
+    "voltageFieldMismatchCount": 0,
+    "nameLineCount": 7275,
+    "refLineCount": 186,
+    "operatorLineCount": 35673,
+    "nameLineRatio": 0.198591,
+    "refLineRatio": 0.005077,
+    "operatorLineRatio": 0.973794,
+    "voltageParseSuccessRatio": 1.0,
+    "osmTimestampCoverageRatio": 1.0,
+    "suspectedGapTileCount": 0,
+    "exceededTransferLimitTileCount": 28,
+    "danglingEndpointCount": 26135,
+    "danglingEndpointRatio": 0.352728,
+    "productionGatesPassed": true
+  },
+  "selection": {
+    "selected": "fresh",
+    "reason": "Yeni indirme ülke sınırı, ham OSM voltage birimi, geometri, başarısız tile şeffaflığı ve deterministik deduplication production kapılarının tamamını geçti."
+  },
+  "validatedUnion": {
+    "used": false,
+    "sharedFeatureCount": 30796,
+    "freshOnlyFeatureCount": 10269,
+    "legacyOnlyFeatureCount": 0,
+    "reason": "Birleşim adayı ölçüldü: 30796 ortak, 10269 yalnız yeni, 0 yalnız eski feature. Yeni indirme tam ve şüpheli gap içermediği için silinmiş/değişmiş olabilecek eski OSM feature'ları production'a geri eklenmedi; fresh veri seçildi."
+  },
+  "alternativeCandidate": null,
+  "gapAnalysis": {
+    "tileSizeDegrees": 1,
+    "method": "Accepted line representative points; fresh >= 5 and existing zero or fresh >= existing + 10 and >= 1.5x",
+    "candidateTiles": [
+      {
+        "bbox": [
+          -1,
+          45,
+          0,
+          46
+        ],
+        "center": [
+          -0.5,
+          45.5
+        ],
+        "existingLineCount": 1,
+        "freshLineCount": 707,
+        "delta": 706
+      },
+      {
+        "bbox": [
+          -1,
+          44,
+          0,
+          45
+        ],
+        "center": [
+          -0.5,
+          44.5
+        ],
+        "existingLineCount": 0,
+        "freshLineCount": 631,
+        "delta": 631
+      },
+      {
+        "bbox": [
+          -2,
+          47,
+          -1,
+          48
+        ],
+        "center": [
+          -1.5,
+          47.5
+        ],
+        "existingLineCount": 103,
+        "freshLineCount": 614,
+        "delta": 511
+      },
+      {
+        "bbox": [
+          7,
+          47,
+          8,
+          48
+        ],
+        "center": [
+          7.5,
+          47.5
+        ],
+        "existingLineCount": 1,
+        "freshLineCount": 503,
+        "delta": 502
+      },
+      {
+        "bbox": [
+          3,
+          43,
+          4,
+          44
+        ],
+        "center": [
+          3.5,
+          43.5
+        ],
+        "existingLineCount": 1,
+        "freshLineCount": 466,
+        "delta": 465
+      },
+      {
+        "bbox": [
+          -1,
+          43,
+          0,
+          44
+        ],
+        "center": [
+          -0.5,
+          43.5
+        ],
+        "existingLineCount": 0,
+        "freshLineCount": 341,
+        "delta": 341
+      },
+      {
+        "bbox": [
+          4,
+          43,
+          5,
+          44
+        ],
+        "center": [
+          4.5,
+          43.5
+        ],
+        "existingLineCount": 410,
+        "freshLineCount": 693,
+        "delta": 283
+      },
+      {
+        "bbox": [
+          -3,
+          47,
+          -2,
+          48
+        ],
+        "center": [
+          -2.5,
+          47.5
+        ],
+        "existingLineCount": 1,
+        "freshLineCount": 282,
+        "delta": 281
+      },
+      {
+        "bbox": [
+          0,
+          43,
+          1,
+          44
+        ],
+        "center": [
+          0.5,
+          43.5
+        ],
+        "existingLineCount": 51,
+        "freshLineCount": 305,
+        "delta": 254
+      },
+      {
+        "bbox": [
+          2,
+          42,
+          3,
+          43
+        ],
+        "center": [
+          2.5,
+          42.5
+        ],
+        "existingLineCount": 47,
+        "freshLineCount": 256,
+        "delta": 209
+      },
+      {
+        "bbox": [
+          -2,
+          48,
+          -1,
+          49
+        ],
+        "center": [
+          -1.5,
+          48.5
+        ],
+        "existingLineCount": 208,
+        "freshLineCount": 412,
+        "delta": 204
+      },
+      {
+        "bbox": [
+          -2,
+          43,
+          -1,
+          44
+        ],
+        "center": [
+          -1.5,
+          43.5
+        ],
+        "existingLineCount": 0,
+        "freshLineCount": 192,
+        "delta": 192
+      },
+      {
+        "bbox": [
+          6,
+          47,
+          7,
+          48
+        ],
+        "center": [
+          6.5,
+          47.5
+        ],
+        "existingLineCount": 326,
+        "freshLineCount": 498,
+        "delta": 172
+      },
+      {
+        "bbox": [
+          0,
+          45,
+          1,
+          46
+        ],
+        "center": [
+          0.5,
+          45.5
+        ],
+        "existingLineCount": 69,
+        "freshLineCount": 228,
+        "delta": 159
+      },
+      {
+        "bbox": [
+          0,
+          44,
+          1,
+          45
+        ],
+        "center": [
+          0.5,
+          44.5
+        ],
+        "existingLineCount": 124,
+        "freshLineCount": 280,
+        "delta": 156
+      },
+      {
+        "bbox": [
+          -2,
+          46,
+          -1,
+          47
+        ],
+        "center": [
+          -1.5,
+          46.5
+        ],
+        "existingLineCount": 79,
+        "freshLineCount": 225,
+        "delta": 146
+      },
+      {
+        "bbox": [
+          -1,
+          42,
+          0,
+          43
+        ],
+        "center": [
+          -0.5,
+          42.5
+        ],
+        "existingLineCount": 0,
+        "freshLineCount": 104,
+        "delta": 104
+      },
+      {
+        "bbox": [
+          0,
+          42,
+          1,
+          43
+        ],
+        "center": [
+          0.5,
+          42.5
+        ],
+        "existingLineCount": 5,
+        "freshLineCount": 97,
+        "delta": 92
+      },
+      {
+        "bbox": [
+          -2,
+          45,
+          -1,
+          46
+        ],
+        "center": [
+          -1.5,
+          45.5
+        ],
+        "existingLineCount": 6,
+        "freshLineCount": 36,
+        "delta": 30
+      },
+      {
+        "bbox": [
+          -2,
+          44,
+          -1,
+          45
+        ],
+        "center": [
+          -1.5,
+          44.5
+        ],
+        "existingLineCount": 0,
+        "freshLineCount": 29,
+        "delta": 29
+      }
+    ]
+  }
+}
