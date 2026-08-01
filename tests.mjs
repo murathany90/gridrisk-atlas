@@ -1840,6 +1840,7 @@ test('v3.5.0 — UI selector is Turkish, accessible and keeps a 40px touch targe
   assert.ok(htmlTxt.includes('<option value="ES">İspanya</option>'));
   assert.ok(htmlTxt.includes('<option value="FR">Fransa</option>'));
   assert.ok(htmlTxt.includes('aria-label="Ülke seçin"'));
+  assert.ok(htmlTxt.includes('css/styles.css?v=3.5.0&amp;r=touch40'), 'responsive CSS revision is cache-safe');
   assert.ok(cssTxt.includes('.countryControl select{width:128px;min-height:40px'));
   assert.equal(/countryControl select\{min-height:(?:3[0-9]|[0-9])px/.test(cssTxt), false, 'landscape override cannot shrink below 40px');
 });
