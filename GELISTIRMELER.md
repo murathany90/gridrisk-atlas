@@ -1,5 +1,20 @@
 # Geliştirme Kaydı — Türkiye Wildfire Grid Risk Monitor v3.2.0
 
+# v3.4.11 — Koridor TM İşaretlemesi Kaldırıldı
+
+**Branch:** `fix/v3.4.11-no-corridor-tm-markers`
+
+**Amaç:** Rüzgâr koridorundaki trafo merkezlerinin turkuaz kare işaretlerini tamamen kaldırmak; haritada tek TM işareti olarak yalnızca **5 km içindeki riskli TM'lerin** (siyah dolgu + mavi kenar karesi) kalmasını sağlamak.
+
+**Değişiklikler:**
+- **`js/map.js`** — `setDownwindCorridors` içindeki `dw.substations` marker döngüsü kaldırıldı (koridor yalnız kesikli turkuaz hat vurgusunu çizer); `sectorSubstationIcon()` fabrikası silindi; koridor lejantından "Koridordaki trafo merkezi" satırı kaldırıldı (açıklama: "yalnız hatlar işaretlenir; TM'ler risk katmanında ≤5 km'de gösterilir"). Koridor tooltip'indeki `N hat / N TM` sayıları bilgi olarak korundu.
+- **`css/styles.css`** — `.substationSquare.substation-sector` kuralı silindi.
+- **Sürüm 3.4.11**: `package.json`, `js/config.js`, `index.html` (pill + cache-buster), `server.mjs`, `README.md`, sürüm geçmişi.
+
+**Testler:** v3.4.1 "koridor TM kareleri" testi yerine v3.4.11 testi — `sectorSubstationIcon` yokluğu, koridor kod yolunda `L.marker` yokluğu, hat vurgusunun korunması, `substation-sector` CSS + sınıf yokluğu, koridor lejant satırının kaldırılmış olması; v3.4.10 ikon testi sektör referanslarından arındırıldı. Toplam **148/148** test geçti.
+
+---
+
 # v3.4.10 — TM Sembol Ayrımı: Katman / Risk / Koridor
 
 **Branch:** `fix/v3.4.10-tm-marker-distinction`

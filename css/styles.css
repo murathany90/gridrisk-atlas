@@ -26,7 +26,7 @@
 .riskCardMeta{font-size:8px;color:#9fb2c2;margin-top:4px}
 .legendHeader{display:flex;align-items:center;justify-content:space-between;gap:8px}.legendTitle{margin:0}.legendClose{width:20px;height:20px;padding:0;border-radius:5px;background:transparent;border:1px solid #30485a;color:#9fb1bf;font-size:14px;line-height:16px}.legendClose:hover{background:#193044;color:white}
 .timelineDomains{display:grid;grid-template-columns:25% 75%;gap:0;font-size:7px;letter-spacing:.4px;margin:4px 0 1px;color:#7d93a5}.timelineDomains span:first-child{color:#9ad8bb;border-right:1px solid #446173}.timelineDomains span:last-child{text-align:center;color:#8fc9f0}
-.substationIconWrap{background:transparent;border:0}.substationSquare{display:block;width:8px;height:8px;background:#1b2a44;border:1.5px solid #8b98ad;box-sizing:border-box}.substationSquare.substation-risk{width:10px;height:10px;background:#000;border:2px solid #2f80ff}.substationSquare.substation-sector{width:10px;height:10px;background:#7be6ff;border:2px solid #0e7490}
+.substationIconWrap{background:transparent;border:0}.substationSquare{display:block;width:8px;height:8px;background:#1b2a44;border:1.5px solid #8b98ad;box-sizing:border-box}.substationSquare.substation-risk{width:10px;height:10px;background:#000;border:2px solid #2f80ff}
 .riskTable tbody tr[data-risk-index]{cursor:pointer}.riskTable tbody tr[data-risk-index]:hover{background:#132536}
 .kpiCard strong.zeroValue{color:#b9c4ce}
 .kpiCard small.statusWarn{color:#e9b961}

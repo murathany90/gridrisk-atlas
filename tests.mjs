@@ -802,7 +802,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.4.10'"), 'config appVersion 3.4.10');
+  assert.ok(cfgTxt2.includes("appVersion: '3.4.11'"), 'config appVersion 3.4.11');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1070,12 +1070,12 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.4.10 version bump to 3.4.10 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.4.10'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.4.10'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.4.10'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.4.10'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.4.10"'), 'package.json version');
+test('v3.4.11 version bump to 3.4.11 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.4.11'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.4.11'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.4.11'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.4.11'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.4.11"'), 'package.json version');
   assert.equal(htmlTxt.includes('3.4.7'), false, 'no stale 3.4.7 in index.html');
   assert.equal(htmlTxt.includes('3.4.6'), false, 'no stale 3.4.6 in index.html');
   assert.equal(htmlTxt.includes('3.4.5'), false, 'no stale 3.4.5 in index.html');
@@ -1107,15 +1107,13 @@ test('v3.4.3 — thermal envelope / EFFIS BA / downwind default ON', () => {
   assert.ok(appTxt.includes('if(this.state.effisBurntAreaEnabled)this.map.toggleEffisBurntArea(true,this.state.selectedTime);'), 'EFFIS BA applied at init');
 });
 
-test('v3.4.10 — TM icons distinct: grid neutral, risk blue, sector teal', () => {
+test('v3.4.10 — TM icons distinct: grid neutral, risk blue (sector removed in v3.4.11)', () => {
   const icons = mapTxt.slice(mapTxt.indexOf('substationIcon(){'), mapTxt.indexOf('setGridGroup'));
   assert.ok(icons.includes('<span class="substationSquare"></span>'), 'grid-layer substation icon is neutral base square');
   assert.equal(icons.includes('substationIcon(){return L.divIcon({className:\'substationIconWrap\',html:\'<span class="substationSquare substation-risk"></span>\''), false, 'grid icon no longer risk-styled');
   assert.ok(icons.includes('substationSquare substation-risk'), 'risk factory keeps blue-border square');
-  assert.ok(icons.includes('substationSquare substation-sector'), 'sector factory uses distinct teal square');
   assert.ok(cssTxt.includes('.substationSquare{display:block;width:8px;height:8px;background:#1b2a44;border:1.5px solid #8b98ad;box-sizing:border-box}'), 'base neutral square CSS');
   assert.ok(cssTxt.includes('.substationSquare.substation-risk{width:10px;height:10px;background:#000;border:2px solid #2f80ff}'), 'risk square CSS kept');
-  assert.ok(cssTxt.includes('.substationSquare.substation-sector{width:10px;height:10px;background:#7be6ff;border:2px solid #0e7490}'), 'sector square CSS');
   assert.equal(icons.includes('background:#0a2531'), false, 'sector icon no legacy dark fill');
   assert.equal(icons.includes('#7be6ff'), false, 'no inline hex colors in icon factories (CSS only)');
 });
@@ -1192,18 +1190,21 @@ test('v3.4.1 — nearest-risk substation marker is a square (riskSubstationIcon)
   assert.equal(mapTxt.includes('{critical:14,high:12,medium:10,watch:8,low:8}'), false, 'no per-level square sizes');
 });
 
-test('v3.4.1 — downwind sector substations are squares (sectorSubstationIcon)', () => {
-  assert.ok(mapTxt.includes('sectorSubstationIcon()'), 'sectorSubstationIcon helper exists');
+test('v3.4.11 — downwind corridor draws no TM markers (sector squares removed)', () => {
+  assert.equal(mapTxt.includes('sectorSubstationIcon'), false, 'sectorSubstationIcon factory removed');
   const dwSrc = mapTxt.slice(mapTxt.indexOf('setDownwindCorridors'), mapTxt.indexOf('toggleFwi'));
-  assert.ok(dwSrc.includes("L.marker([x.feature.lat,x.feature.lon],{pane:'riskPane',icon:this.sectorSubstationIcon()"), 'sector substation uses square marker');
-  assert.equal(dwSrc.includes('L.circleMarker'), false, 'no circleMarker left in downwind corridor path');
+  assert.equal(dwSrc.includes('L.marker'), false, 'no TM markers in downwind corridor path');
+  assert.ok(dwSrc.includes("for(const x of dw.lines.slice(0,4))L.polyline"), 'line highlights kept in corridor');
+  assert.equal(cssTxt.includes('substation-sector'), false, 'sector square CSS removed');
+  assert.equal(mapTxt.includes('substation-sector'), false, 'no substation-sector class left in map.js');
+  assert.equal(mapTxt.includes('Koridordaki trafo merkezi'), false, 'corridor TM legend line removed');
 });
 
 test('v3.4.1 — risk legend shows square TM symbol', () => {
   const riskLegend = mapTxt.slice(mapTxt.indexOf("this.makeLegend('risk'"), mapTxt.indexOf('this.makeLegend(\'risk\'') + 900);
   assert.ok(riskLegend.includes('Riskli trafo merkezi (kare)'), 'legend line labels square TM');
   assert.ok(riskLegend.includes('substationSquare'), 'legend uses square class');
-  assert.ok(mapTxt.includes('Koridordaki trafo merkezi'), 'downwind legend marks square TM symbol');
+  assert.equal(mapTxt.includes('Koridordaki trafo merkezi'), false, 'downwind legend no longer marks TM symbol (v3.4.11)');
 });
 
 test('v3.4.1 — services table labels loading/backfill/no-frame states', () => {
