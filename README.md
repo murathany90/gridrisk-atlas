@@ -173,7 +173,7 @@ Bağımsız regression paketi `tests.mjs` (Node, ağ gerekmez; tek istisna canl�
 npm test
 ```
 
-Mevcut durum: **124/124 test geçti** (v3.4.5 itibarıyla). Paket; FRP filtresi, clustering, dedupe, MTG frame/backfill davranışı, varsayılan katmanlar, risk sembolleri, risk özeti paneli, DOM ID tekillik sözleşmesi, CSS mobil düzeni, sürüm tutarlılığı ve kaldırılan kaynakların kalıntılarının olmadığını (AtmoHub/GFW/FirePolygon yokluk assertion'ları) doğrular.
+Mevcut durum: **125/125 test geçti** (v3.4.5 itibarıyla). Paket; FRP filtresi, clustering, dedupe, MTG frame/backfill davranışı, varsayılan katmanlar, risk sembolleri, risk özeti paneli, DOM ID tekillik sözleşmesi, CSS mobil düzeni, sürüm tutarlılığı ve kaldırılan kaynakların kalıntılarının olmadığını (AtmoHub/GFW/FirePolygon yokluk assertion'ları) doğrular.
 
 ## GitHub Pages Deploy
 

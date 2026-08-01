@@ -16,6 +16,8 @@
 
 **Tarayıcı doğrulama:** Gerçek pointer testi — `elementFromPoint(centerX, centerY) === #analysisToggle`, CDP `Input.dispatchMouseEvent` ile buton merkezine tıklama (panelde `analysisHidden` yok, buton metni "Analizi Gizle", `pointer-events !== none`), ikinci tıklama kapar, × kapatır; 1440×900 ve 390×844 viewportlarında. Canlı Pages'te `querySelectorAll('#analysisToggle').length === 1` vb. koşulları PASS için zorunlu.
 
+**Bonus düzeltme (pointer testlerinin yakaladığı):** Dar ekranlarda (≤520px) sağ üstteki `#layerPanel` (genişlik 260px) analiz panelinin sağ üst köşesindeki × butonunu kapatıyordu — programatik `.click()` testleri bu hatayı göremezdi (hit-test'e girmez). `@media(max-width:520px)` içinde `body.analysisOpen .layerPanel{max-height:calc(100dvh - 40dvh - 192px)}` kuralı eklendi: analiz paneli maksimum yüksekliğe (40dvh) ulaştığında bile üst sınırı, panelin üst kenarının 8px üzerinde kalır.
+
 ---
 
 # v3.4.4 — ⚡ Şebeke Risk Özeti Paneli

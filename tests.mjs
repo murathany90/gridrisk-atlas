@@ -1391,5 +1391,9 @@ test('v3.4.5 — ui.js enforces DOM uniqueness contract in init', () => {
   assert.ok(uiTxt.includes('if(nodes.length!==1)console.error(`DOM contract violation: #${id} count=${nodes.length}`);'), 'console.error on contract violation');
 });
 
+test('v3.4.5 — mobile layerPanel cannot overlap analysis panel top (close button)', () => {
+  assert.ok(cssTxt.includes('@media(max-width:520px){body.analysisOpen .layerPanel{max-height:calc(100dvh - 40dvh - 192px)}}'), 'narrow screens clamp layerPanel above analysis stack');
+});
+
 // ── Run ──
 await run();

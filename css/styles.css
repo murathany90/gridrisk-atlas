@@ -33,6 +33,8 @@ body.analysisOpen .legendStack{bottom:216px}
 .kpiCard strong.zeroValue{color:#b9c4ce}
 .kpiCard small.statusWarn{color:#e9b961}
 @media(max-width:760px){.legendToggleBtn{bottom:126px;left:8px}.analysisToggleBtn{bottom:92px;left:8px}.legendStack{bottom:158px}.analysisStack{bottom:126px;left:8px}.timelineDomains{display:none}body.analysisOpen .legendToggleBtn{bottom:200px}body.analysisOpen .legendStack{bottom:232px}}
+/* v3.4.5: dar ekranda layerPanel (sag ust) analiz panelinin x butonunu ortmemesi icin analiz panelinin maksimum ust sinirinin uzerinde kalacak sekilde sinirla */
+@media(max-width:520px){body.analysisOpen .layerPanel{max-height:calc(100dvh - 40dvh - 192px)}}
 
 .inlineActions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.linkBtn{display:inline-block;color:#cfe7f7;text-decoration:none;background:#132536;border:1px solid #2b4154;border-radius:8px;padding:7px 10px;font-size:10px}.linkBtn:hover{background:#183047}.candidateRow{padding:6px 0;border-bottom:1px solid #1f3140}.candidateRow code{margin-top:3px}.discoverySummary{padding:7px;border:1px solid #263a4c;border-radius:7px;background:#0b1823;margin-bottom:7px}
 
