@@ -22,7 +22,7 @@ const realPerformance = global.performance;
 global.performance = new Proxy(realPerformance, {
   get(t, k) { if (k === 'now') return () => 0; const v = t[k]; return typeof v === 'function' ? v.bind(t) : v; }
 });
-global.location = { protocol: 'https:', hostname: 'localhost' };
+global.location = { protocol: 'https:', hostname: 'localhost', search: '', href: 'https://localhost/' };
 global.setTimeout = setTimeout; global.clearTimeout = clearTimeout;
 global.AbortController = AbortController;
 const realFetch = global.fetch;
@@ -37,9 +37,17 @@ const utilsPath = 'js/utils.js';
 eval(readFileSync(utilsPath, 'utf8'));
 const U = AtmoApp.Utils;
 
+// ── Load country manager ──
+const countriesPath = 'js/countries.js';
+eval(readFileSync(countriesPath, 'utf8'));
+
 // ── Load api ──
 const apiPath = 'js/api.js';
 eval(readFileSync(apiPath, 'utf8'));
+
+// ── Load grid ──
+const gridPath = 'js/grid.js';
+eval(readFileSync(gridPath, 'utf8'));
 
 // ── Load map ──
 const mapPath = 'js/map.js';
@@ -144,7 +152,7 @@ test('single fire produces one cluster', () => {
   assert.equal(r.length, 1);
   assert.equal(r[0].count, 1);
   assert.equal(r[0].maxFrp, 50);
-  assert.ok(r[0].id.startsWith('fire-'));
+  assert.ok(r[0].id.startsWith('TR-fire-'));
 });
 
 test('two close fires in adjacent cells cluster together', () => {
@@ -802,7 +810,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.4.13'"), 'config appVersion 3.4.13');
+  assert.ok(cfgTxt2.includes("appVersion: '3.5.0'"), 'config appVersion 3.5.0');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1070,12 +1078,12 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.4.13 version bump to 3.4.13 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.4.13'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.4.13'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.4.13'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.4.13'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.4.13"'), 'package.json version');
+test('v3.5.0 version bump in all runtime files', () => {
+  assert.ok(htmlTxt.includes('v3.5.0'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.5.0'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.5.0'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.5.0'"), 'server.mjs APP_VERSION');
+  assert.equal(JSON.parse(pkgTxt).version, '3.5.0', 'package.json version');
   assert.equal(htmlTxt.includes('3.4.7'), false, 'no stale 3.4.7 in index.html');
   assert.equal(htmlTxt.includes('3.4.6'), false, 'no stale 3.4.6 in index.html');
   assert.equal(htmlTxt.includes('3.4.5'), false, 'no stale 3.4.5 in index.html');
@@ -1107,12 +1115,13 @@ test('v3.4.3 — thermal envelope / EFFIS BA / downwind default ON', () => {
   assert.ok(appTxt.includes('if(this.state.effisBurntAreaEnabled)this.map.toggleEffisBurntArea(true,this.state.selectedTime);'), 'EFFIS BA applied at init');
 });
 
-test('v3.4.10 — TM icons distinct: grid neutral, risk blue (sector removed in v3.4.11)', () => {
+test('v3.5.0 — all TM icons share the 10px black/blue square contract', () => {
   const icons = mapTxt.slice(mapTxt.indexOf('substationIcon(){'), mapTxt.indexOf('setGridGroup'));
-  assert.ok(icons.includes('<span class="substationSquare"></span>'), 'grid-layer substation icon is neutral base square');
+  assert.ok(icons.includes('<span class="substationSquare"></span>'), 'grid-layer substation uses the base square');
   assert.equal(icons.includes('substationIcon(){return L.divIcon({className:\'substationIconWrap\',html:\'<span class="substationSquare substation-risk"></span>\''), false, 'grid icon no longer risk-styled');
   assert.ok(icons.includes('substationSquare substation-risk'), 'risk factory keeps blue-border square');
-  assert.ok(cssTxt.includes('.substationSquare{display:block;width:8px;height:8px;background:#1b2a44;border:1.5px solid #8b98ad;box-sizing:border-box}'), 'base neutral square CSS');
+  assert.ok(icons.includes('iconSize:[10,10],iconAnchor:[5,5]'), 'normal and risk factories use 10px geometry');
+  assert.ok(cssTxt.includes('.substationSquare{display:block;width:10px;height:10px;background:#000;border:2px solid #2f80ff;box-sizing:border-box}'), 'base square is 10px, black fill, 2px blue border');
   assert.ok(cssTxt.includes('.substationSquare.substation-risk{width:10px;height:10px;background:#000;border:2px solid #2f80ff}'), 'risk square CSS kept');
   assert.equal(icons.includes('background:#0a2531'), false, 'sector icon no legacy dark fill');
   assert.equal(icons.includes('#7be6ff'), false, 'no inline hex colors in icon factories (CSS only)');
@@ -1143,20 +1152,22 @@ test('v3.3.6 map: FIRMS cluster + individual detections use HexagonMarker', () =
 // ── grid hover tooltips (v3.3.7) ──
 const utilsTxt = readFileSync('js/utils.js', 'utf8');
 
-test('v3.3.7 utils: formatVoltage renders raw, multi and group voltages', () => {
+test('v3.5.0 utils: formatVoltage renders normalized actual kV values', () => {
   assert.ok(utilsTxt.includes("formatVoltage(v){"), 'formatVoltage helper exists');
-  assert.ok(utilsTxt.includes("'300-500kV':'300–500 kV'"), '300-500kV group label');
-  assert.ok(utilsTxt.includes("'unknown':'Bilinmiyor'"), 'unknown group label');
   assert.ok(utilsTxt.includes('Math.max(...nums)'), 'multi-voltage takes max');
-  assert.ok(utilsTxt.includes('kv%1===0?kv:kv.toFixed(1)'), 'kV shown integer when whole');
+  assert.ok(utilsTxt.includes('kv%1===0?kv:kv.toFixed(2)'), 'kV shown integer when whole');
+  assert.equal(U.formatVoltage(225), '225 kV');
+  assert.equal(U.formatVoltage('400000;225000'), '400 kV');
+  assert.equal(U.formatVoltage('unknown'), null);
 });
 
-test('v3.3.7 map: grid tooltip binds name + formatted voltage + operator + OSM attribution', () => {
-  assert.ok(mapTxt.includes("`<strong>${isSub?'Trafo Merkezi':'İletim Hattı'}</strong><br>"), 'tooltip header by type');
+test('v3.5.0 map: tooltip separates operational class from actual OSM voltage', () => {
+  assert.ok(mapTxt.includes("title=isSub?'Trafo Merkezi':'İletim Hattı'"), 'tooltip header by type');
   assert.ok(mapTxt.includes("U.escapeHtml(p.name||(isSub?'Adsız trafo merkezi':'Adsız OSM hattı'))"), 'name fallback');
-  assert.ok(mapTxt.includes('Gerilim: ${U.escapeHtml(v)}'), 'formatted voltage line');
-  assert.ok(mapTxt.includes("${p.operator?`<br>${U.escapeHtml(p.operator)}`:''}"), 'operator line');
-  assert.ok(mapTxt.includes('<small>OSM / ODbL</small>'), 'OSM attribution');
+  assert.ok(mapTxt.includes('Hat sınıfı: ${U.escapeHtml'), 'operational class line');
+  assert.ok(mapTxt.includes('Gerçek OSM gerilimi: ${U.escapeHtml(actual)}'), 'actual voltage line');
+  assert.ok(mapTxt.includes('rows.push(U.escapeHtml(p.operator))'), 'operator line');
+  assert.ok(mapTxt.includes('<small>OpenStreetMap / ODbL 1.0</small>'), 'OSM attribution');
   assert.ok(mapTxt.includes('gridTooltip(f.properties,true),{sticky:true}'), 'substation tooltip sticky');
 });
 
@@ -1657,7 +1668,7 @@ test('v3.4.12 — config exposes substationRiskDisplayDistanceKm as single sourc
 test('v3.4.12 — grid.js splits nearestLine/nearestSubstation/displayedNearestAsset without touching risk math', () => {
   assert.ok(gridTxt.includes("nearestLine:nearest?.line||null,nearestSubstation:nearest?.substation||null,displayedNearestAsset:nearest?.line||null"), 'per-row split fields');
   assert.ok(gridTxt.includes("if(l&&(!s||l.distanceKm<=s.distanceKm)){nearestAsset=l;nearestAssetKind='line';"), 'risk asset pick still min-distance');
-  assert.ok(gridTxt.includes("assetScore=l.feature.gridGroup==='400'?10:7;"), 'line score rule intact');
+  assert.ok(gridTxt.includes("assetScore=l.feature.gridClass==='400'?10:7;"), 'line score rule intact');
   assert.ok(gridTxt.includes("else if(s){nearestAsset=s;nearestAssetKind='substation';nearestAssetPoint={lat:s.feature.lat,lon:s.feature.lon};assetScore=10;"), 'TM score rule intact');
   assert.ok(gridTxt.includes('minDistanceKm<=0.5?60:minDistanceKm<=1?52:minDistanceKm<=2?44:minDistanceKm<=3?36:minDistanceKm<=5?24:0'), 'distance curve untouched');
   assert.ok(gridTxt.includes('nearestAssetKind,nearestAsset,'), 'legacy export fields kept');
@@ -1669,7 +1680,7 @@ test('v3.4.12 — table shows only the nearest line; TM never shown as asset', (
   assert.ok(uiTxt.includes('Yakın iletim hattı bulunamadı'), 'table no-line fallback');
   assert.equal(uiTxt.includes("useLine?'Hat':'TM'"), false, 'no TM kind in table');
   assert.equal(uiTxt.includes('a.nearest.line'), false, 'table never reads a.nearest.line');
-  assert.ok(uiTxt.includes('props?.name||props?.ref||\'Adsız hat\''), 'line name fallback kept');
+  assert.ok(uiTxt.includes("props?.name||'Adsız hat'"), 'line name fallback uses cleaned runtime schema');
 });
 
 test('v3.4.12 — analysis cards use EN YAKIN HAT and line-only distance', () => {
@@ -1792,6 +1803,204 @@ test('v3.4.13 — risk score formula untouched (windScore 8/4/3), ordering stabl
   assert.ok(gridTxt.includes('out.sort((a,b)=>b.riskScore-a.riskScore||'), 'risk ordering unchanged');
   const uiTxt4 = readFileSync('js/ui.js', 'utf8');
   assert.ok(uiTxt4.includes('rows.slice(0,5).map((a,i)=>this.riskSummaryCard(a,i))'), 'top-5 cards intact');
+});
+
+// ============================================================
+// v3.5.0 — TR / ES / FR country architecture
+// ============================================================
+console.log('\nv3.5.0 — country registry, isolation, boundaries and exports');
+
+test('v3.5.0 — country registry exposes exactly TR, ES and FR', () => {
+  assert.deepEqual(Object.keys(AtmoApp.COUNTRIES), ['TR', 'ES', 'FR']);
+  assert.equal(AtmoApp.COUNTRIES.TR.timezone, 'Europe/Istanbul');
+  assert.equal(AtmoApp.COUNTRIES.ES.timezone, 'Europe/Madrid');
+  assert.equal(AtmoApp.COUNTRIES.FR.timezone, 'Europe/Paris');
+  for (const code of ['TR', 'ES', 'FR']) {
+    const country = AtmoApp.COUNTRIES[code];
+    assert.equal(country.code, code);
+    assert.ok(country.boundaryUrl.includes(`/countries/${code}/boundary.geojson`));
+    assert.ok(country.manifestUrl.includes(`/countries/${code}/manifest.json`));
+  }
+});
+
+test('v3.5.0 — initial country priority is URL, storage, then TR; invalid URL is TR', () => {
+  const storedFr = { getItem: key => key === 'selectedCountry' ? 'FR' : null };
+  const empty = { getItem: () => null };
+  assert.equal(AtmoApp.CountryManager.resolveInitial('?country=ES', storedFr), 'ES');
+  assert.equal(AtmoApp.CountryManager.resolveInitial('?country=xx', storedFr), 'TR');
+  assert.equal(AtmoApp.CountryManager.resolveInitial('', storedFr), 'FR');
+  assert.equal(AtmoApp.CountryManager.resolveInitial('', empty), 'TR');
+  assert.equal(AtmoApp.CountryManager.normalize('fr'), 'FR');
+  assert.equal(AtmoApp.CountryManager.normalize('xx'), 'TR');
+});
+
+test('v3.5.0 — UI selector is Turkish, accessible and keeps a 40px touch target', () => {
+  assert.ok(htmlTxt.includes('id="countrySelector"'));
+  assert.ok(htmlTxt.includes('<option value="TR">Türkiye</option>'));
+  assert.ok(htmlTxt.includes('<option value="ES">İspanya</option>'));
+  assert.ok(htmlTxt.includes('<option value="FR">Fransa</option>'));
+  assert.ok(htmlTxt.includes('aria-label="Ülke seçin"'));
+  assert.ok(cssTxt.includes('.countryControl select{width:128px;min-height:40px'));
+});
+
+test('v3.5.0 — real country geometries exclude out-of-scope territories', () => {
+  const apply = code => AtmoApp.applyCountryConfig(code, JSON.parse(readFileSync(`data/countries/${code}/boundary.geojson`, 'utf8')));
+  apply('ES');
+  assert.equal(U.insideRegion({ lat: 40.4168, lon: -3.7038 }), true, 'Madrid inside ES');
+  assert.equal(U.insideRegion({ lat: 28.12, lon: -15.43 }), false, 'Canaries excluded');
+  apply('FR');
+  assert.equal(U.insideRegion({ lat: 48.8566, lon: 2.3522 }), true, 'Paris inside FR');
+  assert.equal(U.insideRegion({ lat: 4.94, lon: -52.33 }), false, 'overseas France excluded');
+  apply('TR');
+  assert.equal(U.insideRegion({ lat: 39.93, lon: 32.86 }), true, 'Ankara inside TR');
+  assert.equal(U.insideRegion({ lat: 37.98, lon: 23.72 }), false, 'Athens outside TR');
+});
+
+test('v3.5.0 — country timezone is dynamic and no GMT+3 literal remains', () => {
+  const instant = new Date('2026-08-01T12:00:00Z');
+  AtmoApp.applyCountryConfig('TR', JSON.parse(readFileSync('data/countries/TR/boundary.geojson', 'utf8')));
+  const trTime = U.formatLocal(instant);
+  AtmoApp.applyCountryConfig('ES', JSON.parse(readFileSync('data/countries/ES/boundary.geojson', 'utf8')));
+  const esTime = U.formatLocal(instant);
+  assert.notEqual(trTime, esTime, 'Istanbul and Madrid local times differ');
+  assert.equal(utilsTxt.includes('GMT+3'), false);
+  AtmoApp.applyCountryConfig('TR', JSON.parse(readFileSync('data/countries/TR/boundary.geojson', 'utf8')));
+});
+
+test('v3.5.0 — manifests match runtime counts and expose France partial status', () => {
+  const expected = {
+    TR: { rawFeatureCount: 11070, grid400Count: 1006, grid154Count: 3565, substationCount: 4948, partial: false },
+    ES: { rawFeatureCount: 19116, grid400Count: 3535, grid154Count: 11723, substationCount: 3852, partial: false },
+    FR: { rawFeatureCount: 71639, grid400Count: 19766, grid154Count: 36204, substationCount: 15655, partial: true }
+  };
+  for (const [code, values] of Object.entries(expected)) {
+    const manifest = JSON.parse(readFileSync(`data/countries/${code}/manifest.json`, 'utf8'));
+    for (const [key, value] of Object.entries(values)) assert.equal(manifest[key], value, `${code} ${key}`);
+    assert.equal(manifest.invalidGeometryCount, 0);
+    assert.equal(manifest.duplicateAssetCount, 0);
+  }
+  assert.equal(JSON.parse(readFileSync('data/countries/FR/manifest.json', 'utf8')).failedRequests, 14);
+  assert.ok(uiTxt.includes('Kısmi şebeke verisi'));
+});
+
+test('v3.5.0 — country cache keys and stale-response guards cover all async paths', () => {
+  const countriesTxt = readFileSync('js/countries.js', 'utf8');
+  const apiTxt = readFileSync('js/api.js', 'utf8');
+  assert.ok(countriesTxt.includes('countryAbortController?.abort'));
+  assert.ok(countriesTxt.includes('isCurrent(seq,code)'));
+  assert.ok(gridTxt.includes('cacheKey=`grid:${country}:${key}`'));
+  assert.ok(gridTxt.includes("country!==this.countryCode||country!==C.activeCountryCode"));
+  for (const prefix of ['smoke:', 'smokedetail:', 'wind:', 'weatherdetail:', 'firms:', 'geo:']) assert.ok(apiTxt.includes(prefix), `${prefix} cache present`);
+  assert.ok(appTxt.includes('countryCode!==this.state.countryCode'));
+});
+
+test('v3.5.0 — a late TR response cannot overwrite a newer FR switch', async () => {
+  const originalFetchJson = U.fetchJson;
+  const originalHistory = global.history;
+  const pending = new Map();
+  U.fetchJson = url => new Promise(resolve => pending.set(url.split('?')[0], resolve));
+  global.history = { replaceState() {} };
+  const ready = [];
+  const applied = [];
+  const state = { countryCode: 'TR', countrySeq: 0, countryAbortController: null, countryManifest: null };
+  const app = {
+    state,
+    abortCountryRequests() {},
+    resetCountryState() {},
+    map: { setCountryBoundary(boundary, country) { applied.push(country.code); } },
+    grid: { setCountry(code) { this.code = code; }, async loadCore() {} },
+    ui: { setCountryLoading() {}, setCountry() {}, toast() {} },
+    async onCountryReady({ code }) { ready.push(code); }
+  };
+  try {
+    const manager = new AtmoApp.CountryManager(app);
+    const trPromise = manager.switchCountry('TR', { initial: true });
+    const frPromise = manager.switchCountry('FR');
+    const frBoundary = JSON.parse(readFileSync('data/countries/FR/boundary.geojson', 'utf8'));
+    const frManifest = JSON.parse(readFileSync('data/countries/FR/manifest.json', 'utf8'));
+    pending.get('data/countries/FR/boundary.geojson')({ data: frBoundary });
+    pending.get('data/countries/FR/manifest.json')({ data: frManifest });
+    await frPromise;
+    const trBoundary = JSON.parse(readFileSync('data/countries/TR/boundary.geojson', 'utf8'));
+    const trManifest = JSON.parse(readFileSync('data/countries/TR/manifest.json', 'utf8'));
+    pending.get('data/countries/TR/boundary.geojson')({ data: trBoundary });
+    pending.get('data/countries/TR/manifest.json')({ data: trManifest });
+    await trPromise;
+    assert.deepEqual(ready, ['FR']);
+    assert.deepEqual(applied, ['FR']);
+    assert.equal(state.countryCode, 'FR');
+    assert.equal(state.countryAbortController.signal.aborted, false);
+  } finally {
+    U.fetchJson = originalFetchJson;
+    global.history = originalHistory;
+    AtmoApp.applyCountryConfig('TR', JSON.parse(readFileSync('data/countries/TR/boundary.geojson', 'utf8')));
+  }
+});
+
+test('v3.5.0 — FIRMS bbox follows each real boundary and map path uses fitBounds', () => {
+  const boxes = {};
+  for (const code of ['TR', 'ES', 'FR']) {
+    const boundary = JSON.parse(readFileSync(`data/countries/${code}/boundary.geojson`, 'utf8'));
+    AtmoApp.applyCountryConfig(code, boundary);
+    boxes[code] = U.regionBboxString();
+    assert.ok(boxes[code].split(',').every(value => Number.isFinite(Number(value))));
+  }
+  assert.equal(new Set(Object.values(boxes)).size, 3);
+  assert.ok(mapTxt.includes('this.map.fitBounds(bounds'));
+  AtmoApp.applyCountryConfig('TR', JSON.parse(readFileSync('data/countries/TR/boundary.geojson', 'utf8')));
+});
+
+test('v3.5.0 — identical risk rules work for all countries without asset leakage', () => {
+  for (const code of ['TR', 'ES', 'FR']) {
+    const boundary = JSON.parse(readFileSync(`data/countries/${code}/boundary.geojson`, 'utf8'));
+    AtmoApp.applyCountryConfig(code, boundary);
+    const [lat, lon] = AtmoApp.COUNTRIES[code].center;
+    const grid = new AtmoApp.GridRepository();
+    grid.setCountry(code);
+    grid.index('154', { features: [
+      { properties: { countryCode: code, assetId: `${code}-line-test`, gridClass: '154', actualVoltageKv: 225 }, geometry: { type: 'LineString', coordinates: [[lon - 0.02, lat], [lon + 0.02, lat]] } },
+      { properties: { countryCode: code === 'TR' ? 'FR' : 'TR', assetId: 'FOREIGN-line-test', gridClass: '400', actualVoltageKv: 400 }, geometry: { type: 'LineString', coordinates: [[lon - 0.01, lat], [lon + 0.01, lat]] } }
+    ] });
+    grid.index('substations', { features: [
+      { properties: { countryCode: code, assetId: `${code}-substation-test`, actualVoltageKv: 225 }, geometry: { type: 'Point', coordinates: [lon + 0.01, lat + 0.01] } }
+    ] });
+    const detectedAt = '2026-08-01T12:00:00Z';
+    const event = { id: `${code}-fire-test`, countryCode: code, lat, lon, count: 1, maxFrp: 80, latestDetectedAt: detectedAt, members: [{ lat, lon, detectedAt, frp: 80 }] };
+    const result = grid.analyzeEvents([event], 25, new Date('2026-08-01T13:00:00Z'), [])[0];
+    assert.equal(result.nearestLine.feature.props.assetId, `${code}-line-test`);
+    assert.equal(result.nearestSubstation.feature.props.assetId, `${code}-substation-test`);
+    assert.equal(result.displayedNearestAsset.feature.props.assetId, `${code}-line-test`);
+    assert.equal(grid.segmentSeq, 1, 'foreign-country line excluded');
+    assert.ok(result.riskScore > 0);
+  }
+  AtmoApp.applyCountryConfig('TR', JSON.parse(readFileSync('data/countries/TR/boundary.geojson', 'utf8')));
+});
+
+test('v3.5.0 — event, asset and export identities are country-prefixed', () => {
+  AtmoApp.applyCountryConfig('ES', JSON.parse(readFileSync('data/countries/ES/boundary.geojson', 'utf8')));
+  const event = U.clusterFires([{ countryCode: 'ES', lat: 40.4, lon: -3.7, detectedAt: '2026-08-01T12:00:00Z', frp: 50 }])[0];
+  assert.ok(event.id.startsWith('ES-fire-'));
+  const exportTxt = readFileSync('js/export.js', 'utf8');
+  assert.ok(exportTxt.includes('wildfire-grid-risk_${code}_'));
+  for (const field of ['countryCode', 'countryName', 'assetId', 'gridClass', 'actualVoltageKv']) assert.ok(exportTxt.includes(field), `${field} exported`);
+  AtmoApp.applyCountryConfig('TR', JSON.parse(readFileSync('data/countries/TR/boundary.geojson', 'utf8')));
+});
+
+test('v3.5.0 — line colors, weights and substation square remain canonical', () => {
+  assert.equal(C().gridSources['400'].color, '#d7191c');
+  assert.equal(C().gridSources['400'].weight, 2.2);
+  assert.equal(C().gridSources['154'].color, '#111111');
+  assert.equal(C().gridSources['154'].weight, 1.5);
+  assert.ok(mapTxt.includes("className:'substationIconWrap'"));
+  assert.ok(mapTxt.includes('countryFilter'));
+});
+
+test('v3.5.0 — Pages stages only generated country runtime data', () => {
+  const pages = readFileSync('.github/workflows/pages.yml', 'utf8');
+  assert.ok(pages.includes('branches: [main]'));
+  assert.ok(pages.includes('data/countries'));
+  assert.equal(/cp[^\n]*spain_osm_power_grid/.test(pages), false);
+  assert.equal(/cp[^\n]*france_osm_power_grid/.test(pages), false);
 });
 
 // ── Run ──
