@@ -120,6 +120,7 @@
     },
     segmentMidpoint(seg){return{lat:(seg.a.lat+seg.b.lat)/2,lon:(seg.a.lon+seg.b.lon)/2};},
     impactBand(distanceKm){if(!Number.isFinite(distanceKm))return null;return C().impactBands.find(b=>distanceKm<=b.maxKm)||{maxKm:Infinity,label:'Düşük yakınlık',level:'low'};},
+    adaptiveCorridorDistanceKm(maxFrp,windSpeedKmh){const d=C().downwind;const speed=Number.isFinite(windSpeedKmh)?windSpeedKmh:d.fallbackWindSpeedKmh;const windNorm=this.clamp((speed-d.windMinKmh)/(d.windMaxKmh-d.windMinKmh),0,1);const frp=Math.max(Number(maxFrp)||d.frpMinMw,d.frpMinMw);const frpNorm=this.clamp(Math.log(frp/d.frpMinMw)/Math.log(d.frpMaxMw/d.frpMinMw),0,1);return Math.round(this.clamp(d.minDistanceKm+(d.maxDistanceKm-d.minDistanceKm)*(d.windWeight*windNorm+d.fireWeight*frpNorm),d.minDistanceKm,d.maxDistanceKm));},
     riskScoreBand(score){return C().riskScoreBands.find(b=>score>=b.min)||C().riskScoreBands.at(-1);},
     ageHours(detectedAt,reference=new Date()){const a=Date.parse(detectedAt),b=new Date(reference).getTime();return Number.isFinite(a)?Math.max(0,(b-a)/3600000):24;},
     ageOpacity(detectedAt,reference){const h=this.ageHours(detectedAt,reference);return h<=3?.95:h<=12?.75:h<=24?.5:.28;},

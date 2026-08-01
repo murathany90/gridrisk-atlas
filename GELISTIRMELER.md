@@ -1,5 +1,26 @@
 # Geliştirme Kaydı — Türkiye Wildfire Grid Risk Monitor v3.2.0
 
+# v3.4.13 — Adaptif Rüzgâr Koridoru (10–30 km, 10 m yüzey rüzgârı)
+
+**Branch:** `fix/v3.4.13-adaptive-corridor`
+
+**Amaç:** Rüzgâr bazlı koridoru sabit 30 km yerine olay bazında **adaptif 10–30 km** yapmak; mesafe 10 m yüzey rüzgâr hızı + maksimum FRP ile belirlenir. 850/700 hPa yalnız görsel rüzgâr/duman bağlamıdır; koridor hesabı her zaman 10 m verisini kullanır.
+
+**Değişiklikler:**
+- **`js/config.js`** — `downwindMaxDistanceKm` kaldırıldı; `downwind` bloğu genişletildi: `minDistanceKm:10, maxDistanceKm:30, fallbackWindSpeedKmh:15, windWeight:0.65, fireWeight:0.35, windMinKmh:5, windMaxKmh:35, frpMinMw:30, frpMaxMw:300` (+ mevcut `halfAngleDeg:22, maxCorridors:30`).
+- **`js/utils.js`** — `U.adaptiveCorridorDistanceKm(maxFrp, windSpeedKmh)` eklendi: windNorm ((hız − min)/(max − min), 0-1) + frpNorm (log ölçekli, 0-1) ağırlıklı, sonuç her zaman 10–30 km aralığında yuvarlanır. Hız eksikse `fallbackWindSpeedKmh` (15) kullanılır.
+- **`js/grid.js`** — `analyzeEvents`: koridor yönü varsa hız gerçek/fallback; `corridorDistanceKm=U.adaptiveCorridorDistanceKm(event.maxFrp,speed)`; `assetsInSector` aynı mesafeyi alır; yön yoksa koridor çizilmez (yön uydurma yok); her analize `corridorDistanceKm, corridorWindSpeedKmh, corridorWindSource:'model'|'fallback', corridorConfidence:'normal'|'low'` eklendi. `assetsInSector` varsayılanı `C.downwind.maxDistanceKm`. Risk skoru formülü (rüzgâr 8/4/3, sıralama) değişmedi.
+- **`js/app.js`** — `state.surfaceWindData` + `map.surfaceWindData` ayrı tutulur; seçili seviye 850/700 hPa ise koridor için 10 m grid'i ayrıca çekilir; `analyzeEvents` her zaman `surfaceWindData` tüketir. Görsel rüzgâr katmanı seçili seviyede kalır.
+- **`js/map.js`** — koridor poligonu `a.corridorDistanceKm` yarıçapıyla çizilir; tooltip: gerçek koridor mesafesi (adaptif aralık), rüzgâr hızı/yönü, maks. FRP, model/fallback bilgisi, koridordaki hat/TM sayısı, "Operasyonel taramadır; yayılım tahmini değildir."; lejant başlığı "Rüzgâr Bazlı İzleme Koridoru · Adaptif 10–30 km", not 10 m + FRP açıklaması.
+- **`js/ui.js`** — kart meta satırı sabit "30 km koridorda" yerine `a.corridorDistanceKm` gösterir.
+- **`js/export.js`** — CSV'ye `corridorDistanceKm, corridorWindSpeedKmh, corridorWindSource, corridorConfidence` sütunları; JSON'a `wind.surfaceWindData`.
+- **`index.html`** — koridor katman etiketi "Rüzgâr bazlı izleme koridoru (adaptif 10–30 km)" + açıklama.
+- **Sürüm 3.4.13**: `package.json`, `js/config.js`, `index.html` (pill + cache-buster), `server.mjs`, `README.md`, sürüm geçmişi.
+
+**Testler:** v3.4.13 bloğu — config anahtarları + tekil `downwindMaxDistanceKm` yokluğu (config/grid/map/ui/app), helper çalışma zamanı çapaları (5 km/h+30 MW→10; 15 km/h+100 MW→18; ≥35+≥300→30; 0/40 km/h + 0/400 MW sınır testlerinde asla 10 altı/30 üstü değil; hız yok→15 fallback), grid.js fallback zinciri + alanlar, app.js surfaceWindData ayrımı (850/700 seçiliyken 10 m ayrı çekim + analyzeEvents yüzey verisini kullanır), map.js poligon/tooltip/lejant aynı mesafe + fallback görünürlüğü, UI/export alanları, risk skoru formülü değişmezliği. v3.4.0 koridor testi yeni config'e taşındı. Toplam **162/162** test geçti.
+
+---
+
 # v3.4.12 — Şebeke Öncelik Tablosu / Analiz Paneli: Varlık Gösterimi Düzeltmesi
 
 **Branch:** `fix/v3.4.12-ui-nearest-line`
