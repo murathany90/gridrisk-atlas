@@ -7,13 +7,13 @@
   <title>Türkiye Wildfire Grid Risk Monitor</title>
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="css/styles.css?v=3.4.11" />
+  <link rel="stylesheet" href="css/styles.css?v=3.4.12" />
 </head>
 <body>
 <div id="appShell">
   <header class="topbar">
     <div class="brandBlock"><div class="brandIcon">🔥</div><div><h1>Türkiye Wildfire Grid Risk Monitor</h1><div class="subtitle">Orman yangını · duman taşınım bağlamı · 154/400 kV iletim şebekesi ve trafo merkezi etkisi</div></div></div>
-    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span class="domainPill">🇹🇷 VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.4.11</span><span id="lastUpdated">Son güncelleme: —</span></div>
+    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span class="domainPill">🇹🇷 VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.4.12</span><span id="lastUpdated">Son güncelleme: —</span></div>
   </header>
 
   <nav class="mainNav">
@@ -119,7 +119,7 @@
       <div class="analysisGrid">
         <article class="card"><h2>Operasyonel Risk Özeti</h2><div id="impactSummary" class="metricList"><p>FIRMS ve şebeke verisi yükleniyor.</p></div></article>
         <article class="card"><h2>Şebeke Veri Özeti</h2><div id="gridSummary" class="metricList"><p>OSM core grid hazırlanıyor.</p></div></article>
-        <article class="card wide"><div class="cardHeader"><h2>Yangın Olayı → Şebeke Öncelik Tablosu</h2><span class="badge analysis">OPERASYONEL ÖN-ELEME</span></div><div class="tableWrap"><table class="riskTable" id="impactTable"><thead><tr><th data-sort="riskScore">Skor <span class="sortArrow"></span></th><th data-sort="count">Yangın olayı <span class="sortArrow"></span></th><th data-sort="maxFrp">Maks. FRP <span class="sortArrow"></span></th><th data-sort="asset">En yakın varlık <span class="sortArrow"></span></th><th data-sort="distance">Mesafe <span class="sortArrow"></span></th><th data-sort="voltage">Gerilim <span class="sortArrow"></span></th><th data-sort="wind">Rüzgâr <span class="sortArrow"></span></th><th data-sort="latest">Son tespit <span class="sortArrow"></span></th></tr></thead><tbody id="impactTableBody"><tr><td colspan="8">FIRMS MAP_KEY GitHub Secret'da tanımlıysa termal tespitler olaylara kümelenerek analiz edilir.</td></tr></tbody></table></div></article>
+        <article class="card wide"><div class="cardHeader"><h2>Yangın Olayı → Şebeke Öncelik Tablosu</h2><span class="badge analysis">OPERASYONEL ÖN-ELEME</span></div><div class="tableWrap"><table class="riskTable" id="impactTable"><thead><tr><th data-sort="riskScore">Skor <span class="sortArrow"></span></th><th data-sort="count">Yangın olayı <span class="sortArrow"></span></th><th data-sort="maxFrp">Maks. FRP <span class="sortArrow"></span></th><th data-sort="asset">En yakın hat <span class="sortArrow"></span></th><th data-sort="distance">Mesafe <span class="sortArrow"></span></th><th data-sort="voltage">Gerilim <span class="sortArrow"></span></th><th data-sort="wind">Rüzgâr <span class="sortArrow"></span></th><th data-sort="latest">Son tespit <span class="sortArrow"></span></th></tr></thead><tbody id="impactTableBody"><tr><td colspan="8">FIRMS MAP_KEY GitHub Secret'da tanımlıysa termal tespitler olaylara kümelenerek analiz edilir.</td></tr></tbody></table></div></article>
         <article class="card wide"><div class="cardHeader"><h2>Seçili Konum — Yangın Dumanı Zaman Serisi</h2><span class="badge forecast">CAMS MODEL</span></div><canvas id="aqChart" height="105"></canvas><div id="chartEmpty" class="emptyState">Haritada bir yangın olayı, hat veya trafo merkezi seçin.</div></article>
         <article class="card"><h2>Seçili Varlık / Konum</h2><div id="analysisPointSummary" class="metricList"><p>Henüz seçim yok.</p></div></article>
         <article class="card"><h2>Export</h2><div class="exportBtns"><button id="exportCsvBtn" class="tinyBtn">CSV</button><button id="exportJsonBtn" class="tinyBtn">JSON</button><button id="exportGeoJsonBtn" class="tinyBtn">GeoJSON</button></div><div id="exportSummary" class="metricList"></div></article>
@@ -154,7 +154,7 @@
         </div></article>
         <article class="card wide"><div class="cardHeader"><h2>📊 Analiz Metrikleri ve Skorlama</h2><span class="badge analysis">METODOLOJİ</span></div><div class="metricGrid">
           <div class="metric"><small>Risk Skoru (0-100)</small><strong>Operasyonel Önceliklendirme Endeksi</strong><small>Yangın olayının şebeke varlıklarına olan potansiyel etkisini ölçen bileşik skor. Mesafe + FRP + tespit yaşı + gerilim/TM önemi + rüzgâr doğrultusu (varsa) bileşenlerinden oluşur. <strong>Arıza olasılığı değildir.</strong></small></div>
-          <div class="metric"><small>Mesafe Bileşeni (0-50 puan)</small><strong>Yangın-şebeke yakınlık skoru</strong><small>≤1 km: 50 puan, ≤3 km: 42 puan, ≤10 km: 28 puan, ≤25 km: 12 puan, &gt;25 km: 0 puan.</small></div>
+          <div class="metric"><small>Mesafe Bileşeni (0-60 puan)</small><strong>Yangın-şebeke yakınlık skoru</strong><small>≤0.5 km: 60 puan, ≤1 km: 52 puan, ≤2 km: 44 puan, ≤3 km: 36 puan, ≤5 km: 24 puan, &gt;5 km: 0 puan.</small></div>
           <div class="metric"><small>FRP Bileşeni (0-20 puan)</small><strong>Yangın yoğunluğu skoru</strong><small>maxFRP'ye bağlı: √(maxFRP) × 2, maksimum 20 puan. Yüksek FRP daha yoğun yangın anlamına gelir.</small></div>
           <div class="metric"><small>Yaş Bileşeni (0-15 puan)</small><strong>Tespit güncellik skoru</strong><small>Son 3 saat: 15 puan, 3-6 saat: 12 puan, 6-12 saat: 8 puan, 12-24 saat: 4 puan, &gt;24 saat: 1 puan.</small></div>
           <div class="metric"><small>Varlık Bileşeni (0-10 puan)</small><strong>Şebeke önemi skoru</strong><small>Trafo merkezi: 10 puan, 400 kV hattı: 10 puan, 154 kV hattı: 7 puan.</small></div>
@@ -209,13 +209,13 @@
   });
 })();
 </script>
-<script src="js/config.js?v=3.4.11"></script>
-<script src="js/utils.js?v=3.4.11"></script>
-<script src="js/api.js?v=3.4.11"></script>
-<script src="js/grid.js?v=3.4.11"></script>
-<script src="js/map.js?v=3.4.11"></script>
-<script src="js/export.js?v=3.4.11"></script>
-<script src="js/ui.js?v=3.4.11"></script>
-<script src="js/app.js?v=3.4.11"></script>
+<script src="js/config.js?v=3.4.12"></script>
+<script src="js/utils.js?v=3.4.12"></script>
+<script src="js/api.js?v=3.4.12"></script>
+<script src="js/grid.js?v=3.4.12"></script>
+<script src="js/map.js?v=3.4.12"></script>
+<script src="js/export.js?v=3.4.12"></script>
+<script src="js/ui.js?v=3.4.12"></script>
+<script src="js/app.js?v=3.4.12"></script>
 </body>
 </html>

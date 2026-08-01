@@ -1,5 +1,23 @@
 # Geliştirme Kaydı — Türkiye Wildfire Grid Risk Monitor v3.2.0
 
+# v3.4.12 — Şebeke Öncelik Tablosu / Analiz Paneli: Varlık Gösterimi Düzeltmesi
+
+**Branch:** `fix/v3.4.12-ui-nearest-line`
+
+**Amaç:** Risk tablosu ve analiz kartlarında "En yakın varlık" sütununun zaman zaman **TM** göstermesini düzeltmek; kullanıcı kararıyla arayüzde yalnızca **en yakın iletim hattı** gösterilir. Risk hesaplaması (TM mesafesi, TM puan katkısı, sıralama, top-5) değişmez; haritadaki TM kare işaretleri mevcut kurallarla korunur.
+
+**Değişiklikler:**
+- **`js/grid.js`** — her olay satırına `nearestLine` (en yakın hat) / `nearestSubstation` (en yakın TM) / `displayedNearestAsset` (= `nearestLine`) alanları eklendi; `nearestAsset` (skor için en-küçük-mesafe seçimi), `assetScore`, mesafe eğrisi, sıralama ve toplam skor formülü **dokunulmadı**.
+- **`js/ui.js`** — `getNearestDisplayedAsset(row){return row.nearestLine||null;}` yardımcısı eklendi; tablo ve kartlar bu yardımcıyı kullanır (yalnız hat). Kart etiketi `⚡ EN YAKIN VARLIK` → `⚡ EN YAKIN HAT`; hat yoksa tablo/kart `Yakın iletim hattı bulunamadı` gösterir. Tablo `asset`/`distance`/`voltage` sıralamaları yalnız hat mesafe/adıyla çalışır (TM sıralaması yok). Detay paneli "En yakın hat" ve "En yakın TM" satırlarını ayrı korur. Bayat bant notu 1/3/10/25 → 0.5/1.5/3/5 km olarak düzeltildi.
+- **`js/config.js`** — tek kaynak `substationRiskDisplayDistanceKm: 5` eklendi.
+- **`js/map.js`** — riskli TM kare guard'ı `C.impactBands.at(-1).maxKm` yerine `C.substationRiskDisplayDistanceKm` okur; lejant notu aynı anahtarı kullanır; yığın `<strong>` düzeltildi.
+- **`index.html`** — tablo başlığı "En yakın varlık" → "En yakın hat"; bilgi panelinde mesafe bileşeni metni yeni eğriyle (≤0.5: 60, ≤1: 52, ≤2: 44, ≤3: 36, ≤5: 24, >5: 0) güncellendi.
+- **Sürüm 3.4.12**: `package.json`, `js/config.js`, `index.html` (pill + cache-buster), `server.mjs`, `README.md`, sürüm geçmişi.
+
+**Testler:** v3.4.12 bloğu eklendi — config tek kaynağı (5 km), grid.js alan ayrımı + risk matematiği değişmezliği (min-mesafe seçimi, hat/TM puan kuralları, mesafe eğrisi, eski alanlar), tabloda yalnız hat (TM yokluğu, bulunamadı fallback'i), kartlarda `EN YAKIN HAT` + fallback, sıralama anahtarlarının yalnız hat kullanması (`sa?.distanceKm` yokluğu), top-5 sırası korunumu + detay paneli ayrı satırları, index.html başlık/bilgi metni. v3.4.4 min-mesafe paylaşım testi ayrıma göre yeniden yazıldı; v3.4.1/v3.4.9 map.js guard assertion'ları config anahtarına taşındı. Toplam **155/155** test geçti.
+
+---
+
 # v3.4.11 — Koridor TM İşaretlemesi Kaldırıldı
 
 **Branch:** `fix/v3.4.11-no-corridor-tm-markers`

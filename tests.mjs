@@ -802,7 +802,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.4.11'"), 'config appVersion 3.4.11');
+  assert.ok(cfgTxt2.includes("appVersion: '3.4.12'"), 'config appVersion 3.4.12');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1070,12 +1070,12 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.4.11 version bump to 3.4.11 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.4.11'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.4.11'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.4.11'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.4.11'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.4.11"'), 'package.json version');
+test('v3.4.12 version bump to 3.4.12 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.4.12'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.4.12'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.4.12'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.4.12'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.4.12"'), 'package.json version');
   assert.equal(htmlTxt.includes('3.4.7'), false, 'no stale 3.4.7 in index.html');
   assert.equal(htmlTxt.includes('3.4.6'), false, 'no stale 3.4.6 in index.html');
   assert.equal(htmlTxt.includes('3.4.5'), false, 'no stale 3.4.5 in index.html');
@@ -1185,7 +1185,7 @@ test('v3.4.1 — nearest-risk substation marker is a square (riskSubstationIcon)
   assert.ok(mapTxt.includes('riskSubstationIcon('), 'riskSubstationIcon helper exists');
   assert.ok(mapTxt.includes('this.riskSubstationIcon(a.riskBand.level,c)'), 'nearest substation uses square marker');
   const riskSrc = mapTxt.slice(mapTxt.indexOf('setFireImpacts'), mapTxt.indexOf('makeLegend(\'risk\''));
-  assert.ok(riskSrc.includes("if(s&&s.distanceKm<=C.impactBands.at(-1).maxKm)L.marker([s.feature.lat,s.feature.lon]"), 'substation rendered as guarded 5 km square marker');
+  assert.ok(riskSrc.includes("if(s&&s.distanceKm<=C.substationRiskDisplayDistanceKm)L.marker([s.feature.lat,s.feature.lon]"), 'substation rendered as guarded 5 km square marker');
   assert.equal(riskSrc.includes('L.circleMarker([s.feature.lat'), false, 'no circleMarker for TM symbol');
   assert.equal(mapTxt.includes('{critical:14,high:12,medium:10,watch:8,low:8}'), false, 'no per-level square sizes');
 });
@@ -1312,7 +1312,7 @@ test('v3.4.4 — risk card markup: rank, badge, event, nearest asset, distance, 
   assert.ok(uiTxt.includes('riskSummaryCard(a,i){'), 'card factory method');
   assert.ok(uiTxt.includes('<span class="riskRank">#${i+1}</span>'), 'rank #1..5');
   assert.ok(uiTxt.includes('class="riskBadge ${a.riskBand?.level||\'low\'}'), 'risk badge reuses existing level classes');
-  assert.ok(uiTxt.includes('⚡ EN YAKIN VARLIK'), 'nearest asset label');
+  assert.ok(uiTxt.includes('⚡ EN YAKIN HAT'), 'nearest line label');
   assert.ok(uiTxt.includes('riskCardNearest'), 'nearest asset block present');
   assert.ok(uiTxt.includes('FRP: ${this.val(a.event?.maxFrp,0,\' MW\')}'), 'FRP in card meta');
   assert.ok(uiTxt.includes('Skor: ${a.riskScore}'), 'risk score in card meta');
@@ -1326,10 +1326,16 @@ test('v3.4.4 — cards use the same source and order as the impact table', () =>
   assert.ok(uiTxt.includes('let rows=this.riskTableRows(arr);'), 'impact table uses the same pipeline');
 });
 
-test('v3.4.4 — nearest asset picks line vs substation like the table (min distance)', () => {
-  assert.ok(uiTxt.includes(',useLine=l&&(!s||l.distanceKm<=s.distanceKm)'), 'min-distance selection shared logic');
-  assert.ok(uiTxt.includes('obj?.distanceKm'), 'distance from same selected asset');
-  assert.ok(uiTxt.includes('props?.name||props?.ref'), 'asset name fallback');
+test('v3.4.4 — nearest asset split: UI shows only the nearest line, risk math keeps TM', () => {
+  assert.ok(uiTxt.includes('getNearestDisplayedAsset(row){return row.nearestLine||null;}'), 'UI helper resolves displayed asset from nearestLine only');
+  assert.ok(uiTxt.includes('const obj=this.getNearestDisplayedAsset(a)'), 'table row uses helper');
+  assert.ok(uiTxt.includes('const obj=this.getNearestDisplayedAsset(a),props=obj?.feature?.props'), 'card uses helper');
+  assert.equal(uiTxt.includes('useLine'), false, 'no line-vs-TM min-distance pick left in ui.js');
+  assert.equal(uiTxt.includes("useLine?'Hat':'TM'"), false, 'no TM kind fallback in UI');
+  assert.ok(gridTxt.includes("if(l&&(!s||l.distanceKm<=s.distanceKm)){nearestAsset=l"), 'grid.js keeps min-distance pick for risk math');
+  assert.ok(gridTxt.includes("else if(s){nearestAsset=s"), 'TM-only fallback kept for risk math');
+  assert.ok(gridTxt.includes("nearestLine:nearest?.line||null,nearestSubstation:nearest?.substation||null,displayedNearestAsset:nearest?.line||null"), 'per-row line/substation/displayed split');
+  assert.ok(uiTxt.includes('Yakın iletim hattı bulunamadı'), 'no-line fallback label');
 });
 
 test('v3.4.4 — card click emits focusRisk with the same row object as the table', () => {
@@ -1631,10 +1637,67 @@ test('v3.4.9 — invariant: beyond 5 km the max possible score stays below Yüks
   assert.ok(maxNonDistance < highMin, `51 < ${highMin} → no risky marking beyond 5 km`);
 });
 
-test('v3.4.9 — map.js: substation square marker guarded to ≤5 km + legend note', () => {
-  assert.ok(mapTxt.includes('s&&s.distanceKm<=C.impactBands.at(-1).maxKm'), 'square marker guard reads last band (5 km)');
+test('v3.4.9 — map.js: substation square marker guarded via substationRiskDisplayDistanceKm + legend note', () => {
+  assert.equal(C().substationRiskDisplayDistanceKm, 5, 'config single source for TM display cap');
+  assert.ok(mapTxt.includes('s&&s.distanceKm<=C.substationRiskDisplayDistanceKm'), 'square marker guard reads config cap');
   assert.equal(mapTxt.includes('if(s)L.marker'), false, 'unguarded substation marker removed');
-  assert.ok(mapTxt.includes('en fazla ${C.impactBands.at(-1).maxKm} km'), 'legend states 5 km cap');
+  assert.ok(mapTxt.includes('en fazla ${C.substationRiskDisplayDistanceKm} km'), 'legend states 5 km cap');
+});
+
+// ============================================================
+// v3.4.12 — UI yalnız en yakın iletim hattını gösterir (TM yok)
+// ============================================================
+console.log('\nv3.4.12 — UI shows nearest line only, TM stays in risk math');
+
+test('v3.4.12 — config exposes substationRiskDisplayDistanceKm as single source', () => {
+  assert.equal(C().substationRiskDisplayDistanceKm, 5, 'config cap present');
+  assert.equal(C().impactBands.at(-1).maxKm, 5, 'bands unchanged (risk math intact)');
+});
+
+test('v3.4.12 — grid.js splits nearestLine/nearestSubstation/displayedNearestAsset without touching risk math', () => {
+  assert.ok(gridTxt.includes("nearestLine:nearest?.line||null,nearestSubstation:nearest?.substation||null,displayedNearestAsset:nearest?.line||null"), 'per-row split fields');
+  assert.ok(gridTxt.includes("if(l&&(!s||l.distanceKm<=s.distanceKm)){nearestAsset=l;nearestAssetKind='line';"), 'risk asset pick still min-distance');
+  assert.ok(gridTxt.includes("assetScore=l.feature.gridGroup==='400'?10:7;"), 'line score rule intact');
+  assert.ok(gridTxt.includes("else if(s){nearestAsset=s;nearestAssetKind='substation';nearestAssetPoint={lat:s.feature.lat,lon:s.feature.lon};assetScore=10;"), 'TM score rule intact');
+  assert.ok(gridTxt.includes('minDistanceKm<=0.5?60:minDistanceKm<=1?52:minDistanceKm<=2?44:minDistanceKm<=3?36:minDistanceKm<=5?24:0'), 'distance curve untouched');
+  assert.ok(gridTxt.includes('nearestAssetKind,nearestAsset,'), 'legacy export fields kept');
+});
+
+test('v3.4.12 — table shows only the nearest line; TM never shown as asset', () => {
+  assert.ok(uiTxt.includes('const obj=this.getNearestDisplayedAsset(a),props=obj?.feature.props'), 'row uses line-only helper');
+  assert.ok(uiTxt.includes('"En yakın hat"') === false, 'no TM mention in table cell kind');
+  assert.ok(uiTxt.includes('Yakın iletim hattı bulunamadı'), 'table no-line fallback');
+  assert.equal(uiTxt.includes("useLine?'Hat':'TM'"), false, 'no TM kind in table');
+  assert.equal(uiTxt.includes('a.nearest.line'), false, 'table never reads a.nearest.line');
+  assert.ok(uiTxt.includes('props?.name||props?.ref||\'Adsız hat\''), 'line name fallback kept');
+});
+
+test('v3.4.12 — analysis cards use EN YAKIN HAT and line-only distance', () => {
+  assert.ok(uiTxt.includes('⚡ EN YAKIN HAT'), 'card label is EN YAKIN HAT');
+  assert.ok(uiTxt.includes('const obj=this.getNearestDisplayedAsset(a),props=obj?.feature?.props'), 'card uses line-only helper');
+  assert.ok(uiTxt.includes("'Yakın iletim hattı bulunamadı'"), 'card no-line fallback');
+  assert.ok(uiTxt.includes('this.val(obj?.distanceKm,1,\' km\')'), 'card distance from displayed line');
+  assert.equal(uiTxt.includes('⚡ EN YAKIN VARLIK'), false, 'old VARLIK label gone');
+});
+
+test('v3.4.12 — sorting never uses TM distance/name (line-only keys)', () => {
+  assert.ok(uiTxt.includes("case'asset':{const la=a.nearestLine||a.nearest?.line,lb=b.nearestLine||b.nearest?.line;"), 'asset sort key line-only');
+  assert.ok(uiTxt.includes("case'distance':{const la=a.nearestLine||a.nearest?.line;va=la?la.distanceKm:Infinity;"), 'distance sort key line-only');
+  assert.ok(uiTxt.includes("case'voltage':{const la=a.nearestLine||a.nearest?.line;"), 'voltage sort key line-only');
+  assert.equal(uiTxt.includes("sa?.distanceKm"), false, 'no TM distance in any sort branch');
+});
+
+test('v3.4.12 — risk top-5 order unchanged; detail panel keeps separate line/TM rows', () => {
+  assert.ok(uiTxt.includes('rows.slice(0,5).map((a,i)=>this.riskSummaryCard(a,i))'), 'cards still top-5 by risk pipeline order');
+  assert.ok(uiTxt.includes('rows.sort((a,b)=>{let va,vb;switch(this.sortKey){case\'riskScore\':va=a.riskScore;vb=b.riskScore;'), 'default sort still riskScore');
+  assert.ok(uiTxt.includes('En yakın hat</small>') && uiTxt.includes('En yakın TM</small>'), 'detail panel keeps separate line/TM metrics');
+  assert.ok(uiTxt.includes('minDistanceKm'), 'riskTableRows filter unchanged');
+});
+
+test('v3.4.12 — index.html: header + info panel reflect line-only and new bands', () => {
+  assert.ok(htmlTxt.includes('En yakın hat <span class="sortArrow"></span>'), 'table header En yakın hat');
+  assert.ok(htmlTxt.includes('≤0.5 km: 60 puan'), 'info panel new distance component');
+  assert.ok(htmlTxt.includes('&gt;5 km: 0 puan'), 'info panel new fallback');
 });
 
 // ── Run ──
