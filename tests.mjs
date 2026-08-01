@@ -745,11 +745,11 @@ test('v3.4.1 — future timeline clamps MTG to latest allowed real frame', () =>
 });
 
 test('v3.4.0 — wind corridor defaults: 30 km max distance, 22° half-angle, 30 corridors', () => {
-  assert.equal(C().downwindMaxDistanceKm, 30, 'downwindMaxDistanceKm === 30');
+  assert.equal(C().downwind.maxDistanceKm, 30, 'downwind.maxDistanceKm === 30');
   assert.equal(C().downwind.halfAngleDeg, 22, 'halfAngleDeg === 22');
   assert.equal(C().downwind.maxCorridors, 30, 'maxCorridors === 30');
   const gridTxt = readFileSync('js/grid.js', 'utf8');
-  assert.ok(gridTxt.includes('C.downwindMaxDistanceKm'), 'grid sector analysis uses downwindMaxDistanceKm');
+  assert.ok(gridTxt.includes('C.downwind.maxDistanceKm'), 'grid sector analysis uses downwind.maxDistanceKm default');
   assert.equal(gridTxt.includes('C.downwind.distanceKm'), false, 'no legacy downwind.distanceKm in grid.js');
 });
 
@@ -802,7 +802,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.4.12'"), 'config appVersion 3.4.12');
+  assert.ok(cfgTxt2.includes("appVersion: '3.4.13'"), 'config appVersion 3.4.13');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1070,12 +1070,12 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.4.12 version bump to 3.4.12 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.4.12'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.4.12'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.4.12'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.4.12'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.4.12"'), 'package.json version');
+test('v3.4.13 version bump to 3.4.13 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.4.13'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.4.13'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.4.13'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.4.13'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.4.13"'), 'package.json version');
   assert.equal(htmlTxt.includes('3.4.7'), false, 'no stale 3.4.7 in index.html');
   assert.equal(htmlTxt.includes('3.4.6'), false, 'no stale 3.4.6 in index.html');
   assert.equal(htmlTxt.includes('3.4.5'), false, 'no stale 3.4.5 in index.html');
@@ -1698,6 +1698,100 @@ test('v3.4.12 — index.html: header + info panel reflect line-only and new band
   assert.ok(htmlTxt.includes('En yakın hat <span class="sortArrow"></span>'), 'table header En yakın hat');
   assert.ok(htmlTxt.includes('≤0.5 km: 60 puan'), 'info panel new distance component');
   assert.ok(htmlTxt.includes('&gt;5 km: 0 puan'), 'info panel new fallback');
+});
+
+// ============================================================
+// v3.4.13 — adaptif rüzgâr koridoru 10–30 km (10 m yüzey rüzgârı)
+// ============================================================
+console.log('\nv3.4.13 — adaptive downwind corridor 10–30 km');
+
+test('v3.4.13 — config: downwind adaptive block, downwindMaxDistanceKm removed', () => {
+  const d = C().downwind;
+  assert.equal(d.minDistanceKm, 10, 'min 10 km');
+  assert.equal(d.maxDistanceKm, 30, 'max 30 km');
+  assert.equal(d.fallbackWindSpeedKmh, 15, 'fallback 15 km/h');
+  assert.equal(d.windWeight, 0.65, 'wind weight');
+  assert.equal(d.fireWeight, 0.35, 'fire weight');
+  assert.equal(d.windMinKmh, 5, 'wind min 5');
+  assert.equal(d.windMaxKmh, 35, 'wind max 35');
+  assert.equal(d.frpMinMw, 30, 'frp min 30');
+  assert.equal(d.frpMaxMw, 300, 'frp max 300');
+  const cfgTxt3 = readFileSync('js/config.js', 'utf8');
+  const gridTxt3 = readFileSync('js/grid.js', 'utf8');
+  const mapTxt3 = readFileSync('js/map.js', 'utf8');
+  const uiTxt3 = readFileSync('js/ui.js', 'utf8');
+  const appTxt3 = readFileSync('js/app.js', 'utf8');
+  assert.equal(cfgTxt3.includes('downwindMaxDistanceKm'), false, 'config: tekil anahtar kaldırıldı');
+  assert.equal(gridTxt3.includes('downwindMaxDistanceKm'), false, 'grid.js: tekil anahtar yok');
+  assert.equal(mapTxt3.includes('downwindMaxDistanceKm'), false, 'map.js: tekil anahtar yok');
+  assert.equal(uiTxt3.includes('downwindMaxDistanceKm'), false, 'ui.js: tekil anahtar yok');
+  assert.equal(appTxt3.includes('downwindMaxDistanceKm'), false, 'app.js: tekil anahtar yok');
+});
+
+test('v3.4.13 — helper adaptiveCorridorDistanceKm: documented anchors + hard bounds', () => {
+  assert.equal(U.adaptiveCorridorDistanceKm(30, 5), 10, '5 km/h + 30 MW → 10 km');
+  const mid = U.adaptiveCorridorDistanceKm(100, 15);
+  assert.ok(mid >= 17 && mid <= 19, `15 km/h + 100 MW → ≈18 km (got ${mid})`);
+  assert.equal(mid, 18, '15 km/h + 100 MW → exactly 18 km');
+  assert.equal(U.adaptiveCorridorDistanceKm(300, 35), 30, '≥35 km/h + ≥300 MW → 30 km');
+  assert.equal(U.adaptiveCorridorDistanceKm(400, 40), 30, 'above max stays 30 km');
+  assert.equal(U.adaptiveCorridorDistanceKm(1, 0), 10, 'below min stays 10 km');
+  assert.equal(U.adaptiveCorridorDistanceKm(30, undefined), U.adaptiveCorridorDistanceKm(30, 15), 'speed undefined → 15 km/h fallback');
+  for (let i = 0; i < 200; i++) {
+    const s = (i % 50) * 2, f = (i * 7) % 500;
+    const v = U.adaptiveCorridorDistanceKm(f, s);
+    assert.ok(v >= 10 && v <= 30, `bounds ${s} km/h + ${f} MW → ${v}`);
+  }
+});
+
+test('v3.4.13 — grid.js: fallback chain + corridor fields on every analysis', () => {
+  assert.ok(gridTxt.includes('hasSpeed=Number.isFinite(wind.speed),speed=hasSpeed?wind.speed:C.downwind.fallbackWindSpeedKmh'), 'speed missing → 15 km/h fallback');
+  assert.ok(gridTxt.includes("if(!hasSpeed){corridorWindSource='fallback';corridorConfidence='low';}"), 'fallback flags model/fallback + low confidence');
+  assert.ok(gridTxt.includes('Number.isFinite(wind.direction)'), 'direction required — no direction invention');
+  assert.ok(gridTxt.includes('corridorDistanceKm=U.adaptiveCorridorDistanceKm(event.maxFrp,speed)'), 'adaptive helper used per event');
+  assert.ok(gridTxt.includes('assetsInSector(event,downwindDirection,corridorDistanceKm)'), 'assetsInSector receives the same corridorDistanceKm');
+  assert.ok(gridTxt.includes('corridorDistanceKm,corridorWindSpeedKmh,corridorWindSource,corridorConfidence,'), 'fields exported per analysis');
+  assert.ok(gridTxt.includes('U.nearestPoint(event,windData)'), 'corridor reads the 10 m surface wind passed by app');
+});
+
+test('v3.4.13 — app.js: surfaceWindData kept separate; 850/700 only visual', () => {
+  assert.ok(appTxt.includes("surfaceWindData:[]"), 'state.surfaceWindData initialized');
+  assert.ok(appTxt.includes("if(this.state.windLevel!=='10m'){surface=await A.OpenMeteoWeather.grid(pts,this.state.selectedTime,'10m',ctrl.signal)"), 'non-10m level still fetches 10 m grid separately');
+  assert.ok(appTxt.includes('this.state.surfaceWindData=surface;'), 'surface stored in state');
+  assert.ok(appTxt.includes('this.map.surfaceWindData=surface;'), 'surface stored on map');
+  assert.ok(appTxt.includes('analyzeEvents(this.state.fireEvents,25,this.state.selectedTime,this.state.surfaceWindData)'), 'impact analysis always consumes 10 m surface data');
+  assert.ok(appTxt.includes('this.map.setWind(data,this.state.windLevel)'), 'visual wind layer keeps selected level (850/700)');
+});
+
+test('v3.4.13 — map.js: polygon, tooltip and legend use the same corridorDistanceKm', () => {
+  assert.ok(mapTxt.includes('maxKm=a.corridorDistanceKm||C.downwind.maxDistanceKm'), 'polygon radius = per-event corridorDistanceKm');
+  assert.ok(mapTxt.includes('U.destination(center,bearing,maxKm)'), 'same maxKm feeds destination()');
+  assert.ok(mapTxt.includes('a.corridorWindSpeedKmh??a.wind.speed'), 'tooltip shows real/fallback speed');
+  assert.ok(mapTxt.includes('Maks. FRP'), 'tooltip shows max FRP');
+  assert.ok(mapTxt.includes("corridorWindSource==='fallback'?'Rüzgâr hızı eksik · 15 km/h varsayımı (fallback)':'Model 10 m yüzey rüzgârı'"), 'tooltip states model vs fallback');
+  assert.ok(mapTxt.includes('Koridorda: <strong>${dw.lines.length} hat / ${dw.substations.length} TM'), 'tooltip shows corridor line/TM counts');
+  assert.ok(mapTxt.includes('Operasyonel taramadır; yayılım tahmini değildir.'), 'tooltip operational disclaimer');
+  assert.ok(mapTxt.includes('Adaptif ${C.downwind.minDistanceKm}–${C.downwind.maxDistanceKm} km'), 'legend title adaptive 10–30 km');
+  assert.ok(mapTxt.includes('10 m yüzey rüzgârı + maks. FRP'), 'legend explains 10 m surface wind + FRP');
+});
+
+test('v3.4.13 — UI + export expose corridor fields', () => {
+  assert.ok(uiTxt.includes('· Rüzgâr etkisi: ${a.corridorDistanceKm||\'—\'} km koridorda'), 'card meta uses adaptive corridor distance');
+  assert.ok(uiTxt.includes('30 km koridorda') === false, 'hardcoded 30 km removed from card');
+  const expTxt = readFileSync('js/export.js', 'utf8');
+  assert.ok(expTxt.includes('corridorDistanceKm'), 'csv header corridorDistanceKm');
+  assert.ok(expTxt.includes('corridorWindSpeedKmh'), 'csv corridorWindSpeedKmh');
+  assert.ok(expTxt.includes('corridorWindSource'), 'csv corridorWindSource');
+  assert.ok(expTxt.includes('corridorConfidence'), 'csv corridorConfidence');
+  assert.ok(expTxt.includes('surfaceWindData:state.surfaceWindData||[]'), 'json export includes surface wind');
+});
+
+test('v3.4.13 — risk score formula untouched (windScore 8/4/3), ordering stable', () => {
+  assert.ok(gridTxt.includes('downwindAlignment=diff<=35;if(downwindAlignment)windScore=8;else if(diff<=60)windScore=4;'), 'score branches unchanged');
+  assert.ok(gridTxt.includes('windScore=Math.max(windScore,3)'), 'corridor-asset bonus unchanged');
+  assert.ok(gridTxt.includes('out.sort((a,b)=>b.riskScore-a.riskScore||'), 'risk ordering unchanged');
+  const uiTxt4 = readFileSync('js/ui.js', 'utf8');
+  assert.ok(uiTxt4.includes('rows.slice(0,5).map((a,i)=>this.riskSummaryCard(a,i))'), 'top-5 cards intact');
 });
 
 // ── Run ──

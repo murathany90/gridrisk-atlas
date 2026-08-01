@@ -54,7 +54,7 @@
   }
 
   class MapManager{
-    constructor(){this.map=null;this.renderer=null;this.baseLayer=null;this.baseKey=null;this.fireLayer=null;this.fireAll=[];this.fireVisible=[];this.fireEventsVisible=[];this.currentSelectedTime=new Date();this.frpHeat=null;this.smokeLayer=null;this.airPointLayer=null;this.airData=[];this.airVariable='pm10_wildfires';this.windLayer=null;this.windData=[];this.riskLayer=null;this.riskAssetLayer=null;this.downwindLayer=null;this.windVectorLayer=null;this.gridLayers=new Map();this.fwiLayer=null;this.effisBurntAreaLayer=null;this.mtgLayer=null;this._mtgFrameMgr=null;this._mtgDebounceT=null;this.mtgRequestedTime=null;this.mtgDisplayedTime=null;this.onPointClick=null;this.frpThreshold=C.frpThreshold;this._renderTimer=null;this.footprintLayer=null;this.thermalEnvelopeLayer=null;this.evolutionLayer=null;}
+    constructor(){this.map=null;this.renderer=null;this.baseLayer=null;this.baseKey=null;this.fireLayer=null;this.fireAll=[];this.fireVisible=[];this.fireEventsVisible=[];this.currentSelectedTime=new Date();this.frpHeat=null;this.smokeLayer=null;this.airPointLayer=null;this.airData=[];this.airVariable='pm10_wildfires';this.windLayer=null;this.windData=[];this.surfaceWindData=[];this.riskLayer=null;this.riskAssetLayer=null;this.downwindLayer=null;this.windVectorLayer=null;this.gridLayers=new Map();this.fwiLayer=null;this.effisBurntAreaLayer=null;this.mtgLayer=null;this._mtgFrameMgr=null;this._mtgDebounceT=null;this.mtgRequestedTime=null;this.mtgDisplayedTime=null;this.onPointClick=null;this.frpThreshold=C.frpThreshold;this._renderTimer=null;this.footprintLayer=null;this.thermalEnvelopeLayer=null;this.evolutionLayer=null;}
     init(onPointClick){
       this.onPointClick=onPointClick;      this.map=L.map('map',{zoomControl:true,minZoom:C.mapMinZoom||2,worldCopyJump:true}).setView(C.defaultCenter,C.defaultZoom);this.renderer=L.canvas({padding:.4});
       this.map.createPane('mtgPane');this.map.getPane('mtgPane').style.zIndex=240;this.map.createPane('airPane');this.map.getPane('airPane').style.zIndex=320;this.map.createPane('fwiPane');this.map.getPane('fwiPane').style.zIndex=330;this.map.createPane('gridPane');this.map.getPane('gridPane').style.zIndex=410;this.map.createPane('riskPane');this.map.getPane('riskPane').style.zIndex=445;this.map.createPane('firePane');this.map.getPane('firePane').style.zIndex=460;this.map.createPane('windPane');this.map.getPane('windPane').style.zIndex=480;
@@ -97,7 +97,7 @@
       let count=0;
       for(const a of analyses||[]){
         if(count>=C.downwind.maxCorridors||!a.wind||a.riskScore<35||!Number.isFinite(a.downwindDirection)||!U.insideRegion({lat:a.event.lat,lon:a.event.lon}))continue;
-        const center={lat:a.event.lat,lon:a.event.lon},pts=[[center.lat,center.lon]],steps=10,maxKm=C.downwindMaxDistanceKm;
+        const center={lat:a.event.lat,lon:a.event.lon},pts=[[center.lat,center.lon]],steps=10,maxKm=a.corridorDistanceKm||C.downwind.maxDistanceKm;
         for(let i=0;i<=steps;i++){
           const bearing=a.downwindDirection-C.downwind.halfAngleDeg+(2*C.downwind.halfAngleDeg*i/steps),p=U.destination(center,bearing,maxKm);
           pts.push([p.lat,p.lon]);
@@ -105,14 +105,14 @@
         pts.push([center.lat,center.lon]);
         const c=U.riskColor(a.riskBand.level),dw=a.downwindAssets||{lines:[],substations:[]};
         const poly=L.polygon(pts,{pane:'riskPane',color:c,weight:1.2,opacity:.58,fillColor:c,fillOpacity:.10,interactive:true});
-        poly.bindTooltip(`Rüzgâr bazlı izleme koridoru · maksimum ${maxKm} km<br>${U.round(a.wind.speed,1)} km/h · taşıma yönü ${Math.round(a.downwindDirection)}°<br>Koridorda: <strong>${dw.lines.length} hat / ${dw.substations.length} TM</strong><br><strong>Duman tahmini değildir.</strong>`);
+        poly.bindTooltip(`Rüzgâr bazlı izleme koridoru · ${maxKm} km (adaptif ${C.downwind.minDistanceKm}–${C.downwind.maxDistanceKm} km)<br>${U.round(a.corridorWindSpeedKmh??a.wind.speed,1)} km/h · taşıma yönü ${Math.round(a.downwindDirection)}° · Maks. FRP ${U.round(a.event.maxFrp,0)} MW<br>${a.corridorWindSource==='fallback'?'Rüzgâr hızı eksik · 15 km/h varsayımı (fallback)':'Model 10 m yüzey rüzgârı'} · Koridorda: <strong>${dw.lines.length} hat / ${dw.substations.length} TM</strong><br><small>Operasyonel taramadır; yayılım tahmini değildir.</small>`);
         poly.addTo(this.downwindLayer);
         for(const x of dw.lines.slice(0,4))L.polyline([[x.feature.a.lat,x.feature.a.lon],[x.feature.b.lat,x.feature.b.lon]],{pane:'riskPane',color:'#7be6ff',weight:4,opacity:.78,dashArray:'5 4',interactive:false}).addTo(this.downwindLayer);
         count++;
       }
       if(count){
         this.downwindLayer.addTo(this.map);
-        this.makeLegend('downwind','Rüzgâr Bazlı İzleme Koridoru',`<div class="legendLine"><i style="background:#7be6ff"></i><span>Koridordaki şebeke varlığı (yalnız hatlar işaretlenir; TM'ler risk katmanında ≤5 km'de gösterilir)</span></div><div class="sourceNote">Yangın olayından maksimum ${C.downwindMaxDistanceKm} km, ±${C.downwind.halfAngleDeg}° sektör. Rüzgâr alanını operasyonel tarama için kullanır; gerçek duman yörüngesi değildir.</div>`);
+        this.makeLegend('downwind',`Rüzgâr Bazlı İzleme Koridoru · Adaptif ${C.downwind.minDistanceKm}–${C.downwind.maxDistanceKm} km`,`<div class="legendLine"><i style="background:#7be6ff"></i><span>Koridordaki şebeke varlığı (yalnız hatlar işaretlenir; TM'ler risk katmanında ≤5 km'de gösterilir)</span></div><div class="sourceNote">Olay başına adaptif mesafe: 10 m yüzey rüzgârı + maks. FRP ile ${C.downwind.minDistanceKm}–${C.downwind.maxDistanceKm} km aralığında, ±${C.downwind.halfAngleDeg}° sektör. Rüzgâr alanını operasyonel tarama için kullanır; gerçek duman yörüngesi değildir.</div>`);
       }
     }
     toggleFwi(show,date){if(!show){if(this.fwiLayer)this.map.removeLayer(this.fwiLayer);document.querySelector('[data-legend="fwi"]')?.remove();return;}if(this.fwiLayer)this.map.removeLayer(this.fwiLayer);this.fwiLayer=L.tileLayer.wms(C.effisWms,{layers:C.effisFwiLayer,format:'image/png',transparent:true,version:'1.1.1',time:U.dateOnlyUtc(date),opacity:.43,pane:'fwiPane',attribution:'EFFIS / Copernicus'});let loaded=false;this.fwiLayer.on('tileload',()=>{if(!loaded){loaded=true;A.Events.emit('service',{id:'effis',state:'ok',count:null,note:`WMS ${C.effisFwiLayer} · TIME=${U.dateOnlyUtc(date)}`});}});this.fwiLayer.on('tileerror',()=>A.Events.emit('service',{id:'effis',state:'error',note:'WMS tile yüklenemedi'}));this.fwiLayer.addTo(this.map);this.makeLegend('fwi','EFFIS Fire Weather Index',`<div class="sourceNote">EFFIS WMS renkleri · ${U.dateOnlyUtc(date)} · meteorolojik yangın tehlikesi. Sayısal FWI değeri bu WMS tile katmanından türetilmez.</div>`);}
