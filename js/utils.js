@@ -13,6 +13,8 @@
   };
   const C=()=>A.CONFIG;
   function rb(){ return C().regionBounds; }
+  function pointInRing(point,ring){let inside=false;for(let i=0,j=ring.length-1;i<ring.length;j=i++){const a=ring[i],b=ring[j];if(!a||!b)continue;const xi=Number(a[0]),yi=Number(a[1]),xj=Number(b[0]),yj=Number(b[1]);if((yi>point.lat)!==(yj>point.lat)&&point.lon<(xj-xi)*(point.lat-yi)/(yj-yi)+xi)inside=!inside;}return inside;}
+  function pointInGeometry(point,geometry){if(!geometry)return true;const polygons=geometry.type==='Polygon'?[geometry.coordinates]:geometry.type==='MultiPolygon'?geometry.coordinates:[];return polygons.some(polygon=>polygon?.length&&pointInRing(point,polygon[0])&&!polygon.slice(1).some(hole=>pointInRing(point,hole)));}
   function confidenceWeight(v){
     const s=String(v??'').toLowerCase();
     if(s==='high'||s==='h')return 1;
@@ -32,6 +34,7 @@
     const frp = Number(raw.frp ?? raw.FRP ?? raw.brightness);
     return {
       id: raw.id || null,
+      countryCode: raw.countryCode || defaults.countryCode || C().activeCountryCode || 'TR',
       source: raw.source || defaults.source || null,
       product: raw.product || defaults.product || null,
       satellite: raw.satellite || defaults.satellite || null,
@@ -51,12 +54,13 @@
   }
 
   function detectionIdentityKey(d) {
+    const c = d.countryCode || C().activeCountryCode || 'TR';
     const p = d.product || '';
     const s = d.satellite || '';
     const t = d.detectedAt ? d.detectedAt.slice(0, 16) : '';
     const lat = d.lat != null ? Number(d.lat).toFixed(4) : '';
     const lon = d.lon != null ? Number(d.lon).toFixed(4) : '';
-    return `${p}:${s}:${t}:${lat}:${lon}`;
+    return `${c}:${p}:${s}:${t}:${lat}:${lon}`;
   }
 
   function deduplicateDetections(detections) {
@@ -86,9 +90,9 @@
     round(v,d=2){const p=10**d;return Math.round(v*p)/p;},
     toNum(v){const n=Number(v);return Number.isFinite(n)?n:null;},
     escapeHtml(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));},
-    formatLocal(date){return new Intl.DateTimeFormat('tr-TR',{timeZone:'Europe/Istanbul',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false,timeZoneName:'short'}).format(date);},
+    formatLocal(date){return new Intl.DateTimeFormat('tr-TR',{timeZone:A.activeCountry?.().timezone||'Europe/Istanbul',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false,timeZoneName:'short'}).format(date);},
     formatUtc(date){return new Intl.DateTimeFormat('tr-TR',{timeZone:'UTC',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false,timeZoneName:'short'}).format(date);},
-    formatTrShortDateTime(date){const d=new Date(date);if(Number.isNaN(d.getTime()))return null;const parts=new Intl.DateTimeFormat('tr-TR',{timeZone:'Europe/Istanbul',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit',hour12:false,hourCycle:'h23'}).formatToParts(d);const get=t=>parts.find(p=>p.type===t)?.value||'';return `${get('day')} ${get('month')} ${get('hour')}.${get('minute')}`;},
+    formatTrShortDateTime(date){const d=new Date(date);if(Number.isNaN(d.getTime()))return null;const parts=new Intl.DateTimeFormat('tr-TR',{timeZone:A.activeCountry?.().timezone||'Europe/Istanbul',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit',hour12:false,hourCycle:'h23'}).formatToParts(d);const get=t=>parts.find(p=>p.type===t)?.value||'';return `${get('day')} ${get('month')} ${get('hour')}.${get('minute')}`;},
     formatAgeSince(iso,reference=new Date()){const a=Date.parse(iso),b=new Date(reference).getTime();if(!Number.isFinite(a)||!Number.isFinite(b))return null;const min=Math.max(0,Math.floor((b-a)/60000));if(min<1)return '1 dakikadan az';const days=Math.floor(min/1440),hours=Math.floor((min%1440)/60),mins=min%60;if(days>0)return `${days} gün${hours>0?` ${hours} saat`:''}`;if(hours>0)return `${hours} saat${mins>0?` ${mins} dakika`:''}`;return `${mins} dakika`;},
     timeReference(selectedTime,sliderValue=0){const sel=new Date(selectedTime).getTime(),now=Date.now();if(!Number.isFinite(sel))return new Date(now);if(Number(sliderValue)===0)return new Date(now);return new Date(Math.min(sel,now+15*60e3));},
     areaHistory(fires,center,radiusKm){
@@ -102,7 +106,8 @@
     },
     dateOnlyUtc(date){return new Date(date).toISOString().slice(0,10);},
     nearestTimeIndex(times,target){if(!times?.length)return -1;const tt=new Date(target).getTime();let best=0,dist=Infinity;for(let i=0;i<times.length;i++){const raw=String(times[i]);const t=Date.parse(raw.endsWith('Z')?raw:raw+'Z');const d=Math.abs(t-tt);if(d<dist){dist=d;best=i;}}return best;},
-    insideRegion(p){if(!Number.isFinite(p?.lat)||!Number.isFinite(p?.lon))return false;const b=rb();if(p.lon<b.west||p.lon>b.east||p.lat<b.south||p.lat>b.north)return false;const poly=C().regionPolygon;if(!poly?.length)return true;let inside=false;const n=poly.length;for(let i=0,j=n-1;i<n;j=i++){const xi=poly[i][1],yi=poly[i][0],xj=poly[j][1],yj=poly[j][0];if((yi>p.lat)!==(yj>p.lat)&&p.lon<(xj-xi)*(p.lat-yi)/(yj-yi)+xi)inside=!inside;}return inside;},
+    insideRegion(p){if(!Number.isFinite(p?.lat)||!Number.isFinite(p?.lon))return false;const b=rb();if(p.lon<b.west||p.lon>b.east||p.lat<b.south||p.lat>b.north)return false;if(C().regionGeometry)return pointInGeometry(p,C().regionGeometry);const poly=C().regionPolygon;if(!poly?.length)return true;return pointInRing(p,poly.map(x=>[x[1],x[0]]));},
+    pointInGeometry,
     clampPoint(p){const b=rb();return {lat:this.clamp(Number(p.lat),b.south,b.north),lon:this.clamp(Number(p.lon),b.west,b.east)};},
     clampBounds(bounds){const b=rb();return {west:Math.max(b.west,bounds.getWest()),south:Math.max(b.south,bounds.getSouth()),east:Math.min(b.east,bounds.getEast()),north:Math.min(b.north,bounds.getNorth())};},
     regionBboxString(){const b=rb();return [b.west,b.south,b.east,b.north].join(',');},
@@ -124,7 +129,7 @@
     riskScoreBand(score){return C().riskScoreBands.find(b=>score>=b.min)||C().riskScoreBands.at(-1);},
     ageHours(detectedAt,reference=new Date()){const a=Date.parse(detectedAt),b=new Date(reference).getTime();return Number.isFinite(a)?Math.max(0,(b-a)/3600000):24;},
     ageOpacity(detectedAt,reference){const h=this.ageHours(detectedAt,reference);return h<=3?.95:h<=12?.75:h<=24?.5:.28;},
-    formatVoltage(v){if(!v)return null;const s=String(v).trim(),groups={'300-500kV':'300–500 kV','66-300kV':'66–300 kV','20-66kV':'20–66 kV','<20kV':'<20 kV','unknown':'Bilinmiyor'};if(groups[s])return groups[s];const nums=String(s).split(/[^0-9.]+/).map(Number).filter(n=>Number.isFinite(n)&&n>0);if(!nums.length)return null;const n=Math.max(...nums);if(n>=1000){const kv=n/1000;return `${kv%1===0?kv:kv.toFixed(1)} kV`;}return `${n} V`;},
+    formatVoltage(v){if(v==null||v==='')return null;const n=Number(v);if(Number.isFinite(n)&&n>0)return `${n%1===0?n:n.toFixed(2)} kV`;const nums=String(v).split(/[^0-9.]+/).map(Number).filter(x=>Number.isFinite(x)&&x>0);if(!nums.length)return null;const max=Math.max(...nums),kv=max>10000?max/1000:max;return `${kv%1===0?kv:kv.toFixed(2)} kV`;},
     confidenceWeight,
     adaptiveGrid(bounds,zoom,maxPoints=220){
       const b=this.clampBounds(bounds);if(b.east<=b.west||b.north<=b.south)return[];
@@ -156,7 +161,7 @@
     clusterFires(fires,radiusKm=C().fireClustering.radiusKm,timeHours=C().fireClustering.timeHours){
       const arr=(fires||[]).filter(f=>this.insideRegion(f)&&Number.isFinite(Date.parse(f.detectedAt)));const n=arr.length;if(!n)return[];
       const maxMs=timeHours*3600000;
-      const REF_LAT=39;const kmPerDeg=111.32;const cosRef=Math.cos(REF_LAT*Math.PI/180);
+      const refLat=Number(A.activeCountry?.().center?.[0])||39;const kmPerDeg=111.32;const cosRef=Math.cos(refLat*Math.PI/180);
       const cells=new Map();
       for(let i=0;i<n;i++){
         const f=arr[i];const xKm=f.lon*kmPerDeg*cosRef;const yKm=f.lat*kmPerDeg;const ck=`${Math.floor(xKm/radiusKm)},${Math.floor(yKm/radiusKm)}`;
@@ -194,7 +199,8 @@
         for(const m of members){const src=m.source||'unknown';sourceBreakdown[src]=(sourceBreakdown[src]||0)+1;}
         const products=[...new Set(members.map(m=>m.product).filter(Boolean))];
         const satellites=[...new Set(members.map(m=>m.satellite).filter(Boolean))];
-        return{id:`fire-${dayKey}-${String(clat).replace('.','')}-${hash}`,lat,lon,members,count:members.length,representative,maxFrp:Math.max(...members.map(f=>Number(f.frp)||0)),sumFrp:members.reduce((s,f)=>s+(Number(f.frp)||0),0),latestDetectedAt:latest.detectedAt,earliestDetectedAt:sorted[0].detectedAt,confidence:Math.max(...members.map(f=>confidenceWeight(f.confidence))),sourceBreakdown,products,satellites};
+        const countryCode=C().activeCountryCode||members[0]?.countryCode||'TR';
+        return{id:`${countryCode}-fire-${dayKey}-${String(clat).replace('.','')}-${hash}`,countryCode,lat,lon,members,count:members.length,representative,maxFrp:Math.max(...members.map(f=>Number(f.frp)||0)),sumFrp:members.reduce((s,f)=>s+(Number(f.frp)||0),0),latestDetectedAt:latest.detectedAt,earliestDetectedAt:sorted[0].detectedAt,confidence:Math.max(...members.map(f=>confidenceWeight(f.confidence))),sourceBreakdown,products,satellites};
       }).sort((a,b)=>Date.parse(b.latestDetectedAt)-Date.parse(a.latestDetectedAt));
     },
     nearestPoint(point,points){let best=null,dist=Infinity;for(const p of points||[]){const d=this.haversineKm(point,p);if(d<dist){dist=d;best=p;}}return best?{point:best,distanceKm:dist}:null;},

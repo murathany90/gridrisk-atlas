@@ -1,14 +1,16 @@
 ﻿window.AtmoApp = window.AtmoApp || {};
 (function(A){
   A.CONFIG = {
-    appName: 'Türkiye Wildfire Grid Risk Monitor',
-    appVersion: '3.4.13',
+    appName: 'Wildfire Grid Risk Monitor',
+    appVersion: '3.5.0',
+    activeCountryCode: 'TR',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
     mapMinZoom: 2,
     dataRegionOnly: true,
     regionBounds: { west: 25.60, south: 35.75, east: 44.90, north: 42.20 },
     regionLabel: 'Türkiye veri alanı',
+    regionGeometry: null,
     regionPolygon: [
       [41.98,28.02],[41.92,27.60],[41.85,27.10],[41.48,26.32],[41.28,26.30],
       [40.85,26.35],[40.60,26.90],[40.30,26.50],[39.90,26.20],[39.30,26.20],
@@ -84,11 +86,9 @@
       }
     },
     gridSources: {
-      '400': {label:'400 kV sınıfı',file:'data/grid_400.geojson',color:'#ef4444',weight:2.7,description:'OSM 300–500 kV ve >500 kV etiket grupları'},
-      '154': {label:'154 kV sınıfı',file:'data/grid_154.geojson',color:'#172033',weight:1.9,description:'OSM 66–300 kV etiket grubu'},
-      '33': {label:'20–66 kV',file:'data/grid_33.geojson',color:'#16a34a',weight:1.2,description:'OSM 20–66 kV ve <20 kV grupları'},
-      'unknown': {label:'Gerilimi bilinmeyen',file:'data/grid_unknown.geojson',color:'#f97316',weight:1.0,description:'OSM voltage etiketi eksik hatlar'},
-      'substations': {label:'Trafo merkezleri',file:'data/substations.geojson',color:'#f8fafc',weight:1.0,description:'OSM power=substation merkez noktaları'}
+      '400': {label:'400 kV sınıfı',file:'data/countries/TR/grid_400.geojson',color:'#d7191c',weight:2.2,description:'OSM 300–550 kV'},
+      '154': {label:'154 kV sınıfı',file:'data/countries/TR/grid_154.geojson',color:'#111111',weight:1.5,description:'OSM 50–299.999 kV'},
+      'substations': {label:'Trafo merkezleri',file:'data/countries/TR/substations.geojson',color:'#111111',weight:1.0,description:'OSM power=substation merkez noktaları'}
     },
     smokeVariables: {
       pm10_wildfires: { label:'Yangın kaynaklı PM10',unit:'µg/m³',source:'CAMS European Air Quality via Open-Meteo',resolution:'~11 km',type:'TAHMİN',surface:true,fireSpecific:true },
@@ -127,5 +127,29 @@
       {min:35,label:'Orta',level:'medium'},
       {min:0,label:'İzleme',level:'watch'}
     ]
+  };
+  A.COUNTRIES = {
+    TR: {
+      code:'TR',nameTr:'Türkiye',timezone:'Europe/Istanbul',locale:'tr-TR',center:[39.0,35.2],zoom:6,
+      coverageNote:'Türkiye',boundaryUrl:'data/countries/TR/boundary.geojson',grid400Url:'data/countries/TR/grid_400.geojson',grid154Url:'data/countries/TR/grid_154.geojson',substationsUrl:'data/countries/TR/substations.geojson',manifestUrl:'data/countries/TR/manifest.json'
+    },
+    ES: {
+      code:'ES',nameTr:'İspanya',timezone:'Europe/Madrid',locale:'tr-TR',center:[40.2,-3.7],zoom:6,
+      coverageNote:'İspanya ana karası ve Balear Adaları; Kanarya Adaları kapsam dışıdır',boundaryUrl:'data/countries/ES/boundary.geojson',grid400Url:'data/countries/ES/grid_400.geojson',grid154Url:'data/countries/ES/grid_154.geojson',substationsUrl:'data/countries/ES/substations.geojson',manifestUrl:'data/countries/ES/manifest.json'
+    },
+    FR: {
+      code:'FR',nameTr:'Fransa',timezone:'Europe/Paris',locale:'tr-TR',center:[46.5,2.2],zoom:6,
+      coverageNote:'Metropolitan Fransa ve Korsika; denizaşırı bölgeler kapsam dışıdır',boundaryUrl:'data/countries/FR/boundary.geojson',grid400Url:'data/countries/FR/grid_400.geojson',grid154Url:'data/countries/FR/grid_154.geojson',substationsUrl:'data/countries/FR/substations.geojson',manifestUrl:'data/countries/FR/manifest.json'
+    }
+  };
+  A.activeCountry=()=>A.COUNTRIES[A.CONFIG.activeCountryCode]||A.COUNTRIES.TR;
+  A.applyCountryConfig=(code,boundary)=>{
+    const country=A.COUNTRIES[code]||A.COUNTRIES.TR,feature=boundary?.features?.[0],geometry=feature?.geometry||null;
+    const positions=[];const walk=v=>{if(Array.isArray(v)&&v.length>=2&&Number.isFinite(Number(v[0]))&&Number.isFinite(Number(v[1])))positions.push([Number(v[0]),Number(v[1])]);else if(Array.isArray(v))v.forEach(walk);};walk(geometry?.coordinates);
+    A.CONFIG.activeCountryCode=country.code;A.CONFIG.defaultCenter=country.center;A.CONFIG.defaultZoom=country.zoom;A.CONFIG.regionLabel=`${country.nameTr} veri alanı`;A.CONFIG.regionGeometry=geometry;
+    if(positions.length){const xs=positions.map(p=>p[0]),ys=positions.map(p=>p[1]);A.CONFIG.regionBounds={west:Math.min(...xs),south:Math.min(...ys),east:Math.max(...xs),north:Math.max(...ys)};}
+    A.CONFIG.gridSources['400'].file=country.grid400Url;A.CONFIG.gridSources['154'].file=country.grid154Url;A.CONFIG.gridSources.substations.file=country.substationsUrl;
+    A.CONFIG.mtgGeoColourWms.probeBbox=[A.CONFIG.regionBounds.south,A.CONFIG.regionBounds.west,A.CONFIG.regionBounds.north,A.CONFIG.regionBounds.east].join(',');
+    return country;
   };
 })(window.AtmoApp);
