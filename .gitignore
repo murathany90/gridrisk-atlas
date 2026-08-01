@@ -17,3 +17,4 @@ screenshots/
 Thumbs.db
 __pycache__/
 *.py[cod]
+py_osm_download/output/

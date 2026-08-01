@@ -1,6 +1,6 @@
 # Wildfire Grid Risk Monitor
 
-> Sürüm: **v3.5.0** · Canlı: <https://murathany90.github.io/tr_wildfire/> · Arayüz dili: **Türkçe**
+> Sürüm: **v3.5.1** · Canlı: <https://murathany90.github.io/tr_wildfire/> · Arayüz dili: **Türkçe**
 
 Wildfire Grid Risk Monitor; Türkiye, İspanya ve metropolitan Fransa/Korsika için aktif orman yangınları ile elektrik iletim şebekesi yakınlığını aynı operasyonel ekranda inceleyen statik bir web uygulamasıdır. Genel uygulama adı İngilizcedir; kullanıcı arayüzü bu sürümde yalnız Türkçedir.
 
@@ -58,13 +58,15 @@ Ham import girdileri runtime kaynağı değildir:
 npm run build:grid
 ```
 
+Bu komut onarım kapsamındaki ES/FR runtime dosyalarını yeniden üretir; mevcut TR paketi değişmeden kalır. Tek ülke için `python tools/build_country_grid.py --country TR|ES|FR`, üç ülkenin tamamı için açıkça `--country ALL` kullanılabilir.
+
 Yalnız mevcut commitli çıktıları doğrulamak için:
 
 ```powershell
 npm run validate:grid
 ```
 
-`tools/build_country_grid.py` şu gerilim alanlarını sırayla okur: geçerli `voltageMaxKv`, `voltagesKv` maksimumu, `voltageRaw`, `voltage`. 10.000 üzeri değerleri volt kabul edip 1000'e böler; noktalı virgül, virgül ve çoklu değerleri destekler; NaN, sıfır ve negatif değerleri reddeder. `line`, `minor_line`, `cable` hat; `substation` TM kabul edilir. MultiLineString parçaları LineString'e normalize edilir.
+`tools/build_country_grid.py`, ham OSM `voltage`/`voltageRaw` alanındaki bütün pozitif tokenları istisnasız 1000'e bölerek kV'ye dönüştürür. Yalnız ham alan yoksa adı açıkça kV belirten `actualVoltagesKv`, `voltagesKv`, `actualVoltageKv` veya `voltageMaxKv` alanları doğrudan kullanılabilir. `line`, `minor_line`, `cable` hat; `substation` TM kabul edilir. MultiLineString hatlar ülke sınırında kesilir; polygon TM geometrileri yüzeyin içinde kalan temsil noktasına dönüştürülür.
 
 Üretilen yapı:
 
@@ -77,9 +79,16 @@ data/countries/{TR,ES,FR}/
   manifest.json
 ```
 
-Runtime varlıkları ülke önekli benzersiz `assetId` taşır. Nested tags, ArcGIS `OBJECTID` ve yinelenen ham ID alanları yayın çıktısından çıkarılır; ad, operatör, gerçek gerilim ve OpenStreetMap/ODbL kaynak bilgisi korunur.
+Runtime varlıkları ülke önekli benzersiz `assetId` taşır. Nested tags, ArcGIS `OBJECTID` ve yinelenen ham ID alanları yayın çıktısından çıkarılır; `name`, `ref`, `operator`, gerçek gerilimler, şebeke sınıfı, `displayLabel`, label kaynağı, OSM kimliği/zamanı ve kaynak provenance korunur.
 
-Fransa ham kaynağının metadata'sı 14 başarısız indirme parçası bildirmektedir. Bu parçaları güvenilir şekilde yeniden üretecek URL/chunk kimliği bulunmadığı için v3.5.0 manifesti `partial: true`, `failedRequests: 14` taşır. Uygulama analiz yapmayı sürdürür ve Ayarlar/Analiz ekranlarında **Kısmi şebeke verisi** uyarısını gösterir; veri tam kabul edilmez.
+ES/FR onarım indirmeleri ortak, resumable altyapıyı kullanır. ArcGIS OSM Europe hat ve nokta katmanları küçük tile'larla, pagination/object-ID fallback ve hata halinde alt tile bölme ile çekilir. ArcGIS Structures polygon trafo merkezlerini kapsamadığı için yüksek gerilim TM alanları küçük ülke tile'larıyla Overpass üzerinden tamamlanır; bütün feature'lar uygulamanın gerçek MultiPolygon sınırıyla doğrulanır.
+
+```powershell
+python py_osm_download/fetch_spain_osm_full.py --country-boundary data/countries/ES/boundary.geojson --output py_osm_download/output/spain_osm_power_grid_50kv_plus_full.geojson --resume
+python py_osm_download/fetch_france_osm_full.py --country-boundary data/countries/FR/boundary.geojson --output py_osm_download/output/france_osm_power_grid_50kv_plus_full.geojson --resume
+```
+
+`py_osm_download/compare_grid_datasets.py`, mevcut ve yeni adayları feature sayısına göre değil; sınır, gerilim, geometri, tile şeffaflığı ve deterministik deduplication production kapılarına göre karşılaştırır. Makine ve insan okunur sonuçlar `reports/` altında tutulur.
 
 ## Çalıştırma
 
@@ -100,11 +109,11 @@ npm run validate:grid
 git diff --check
 ```
 
-Node regresyon paketi ülke registry/öncelik, sınır geometrisi, cache ve stale-response korumaları, saat dilimi, risk/UI sözleşmesi ve Pages staging davranışını kapsar. Python paketi ham sayıları, ülke kodlarını, geometry/asset bütünlüğünü, gerilim sınırlarını, runtime property temizliğini ve Fransa partial metadata'sını doğrular.
+Node regresyon paketi ülke registry/öncelik, sınır geometrisi, cache ve stale-response korumaları, saat dilimi, risk/UI sözleşmesi, ≤5 km TM marker kuralı ve Pages staging davranışını kapsar. Python paketi ham OSM voltage birimini, retry/pagination/resume akışını, ülke sınırını, geometry/asset bütünlüğünü, dataset seçim kapılarını ve runtime property temizliğini doğrular.
 
 ## Cache, performans ve dağıtım
 
-Ülkeye bağlı cache anahtarları ülke kodu içerir (`grid:TR:400`, `firms:ES:...`, `weather:FR:...`). Ülke değişiminde devam eden grid/FIRMS/CAMS/Open-Meteo istekleri iptal edilir; sıra ve ülke kodu stale-response guard'ı olarak kontrol edilir. Eski katmanlar, spatial index, risk tablosu ve analiz kartları temizlenir. Yalnız aktif ülkenin üç runtime şebeke dosyası lazy-load edilir; düşük zoomda TM DOM marker sayısı sınırlandırılır ve Leaflet Canvas çizimi korunur.
+Ülkeye bağlı cache anahtarları ülke kodu içerir (`grid:TR:400`, `firms:ES:...`, `weather:FR:...`). Ülke değişiminde devam eden grid/FIRMS/CAMS/Open-Meteo istekleri iptal edilir; sıra ve ülke kodu stale-response guard'ı olarak kontrol edilir. Eski katmanlar, spatial index, risk tablosu ve analiz kartları temizlenir. Yalnız aktif ülkenin üç runtime şebeke dosyası lazy-load edilir; düşük zoom TM görünümü dosya sırasına bağlı stride yerine deterministik viewport/piksel-hücresi culling kullanır ve hatlar Leaflet Canvas üzerinde çizilir.
 
 Pages workflow yalnız `index.html`, `css/`, `js/`, `.nojekyll` ve `data/countries/**` içeriklerini stage eder. Büyük ham root GeoJSON dosyaları artifact'a girmez; deploy sırasında preprocessing çalıştırılmaz.
 

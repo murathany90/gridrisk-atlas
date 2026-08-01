@@ -1,8 +1,9 @@
 import importlib.util
 import json
 import unittest
-from collections import Counter
 from pathlib import Path
+
+from shapely.geometry import Polygon, mapping
 
 
 SCRIPT = Path(__file__).resolve().parents[1] / "tools" / "build_country_grid.py"
@@ -18,7 +19,7 @@ class VoltageNormalizationTests(unittest.TestCase):
             (49, None),
             (50, "154"),
             (225, "154"),
-            (299.99, "154"),
+            (299.999, "154"),
             (300, "400"),
             (400, "400"),
             (550, "400"),
@@ -28,17 +29,15 @@ class VoltageNormalizationTests(unittest.TestCase):
             with self.subTest(voltage=voltage):
                 self.assertEqual(MODULE.voltage_class(voltage), expected)
 
-    def test_voltage_parser_priority_and_units(self):
+    def test_raw_osm_voltage_is_always_divided_by_1000(self):
+        self.assertEqual(MODULE.normalize_voltage_kv({"voltage": 400}), 0.4)
         self.assertEqual(MODULE.normalize_voltage_kv({"voltage": 400000}), 400)
+        self.assertEqual(MODULE.normalize_voltage_kv({"voltage": "20000;400"}), 20)
         self.assertEqual(MODULE.normalize_voltage_kv({"voltage": "400000;225000"}), 400)
-        self.assertEqual(MODULE.normalize_voltage_kv({"voltagesKv": [400, 225]}), 400)
-        self.assertEqual(
-            MODULE.normalize_voltage_kv(
-                {"voltageMaxKv": 225, "voltagesKv": [400], "voltageRaw": "550000"}
-            ),
-            225,
-        )
-        self.assertIsNone(MODULE.normalize_voltage_kv({"voltage": "0;-4;NaN"}))
+
+    def test_raw_voltage_has_priority_over_stale_derived_values(self):
+        props = {"voltageRaw": "400", "voltageMaxKv": 400, "voltagesKv": [400]}
+        self.assertEqual(MODULE.normalize_voltage_kv(props), 0.4)
 
     def test_multilinestring_is_normalized_to_linestring_parts(self):
         geometry = {
@@ -49,51 +48,38 @@ class VoltageNormalizationTests(unittest.TestCase):
         self.assertEqual(len(parts), 2)
         self.assertTrue(all(part["type"] == "LineString" for part in parts))
 
+    def test_polygon_substation_uses_point_inside_surface(self):
+        polygon = Polygon([(0, 0), (4, 0), (4, 1), (1, 1), (1, 4), (0, 4)])
+        point, converted = MODULE._substation_point(mapping(polygon), polygon)
+        self.assertTrue(converted)
+        self.assertEqual(point["type"], "Point")
+        self.assertTrue(polygon.covers(MODULE.shape(point)))
+
 
 class RuntimeValidationTests(unittest.TestCase):
-    def test_committed_runtime_outputs(self):
+    def test_committed_runtime_outputs_are_complete(self):
         for country_code in ("TR", "ES", "FR"):
             with self.subTest(country_code=country_code):
                 manifest = MODULE.validate_runtime(country_code)
                 self.assertEqual(manifest["countryCode"], country_code)
                 self.assertEqual(manifest["invalidGeometryCount"], 0)
                 self.assertEqual(manifest["duplicateAssetCount"], 0)
+                if country_code in {"ES", "FR"}:
+                    self.assertIn("sourceContribution", manifest)
+                    self.assertIn("coverage", manifest)
+                    self.assertFalse(manifest["partial"])
+                    self.assertEqual(manifest["failedRequests"], 0)
+                    self.assertEqual(manifest["suspectedGapTileCount"], 0)
 
-    def test_raw_expected_counts_and_france_partial_metadata(self):
+    def test_runtime_schema_voltage_labels_and_manifest_counts(self):
+        required = {
+            "assetId", "countryCode", "assetType", "powerType", "osmType", "osmId",
+            "actualVoltagesKv", "actualVoltageKv", "gridClass", "displayClass", "name",
+            "ref", "operator", "from", "to", "displayLabel", "labelSource", "voltageRaw",
+            "circuits", "cables", "frequency", "location", "sourceProvider", "sourceFallback",
+            "sourceLicense", "osmTimestamp",
+        }
         for country_code in ("ES", "FR"):
-            features, metadata = MODULE._load_sources(country_code, MODULE.COUNTRIES[country_code])
-            MODULE._validate_expected(country_code, features, MODULE.COUNTRIES[country_code])
-            self.assertTrue(all((f.get("properties") or {}).get("countryCode") == country_code for f in features))
-        _, france_metadata = MODULE._load_sources("FR", MODULE.COUNTRIES["FR"])
-        diagnostics = france_metadata["downloadDiagnostics"]
-        self.assertTrue(diagnostics["partial"])
-        self.assertEqual(diagnostics["failedRequests"], 14)
-
-    def test_raw_geometry_country_and_expected_type_counts(self):
-        expected = {
-            "ES": {"LineString": 15_264, "Point": 3_852},
-            "FR": {"LineString": 55_981, "Point": 15_658},
-        }
-        for country_code, expected_types in expected.items():
-            with self.subTest(country_code=country_code):
-                features, _ = MODULE._load_sources(country_code, MODULE.COUNTRIES[country_code])
-                counts = Counter((feature.get("geometry") or {}).get("type") for feature in features)
-                self.assertEqual(dict(counts), expected_types)
-                for feature in features:
-                    self.assertTrue(MODULE.valid_geometry(feature.get("geometry")))
-                    self.assertEqual((feature.get("properties") or {}).get("countryCode"), country_code)
-
-    def test_runtime_schema_voltage_and_manifest_counts(self):
-        allowed_line = {
-            "assetId", "countryCode", "assetType", "actualVoltageKv", "gridClass",
-            "displayClass", "voltageRaw", "name", "operator", "osmId", "powerType",
-            "source", "sourceLicense",
-        }
-        allowed_substation = {
-            "assetId", "countryCode", "assetType", "actualVoltageKv", "gridClass",
-            "name", "operator", "osmId", "source", "sourceLicense",
-        }
-        for country_code in ("TR", "ES", "FR"):
             with self.subTest(country_code=country_code):
                 country_dir = MODULE.OUTPUT_ROOT / country_code
                 manifest = json.loads((country_dir / "manifest.json").read_text(encoding="utf-8"))
@@ -113,7 +99,9 @@ class RuntimeValidationTests(unittest.TestCase):
                         self.assertTrue(props["assetId"].startswith(f"{country_code}-"))
                         self.assertNotIn(props["assetId"], seen)
                         seen.add(props["assetId"])
-                        self.assertEqual(set(props), allowed_substation if filename == "substations.geojson" else allowed_line)
+                        self.assertEqual(set(props), required)
+                        self.assertTrue(props["displayLabel"])
+                        self.assertIn(props["labelSource"], {"osm-name", "osm-ref", "osm-from-to", "generated-identifier"})
                         if filename != "substations.geojson":
                             voltage = props["actualVoltageKv"]
                             self.assertGreaterEqual(voltage, 50)

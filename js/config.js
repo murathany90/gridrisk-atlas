@@ -2,7 +2,7 @@
 (function(A){
   A.CONFIG = {
     appName: 'Wildfire Grid Risk Monitor',
-    appVersion: '3.5.0',
+    appVersion: '3.5.1',
     activeCountryCode: 'TR',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
