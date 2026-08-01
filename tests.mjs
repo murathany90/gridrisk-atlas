@@ -802,7 +802,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.4.6'"), 'config appVersion 3.4.6');
+  assert.ok(cfgTxt2.includes("appVersion: '3.4.7'"), 'config appVersion 3.4.7');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1069,12 +1069,13 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.4.6 version bump to 3.4.6 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.4.6'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.4.6'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.4.6'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.4.6'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.4.6"'), 'package.json version');
+test('v3.4.7 version bump to 3.4.7 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.4.7'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.4.7'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.4.7'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.4.7'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.4.7"'), 'package.json version');
+  assert.equal(htmlTxt.includes('3.4.6'), false, 'no stale 3.4.6 in index.html');
   assert.equal(htmlTxt.includes('3.4.5'), false, 'no stale 3.4.5 in index.html');
   assert.equal(htmlTxt.includes('3.4.4'), false, 'no stale 3.4.4 in index.html');
   assert.equal(htmlTxt.includes('3.4.3'), false, 'no stale 3.4.3 in index.html');
@@ -1438,6 +1439,86 @@ test('v3.4.6 — aria initial states in index.html', () => {
   assert.ok(htmlTxt.includes('<button id="analysisToggle" class="analysisToggleBtn panelFloating" aria-expanded="false">'), 'analysis button aria-expanded=false');
   assert.ok(htmlTxt.includes('<div id="legendStack" class="legendStack legendsHidden" aria-hidden="true">'), 'legendStack aria-hidden=true');
   assert.ok(htmlTxt.includes('<div id="analysisSummaryPanel" class="analysisStack analysisHidden" aria-hidden="true">'), 'analysisSummaryPanel aria-hidden=true');
+});
+
+// ── v3.4.7 — minimal FIRMS tooltip (compact fields, readable dates, dynamic age) ──
+console.log('\nv3.4.7 — minimal FIRMS tooltip');
+
+test('v3.4.7 — utils: formatTrShortDateTime renders Turkish short format', () => {
+  assert.equal(U.formatTrShortDateTime('2026-07-31T11:20:00Z'), '31 Temmuz 14.20');
+  assert.equal(U.formatTrShortDateTime('2026-08-01T23:10:00Z'), '2 Ağustos 02.10');
+  assert.equal(U.formatTrShortDateTime('garbage'), null);
+});
+
+test('v3.4.7 — utils: formatAgeSince returns Turkish human duration', () => {
+  const ref = '2026-08-01T12:30:00Z';
+  assert.equal(U.formatAgeSince('2026-08-01T00:50:00Z', ref), '11 saat 40 dakika');
+  assert.equal(U.formatAgeSince('2026-08-01T11:45:00Z', ref), '45 dakika');
+  assert.equal(U.formatAgeSince('2026-08-01T11:30:00Z', ref), '1 saat');
+  assert.equal(U.formatAgeSince('2026-07-31T09:30:00Z', ref), '1 gün 3 saat');
+  assert.equal(U.formatAgeSince('2026-08-01T12:29:30Z', ref), '1 dakikadan az');
+  assert.equal(U.formatAgeSince('invalid', ref), null);
+});
+
+test('v3.4.7 — map: detection tooltip builder compact, old long note removed', () => {
+  assert.ok(mapTxt.includes('firesDetectionTooltip(f,ev,reference){'), 'detection tooltip helper');
+  assert.ok(mapTxt.includes('<strong>NASA FIRMS termal tespiti</strong>'), 'title line');
+  assert.ok(mapTxt.includes('Tespit: ${U.formatLocal(new Date(f.detectedAt))}'), 'detection time line');
+  assert.ok(mapTxt.includes('İlk uydu tespiti: ${first}'), 'first detection row');
+  assert.ok(mapTxt.includes('Son uydu tespiti: ${last}'), 'last detection row');
+  assert.ok(mapTxt.includes('Son tespit yaşı: ${age}'), 'age row');
+  assert.ok(mapTxt.includes('out.join(\'<br>\')'), 'single-line compact layout');
+  assert.equal(mapTxt.includes('Hotspot = yangın perimetresi değildir.'), false, 'long note removed');
+  assert.equal(mapTxt.includes('<br><br>'), false, 'no double breaks');
+});
+
+test('v3.4.7 — map: event cluster tooltip builder compact', () => {
+  assert.ok(mapTxt.includes('firesEventTooltip(ev,reference){'), 'event tooltip helper');
+  assert.ok(mapTxt.includes('<strong>Yangın olayı kümesi</strong>'), 'cluster title line');
+  assert.ok(mapTxt.includes('Maks. FRP: ${U.round(ev.maxFrp,1)} MW'), 'max FRP line');
+  assert.equal(mapTxt.includes('kümelenmiş; yangın perimetresi değildir.'), false, 'long cluster note removed');
+});
+
+test('v3.4.7 — map: detection tooltip wired with event lookup in renderFires', () => {
+  assert.ok(mapTxt.includes('const detEvents=new Map();'), 'detection→event lookup map');
+  assert.ok(mapTxt.includes('m.bindTooltip(this.firesDetectionTooltip(f,detEvents.get(f),new Date(end)));'), 'detection tooltip bound');
+  assert.ok(mapTxt.includes('m.bindTooltip(this.firesEventTooltip(ev,new Date(end)));'), 'cluster tooltip bound');
+});
+
+test('v3.4.7 — runtime: detection tooltip output (with event)', () => {
+  const t = AtmoApp.MapManager.prototype.firesDetectionTooltip.call(null,
+    { detectedAt: '2026-08-01T10:10:00Z', product: 'VIIRS_NOAA21_NRT', frp: 37.14, source: 'NASA FIRMS' },
+    { earliestDetectedAt: '2026-07-31T11:20:00Z', latestDetectedAt: '2026-08-01T10:10:00Z' },
+    new Date('2026-08-01T21:50:00Z'));
+  assert.ok(t.includes('NASA FIRMS termal tespiti'), 'title');
+  assert.ok(t.includes('VIIRS_NOAA21_NRT'), 'sensor');
+  assert.ok(t.includes('FRP: 37.14 MW'), 'FRP');
+  assert.ok(t.includes('Tespit:'), 'detection time');
+  assert.ok(t.includes('İlk uydu tespiti: 31 Temmuz 14.20'), 'first from event');
+  assert.ok(t.includes('Son uydu tespiti: 1 Ağustos 13.10'), 'last from event');
+  assert.ok(t.includes('Son tespit yaşı: 11 saat 40 dakika'), 'age vs reference');
+  assert.equal((t.match(/<br>/g) || []).length, 6, '7 short lines');
+});
+
+test('v3.4.7 — runtime: detection tooltip omits first/last rows without event', () => {
+  const t = AtmoApp.MapManager.prototype.firesDetectionTooltip.call(null,
+    { detectedAt: '2026-08-01T10:10:00Z', product: 'VIIRS_SNPP_NRT', frp: 5 },
+    null,
+    new Date('2026-08-01T11:10:00Z'));
+  assert.ok(!t.includes('İlk uydu tespiti'), 'no first row without event');
+  assert.ok(!t.includes('Son uydu tespiti'), 'no last row without event');
+  assert.ok(t.includes('Son tespit yaşı: 1 saat'), 'age from own detection');
+});
+
+test('v3.4.7 — runtime: cluster tooltip output', () => {
+  const t = AtmoApp.MapManager.prototype.firesEventTooltip.call(null,
+    { count: 12, maxFrp: 87.3, earliestDetectedAt: '2026-07-31T11:20:00Z', latestDetectedAt: '2026-08-01T10:10:00Z' },
+    new Date('2026-08-01T21:50:00Z'));
+  assert.ok(t.includes('12 FIRMS termal tespiti'), 'count');
+  assert.ok(t.includes('Maks. FRP: 87.3 MW'), 'max FRP');
+  assert.ok(t.includes('İlk uydu tespiti: 31 Temmuz 14.20'), 'first');
+  assert.ok(t.includes('Son uydu tespiti: 1 Ağustos 13.10'), 'last');
+  assert.ok(t.includes('Son tespit yaşı: 11 saat 40 dakika'), 'age');
 });
 
 // ── Run ──

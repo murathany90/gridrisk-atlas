@@ -1,5 +1,24 @@
 # Geliştirme Kaydı — Türkiye Wildfire Grid Risk Monitor v3.2.0
 
+# v3.4.7 — UI/Tooltip Hotfix: Minimal FIRMS Tooltip
+
+**Branch:** `fix/v3.4.7-minimal-tooltip`
+
+**Amaç:** NASA FIRMS termal tespiti hover tooltip'ini minimal ve faydalı hale getirmek; uzun uyarı/not bloklarını kaldırmak; tarih/saatleri okunur Türkçe formatta göstermek; son tespit yaşını dinamik hesaplamak.
+
+**Değişiklikler:**
+- **`js/utils.js`** — iki yeni formatter:
+  - `formatTrShortDateTime(date)` → `31 Temmuz 14.20` / `2 Ağustos 02.10` (Türkiye saati, Türkçe ay adı, nokta ile HH.MM; geçersiz girdide `null`).
+  - `formatAgeSince(iso, reference)` → `11 saat 40 dakika`, `1 saat`, `45 dakika`, `1 gün 3 saat`, `1 dakikadan az` (dinamik; geçersiz girdide `null`).
+- **`js/map.js`** — `firesDetectionTooltip(f, ev, reference)` ve `firesEventTooltip(ev, reference)` builder'ları; `renderFires` içinde tespit→olay eşlemesi için `detEvents` Map'i (olay üyeleri aynı nesne referansları). Tekil tespit tooltip'i: başlık → sensör (`product`) → `FRP: X.XX MW` → `Tespit: ... GMT+3` → `İlk uydu tespiti` → `Son uydu tespiti` (olayın `earliestDetectedAt`/`latestDetectedAt`'inden; olay yoksa satırlar gösterilmez) → `Son tespit yaşı` (referans = seçili zaman/now). Olay kümesi tooltip'i aynı kompakt düzende yenilendi. `Hotspot = yangın perimetresi değildir.` ve `5 km / 6 saat kümelenmiş; yangın perimetresi değildir.` notları kaldırıldı; `<br><br>` yok; 6-7 kısa satır.
+- **Sürüm 3.4.7**: `package.json`, `js/config.js`, `index.html` (pill + cache-buster), `server.mjs`, `README.md`, sürüm geçmişi.
+
+**Testler:** 8 yeni test — `formatTrShortDateTime` çıktıları (Türkiye saati), `formatAgeSince` çıktıları (saat/dakika/gün/dakikadan az/null), tooltip builder'ların varlığı + uzun notların kaldırıldığı + `<br><br>` yokluğu, `detEvents` map + bindTooltip bağlantısı, runtime çıktılar: olaylı tespit (7 satır, `İlk uydu tespiti: 31 Temmuz 14.20`, `Son tespit yaşı: 11 saat 40 dakika`), olaysız tespit (ilk/son uydu satırları yok, yaş kendi tespitinden), küme tooltip'i.
+
+**Tarayıcı doğrulama:** Desktop 1440×900 + mobil 390×844 — gerçek hover ile tooltip açılıyor; alan sırası başlık/sensör/FRP/Tespit/İlk/Son/Yaş; yaş dinamik; veri yoksa satır yok; taşma yok; console exception yok.
+
+---
+
 # v3.4.6 — UI Hotfix: Karşılıklı Özel Solid Paneller
 
 **Branch:** `fix/v3.4.6-exclusive-solid-panels`
