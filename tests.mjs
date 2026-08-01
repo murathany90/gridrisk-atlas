@@ -802,7 +802,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.4.3'"), 'config appVersion 3.4.3');
+  assert.ok(cfgTxt2.includes("appVersion: '3.4.4'"), 'config appVersion 3.4.4');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1069,12 +1069,13 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.4.3 version bump to 3.4.3 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.4.3'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.4.3'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.4.3'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.4.3'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.4.3"'), 'package.json version');
+test('v3.4.4 version bump to 3.4.4 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.4.4'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.4.4'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.4.4'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.4.4'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.4.4"'), 'package.json version');
+  assert.equal(htmlTxt.includes('3.4.3'), false, 'no stale 3.4.3 in index.html');
   assert.equal(htmlTxt.includes('3.4.2'), false, 'no stale 3.4.2 in index.html');
   assert.equal(htmlTxt.includes('3.4.1'), false, 'no stale 3.4.1 in index.html');
   assert.equal(htmlTxt.includes('3.4.0'), false, 'no stale 3.4.0 in index.html');
@@ -1268,6 +1269,78 @@ test('v3.4.1 — GetCapabilities advertises layer + GetMap returns real image (S
   const bytes = new Uint8Array(await gmap.arrayBuffer());
   assert.ok(bytes.length > 1000, 'image payload non-trivial');
   assert.ok(bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4E && bytes[3] === 0x47, 'PNG magic bytes');
+});
+
+// ── v3.4.4 — Şebeke Risk Özeti paneli (risk summary) ──
+console.log('\nv3.4.4 — risk summary panel');
+
+test('v3.4.4 — analysis toggle button present, under legend toggle, same style', () => {
+  assert.ok(htmlTxt.includes('id="analysisToggle"'), 'analysis toggle button in index.html');
+  const lg = htmlTxt.indexOf('id="legendToggleBtn"');
+  const an = htmlTxt.indexOf('id="analysisToggle"');
+  assert.ok(lg !== -1 && an > lg, 'analysis button after legend button in DOM order');
+  assert.ok(cssTxt.includes('.legendToggleBtn,.analysisToggleBtn{left:12px;z-index:610;font-size:9px;padding:6px 8px;background:#09151fdd;width:122px;text-align:center}'), 'shared button style rule');
+  assert.ok(cssTxt.includes('.analysisToggleBtn{bottom:74px}'), 'desktop stack: legend button 108, analysis button 74 (gap)');
+});
+
+test('v3.4.4 — panel markup reuses legend visual language', () => {
+  assert.ok(htmlTxt.includes('id="analysisSummaryPanel"'), 'panel element present');
+  assert.ok(htmlTxt.includes('class="analysisStack analysisHidden"'), 'panel starts hidden with own class');
+  assert.ok(htmlTxt.includes('<div class="legendHeader">'), 'panel header reuses legendHeader');
+  assert.ok(htmlTxt.includes('⚡ Şebeke Risk Özeti'), 'panel title');
+  assert.ok(htmlTxt.includes('id="analysisClose"'), 'panel close button');
+  assert.ok(htmlTxt.includes('En yüksek öncelikli 5 yangın olayı'), 'sub label');
+  assert.ok(htmlTxt.includes('id="analysisSummaryBody"'), 'cards container');
+});
+
+test('v3.4.4 — panel stack CSS: independent from legend, bounded on mobile', () => {
+  assert.ok(/\.analysisStack\{position:absolute;z-index:550;left:12px;bottom:108px;display:flex;flex-direction:column;gap:6px;max-width:min\(220px,calc\(100vw - 16px\)\);max-height:40dvh;overflow-y:auto;/.test(cssTxt), 'panel positioned + bounded');
+  assert.ok(cssTxt.includes('.analysisStack.analysisHidden{opacity:0;pointer-events:none;transform:translateY(8px)}'), 'hidden state');
+  assert.ok(cssTxt.includes('body.analysisOpen .legendToggleBtn{bottom:182px}'), 'legend button shifts when analysis open');
+  assert.ok(cssTxt.includes('body.analysisOpen .legendStack{bottom:216px}'), 'legend stack shifts when analysis open');
+});
+
+test('v3.4.4 — risk card markup: rank, badge, event, nearest asset, distance, meta', () => {
+  assert.ok(uiTxt.includes('riskSummaryCard(a,i){'), 'card factory method');
+  assert.ok(uiTxt.includes('<span class="riskRank">#${i+1}</span>'), 'rank #1..5');
+  assert.ok(uiTxt.includes('class="riskBadge ${a.riskBand?.level||\'low\'}'), 'risk badge reuses existing level classes');
+  assert.ok(uiTxt.includes('⚡ EN YAKIN VARLIK'), 'nearest asset label');
+  assert.ok(uiTxt.includes('riskCardNearest'), 'nearest asset block present');
+  assert.ok(uiTxt.includes('FRP: ${this.val(a.event?.maxFrp,0,\' MW\')}'), 'FRP in card meta');
+  assert.ok(uiTxt.includes('Skor: ${a.riskScore}'), 'risk score in card meta');
+  assert.ok(uiTxt.includes('Aktif şebeke riski bulunamadı.'), 'empty state message');
+});
+
+test('v3.4.4 — cards use the same source and order as the impact table', () => {
+  assert.ok(uiTxt.includes('rows.slice(0,5).map((a,i)=>this.riskSummaryCard(a,i))'), 'max 5 cards');
+  assert.ok(uiTxt.includes('const rows=this.riskTableRows(A.app?.state?.fireImpacts||[]);'), 'cards read same fireImpacts via riskTableRows');
+  assert.ok(uiTxt.includes('riskTableRows(analyses){'), 'shared row pipeline exists');
+  assert.ok(uiTxt.includes('let rows=this.riskTableRows(arr);'), 'impact table uses the same pipeline');
+});
+
+test('v3.4.4 — nearest asset picks line vs substation like the table (min distance)', () => {
+  assert.ok(uiTxt.includes(',useLine=l&&(!s||l.distanceKm<=s.distanceKm)'), 'min-distance selection shared logic');
+  assert.ok(uiTxt.includes('obj?.distanceKm'), 'distance from same selected asset');
+  assert.ok(uiTxt.includes('props?.name||props?.ref'), 'asset name fallback');
+});
+
+test('v3.4.4 — card click emits focusRisk with the same row object as the table', () => {
+  assert.ok(uiTxt.includes('body.querySelectorAll(\'.riskCard\').forEach(el=>el.addEventListener(\'click\',()=>A.Events.emit(\'focusRisk\',rows[Number(el.dataset.riskIndex)])))'), 'card click -> focusRisk, same rows array');
+  assert.ok(uiTxt.includes('data-risk-index="${i}"'), 'card carries row index');
+});
+
+test('v3.4.4 — toggle independent from legend toggle', () => {
+  assert.ok(uiTxt.includes('document.getElementById(\'analysisToggle\')?.addEventListener(\'click\',()=>this.toggleRiskSummary());'), 'toggle wired');
+  assert.ok(uiTxt.includes("btn.textContent=hidden?'⚡ Analizi Göster':'⚡ Analizi Gizle'"), 'button label swap');
+  assert.ok(uiTxt.includes('if(!hidden)this.renderRiskSummary();'), 're-render on open');
+  assert.ok(cssTxt.includes('.analysisStack.analysisHidden') && cssTxt.includes('.legendStack.legendsHidden'), 'separate hidden classes');
+  assert.ok(htmlTxt.includes('<div id="analysisSummaryPanel" class="analysisStack analysisHidden">') && htmlTxt.includes('<div id="legendStack" class="legendStack legendsHidden">'), 'no shared open/close state in DOM');
+});
+
+test('v3.4.4 — live update: renderImpact re-renders the summary (single funnel)', () => {
+  const r = uiTxt.indexOf('renderImpact(');
+  const c = uiTxt.indexOf('this.renderRiskSummary();');
+  assert.ok(r !== -1 && c > r, 'renderRiskSummary called inside renderImpact');
 });
 
 // ── Run ──
