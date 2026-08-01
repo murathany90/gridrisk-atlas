@@ -1,5 +1,21 @@
 # Geliştirme Kaydı — Türkiye Wildfire Grid Risk Monitor v3.2.0
 
+# v3.4.9 — Riskli Şebeke İşaretlemesi En Fazla 5 km
+
+**Branch:** `fix/v3.4.9-risk-distance-5km`
+
+**Amaç:** Çok fazla görünen "riskli trafo merkezi" (kare) işaretlerini sınırlamak: risk işaretlemesi yalnızca yangın olayına **en fazla 5 km** mesafedeki şebeke varlıklarına (TM + hat) uygulanır; mesafe eşikleri daraltılır, mesafe ağırlığı risk skorunda artırılır.
+
+**Değişiklikler:**
+- **`js/config.js`** — `impactBands` 1/3/10/25 km → **0.5 / 1.5 / 3 / 5 km** (Kritik / Yüksek / Orta / İzleme alanı). 5 km üzeri `Düşük yakınlık (low)` bandına düşer (`U.impactBand` varsayılanı).
+- **`js/grid.js`** — `analyzeEvents` mesafe skoru sertleştirildi: ≤0.5 km → 60, ≤1 → 52, ≤2 → 44, ≤3 → 36, ≤5 → 24, >5 → 0 (eskiden ≤25 km'de hâlâ 12 puan vardı). Mesafe dışı bileşenlerin üst limitleri düşürüldü: FRP 20 → 18, rüzgâr 10/5/4 → 8/4/3. **Matematiksel garanti:** mesafe dışı maksimum 18+15+10+8 = **51 < 55** (Yüksek eşiği) → 5 km'den uzak varlık asla Yüksek+/riskli olarak işaretlenemez; ≤5 km'de skor 75'e kadar çıkar.
+- **`js/map.js`** — `setFireImpacts`'te TM kare ikonu `s.distanceKm <= C.impactBands.at(-1).maxKm` (5 km) koşuluyla işaretlenir (skor ≥55 şartına ek savunma); risk lejantı notuna "en fazla 5 km'deki varlıklar (mesafe ağırlıklı skor)" eklendi.
+- **Sürüm 3.4.9**: `package.json`, `js/config.js`, `index.html` (pill + cache-buster), `server.mjs`, `README.md`, sürüm geçmişi.
+
+**Testler:** 5 yeni test — `impactBands` 0.5/1.5/3/5 değerleri + `U.impactBand` çalışma zamanı eşikleri (0.4 → critical, 1.2 → high, 2 → medium, 4.9 → watch, 6 → low fallback), grid.js yeni mesafe eğrisi + 18/8/4/3 limitleri (eski 10/25 km kademelerinin ve eski FRP üst limitinin yokluğu), **invariant: 5 km ötesinde mümkün olan maksimum skor (51) Yüksek eşiğinin (55) altında** (config'ten türetilmiş), map.js kare ikon 5 km guard'ı + lejant notu + `if(s)L.marker` yokluğu. Mevcut risk testleri (v3.4.1 kare ikon kaynağı) güncellendi. Toplam **148/148** test geçti.
+
+---
+
 # v3.4.8 — FIRMS Tooltip Bölge Geçmişi (Area History) Zaman Mantığı
 
 **Branch:** `fix/v3.4.8-tooltip-area-history`

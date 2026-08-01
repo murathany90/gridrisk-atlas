@@ -802,7 +802,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.4.8'"), 'config appVersion 3.4.8');
+  assert.ok(cfgTxt2.includes("appVersion: '3.4.9'"), 'config appVersion 3.4.9');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -986,6 +986,7 @@ const htmlTxt = readFileSync('index.html', 'utf8');
 const appTxt = readFileSync('js/app.js', 'utf8');
 const mapTxt = readFileSync('js/map.js', 'utf8');
 const uiTxt = readFileSync('js/ui.js', 'utf8');
+const gridTxt = readFileSync('js/grid.js', 'utf8');
 
 test('v3.3.4 CSS: dynamic viewport height support', () => {
   assert.ok(/min-height:100dvh/.test(cssTxt), 'min-height:100dvh present');
@@ -1069,12 +1070,12 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.4.8 version bump to 3.4.8 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.4.8'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.4.8'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.4.8'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.4.8'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.4.8"'), 'package.json version');
+test('v3.4.9 version bump to 3.4.9 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.4.9'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.4.9'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.4.9'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.4.9'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.4.9"'), 'package.json version');
   assert.equal(htmlTxt.includes('3.4.7'), false, 'no stale 3.4.7 in index.html');
   assert.equal(htmlTxt.includes('3.4.6'), false, 'no stale 3.4.6 in index.html');
   assert.equal(htmlTxt.includes('3.4.5'), false, 'no stale 3.4.5 in index.html');
@@ -1183,7 +1184,7 @@ test('v3.4.1 — nearest-risk substation marker is a square (riskSubstationIcon)
   assert.ok(mapTxt.includes('riskSubstationIcon('), 'riskSubstationIcon helper exists');
   assert.ok(mapTxt.includes('this.riskSubstationIcon(a.riskBand.level,c)'), 'nearest substation uses square marker');
   const riskSrc = mapTxt.slice(mapTxt.indexOf('setFireImpacts'), mapTxt.indexOf('makeLegend(\'risk\''));
-  assert.ok(riskSrc.includes('if(s)L.marker([s.feature.lat,s.feature.lon]'), 'substation rendered as marker (square) not circleMarker');
+  assert.ok(riskSrc.includes("if(s&&s.distanceKm<=C.impactBands.at(-1).maxKm)L.marker([s.feature.lat,s.feature.lon]"), 'substation rendered as guarded 5 km square marker');
   assert.equal(riskSrc.includes('L.circleMarker([s.feature.lat'), false, 'no circleMarker for TM symbol');
   assert.equal(mapTxt.includes('{critical:14,high:12,medium:10,watch:8,low:8}'), false, 'no per-level square sizes');
 });
@@ -1588,6 +1589,48 @@ test('v3.4.8 — tooltip and detail panel share the same areaHistory values', ()
   const tip = AtmoApp.MapManager.prototype.firesEventTooltip.call(null, { count: 5, maxFrp: 87.3 }, h, new Date());
   assert.ok(tip.includes('Bölgedeki tespit: 8'), 'tooltip count matches history');
   assert.ok(tip.includes(U.formatTrShortDateTime(new Date(h.first))) && tip.includes(U.formatTrShortDateTime(new Date(h.last))), 'tooltip times match history values');
+});
+
+// ============================================================
+// v3.4.9 — riskli işaretleme en fazla 5 km (trafo merkezi/hat)
+// ============================================================
+console.log('\nv3.4.9 — risky marking capped at 5 km');
+
+test('v3.4.9 — impactBands tightened to 0.5/1.5/3/5 km', () => {
+  assert.deepEqual(C().impactBands.map(b => b.maxKm), [0.5, 1.5, 3, 5], 'bands lowered from 1/3/10/25');
+  assert.deepEqual(C().impactBands.map(b => b.label), ['Kritik yakınlık', 'Yüksek yakınlık', 'Orta yakınlık', 'İzleme alanı'], 'band labels intact');
+  assert.equal(C().impactBands.at(-1).maxKm, 5, 'last band caps at 5 km');
+});
+
+test('v3.4.9 — runtime: impactBand maps distances against new thresholds', () => {
+  assert.equal(U.impactBand(0.4).level, 'critical', '0.4 km critical');
+  assert.equal(U.impactBand(1.2).level, 'high', '1.2 km high');
+  assert.equal(U.impactBand(2).level, 'medium', '2 km medium');
+  assert.equal(U.impactBand(4.9).level, 'watch', '4.9 km watch');
+  assert.equal(U.impactBand(6).level, 'low', '>5 km falls back to low');
+  assert.equal(U.impactBand(6).label, 'Düşük yakınlık', '>5 km fallback label');
+});
+
+test('v3.4.9 — distance score curve steepened, caps lowered (grid.js)', () => {
+  assert.ok(gridTxt.includes('minDistanceKm<=0.5?60:minDistanceKm<=1?52:minDistanceKm<=2?44:minDistanceKm<=3?36:minDistanceKm<=5?24:0'), 'new 5 km distance curve');
+  assert.ok(gridTxt.includes('Math.min(18,Math.sqrt'), 'FRP capped at 18');
+  assert.ok(gridTxt.includes('windScore=8') && gridTxt.includes('windScore=4') && gridTxt.includes('Math.max(windScore,3)'), 'wind caps 8/4/3');
+  assert.equal(gridTxt.includes('<=10?28'), false, 'old 10 km tier removed');
+  assert.equal(gridTxt.includes('<=25?12'), false, 'old 25 km tier removed');
+  assert.equal(gridTxt.includes('Math.min(20,Math.sqrt'), false, 'old FRP cap removed');
+});
+
+test('v3.4.9 — invariant: beyond 5 km the max possible score stays below Yüksek (55)', () => {
+  const maxNonDistance = 18 + 15 + 10 + 8;
+  const highMin = C().riskScoreBands.find(b => b.level === 'high').min;
+  assert.equal(maxNonDistance, 51, 'frp 18 + age 15 + asset 10 + wind 8');
+  assert.ok(maxNonDistance < highMin, `51 < ${highMin} → no risky marking beyond 5 km`);
+});
+
+test('v3.4.9 — map.js: substation square marker guarded to ≤5 km + legend note', () => {
+  assert.ok(mapTxt.includes('s&&s.distanceKm<=C.impactBands.at(-1).maxKm'), 'square marker guard reads last band (5 km)');
+  assert.equal(mapTxt.includes('if(s)L.marker'), false, 'unguarded substation marker removed');
+  assert.ok(mapTxt.includes('en fazla ${C.impactBands.at(-1).maxKm} km'), 'legend states 5 km cap');
 });
 
 // ── Run ──
