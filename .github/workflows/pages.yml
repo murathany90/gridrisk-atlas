@@ -2,7 +2,7 @@ name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
@@ -32,10 +32,13 @@ jobs:
       - name: Stage runtime files
         shell: bash
         run: |
-          mkdir -p deploy
+          mkdir -p deploy/data
           cp index.html deploy/
-          cp -r css js data deploy/
+          cp -r css js deploy/
+          cp -r data/countries deploy/data/
           cp .nojekyll deploy/
+          test ! -e deploy/spain_osm_power_grid_50kv_plus_full.geojson
+          test ! -e deploy/france_osm_power_grid_50kv_plus_full.geojson
 
       - name: Setup Pages
         uses: actions/configure-pages@v5

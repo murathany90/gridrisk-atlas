@@ -1,1 +1,17 @@
-﻿{"name":"turkey-wildfire-grid-risk-monitor","version":"3.4.13","private":true,"type":"module","scripts":{"start":"node server.mjs","test":"node tests.mjs"},"engines":{"node":">=18"}}
+{
+  "name": "wildfire-grid-risk-monitor",
+  "version": "3.5.0",
+  "description": "Turkey, Spain and France wildfire and electricity grid risk monitoring platform",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node tests.mjs && python -m unittest discover -s tests -p test_*.py",
+    "test:python": "python -m unittest discover -s tests -p test_*.py",
+    "build:grid": "python tools/build_country_grid.py --country ALL",
+    "validate:grid": "python tools/build_country_grid.py --country ALL --validate-runtime"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
