@@ -138,6 +138,17 @@ def valid_geometry(geometry: Any) -> bool:
     )
 
 
+def normalize_line_geometries(geometry: dict[str, Any]) -> list[dict[str, Any]]:
+    """Return runtime LineStrings, splitting a supported MultiLineString into parts."""
+
+    if geometry.get("type") == "MultiLineString":
+        return [
+            {"type": "LineString", "coordinates": coordinates}
+            for coordinates in geometry.get("coordinates", [])
+        ]
+    return [geometry]
+
+
 def _source_id(properties: dict[str, Any], fallback_index: int) -> str:
     for key in ("osm_id", "osm_id2", "osmId", "id", "OBJECTID"):
         value = properties.get(key)
@@ -329,11 +340,7 @@ def build_country(country_code: str, boundary_source: dict[str, Any]) -> dict[st
             # OSM/ArcGIS exports can reuse the same numeric identifier for a line
             # and a cable record; power type keeps the runtime identity stable.
             source_id = f"{power_type}-{source_id}"
-        line_geometries = (
-            [{"type": "LineString", "coordinates": coordinates} for coordinates in geometry["coordinates"]]
-            if geom_type == "MultiLineString"
-            else [geometry]
-        )
+        line_geometries = normalize_line_geometries(geometry)
         if geom_type == "MultiLineString":
             counts["normalizedMultiLineCount"] += 1
 
