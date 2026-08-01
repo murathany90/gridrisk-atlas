@@ -802,7 +802,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.4.4'"), 'config appVersion 3.4.4');
+  assert.ok(cfgTxt2.includes("appVersion: '3.4.5'"), 'config appVersion 3.4.5');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1069,12 +1069,13 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.4.4 version bump to 3.4.4 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.4.4'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.4.4'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.4.4'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.4.4'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.4.4"'), 'package.json version');
+test('v3.4.5 version bump to 3.4.5 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.4.5'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.4.5'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.4.5'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.4.5'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.4.5"'), 'package.json version');
+  assert.equal(htmlTxt.includes('3.4.4'), false, 'no stale 3.4.4 in index.html');
   assert.equal(htmlTxt.includes('3.4.3'), false, 'no stale 3.4.3 in index.html');
   assert.equal(htmlTxt.includes('3.4.2'), false, 'no stale 3.4.2 in index.html');
   assert.equal(htmlTxt.includes('3.4.1'), false, 'no stale 3.4.1 in index.html');
@@ -1341,6 +1342,53 @@ test('v3.4.4 — live update: renderImpact re-renders the summary (single funnel
   const r = uiTxt.indexOf('renderImpact(');
   const c = uiTxt.indexOf('this.renderRiskSummary();');
   assert.ok(r !== -1 && c > r, 'renderRiskSummary called inside renderImpact');
+});
+
+// ── v3.4.5 — DOM uniqueness hotfix (duplicate analysis panel IDs) ──
+console.log('\nv3.4.5 — DOM uniqueness contract');
+
+const idCount = id => (htmlTxt.match(new RegExp('id="' + id + '"', 'g')) || []).length;
+
+test('v3.4.5 — analysisToggle occurs exactly once', () => {
+  assert.equal(idCount('analysisToggle'), 1, 'analysisToggle count');
+});
+
+test('v3.4.5 — analysisSummaryPanel occurs exactly once', () => {
+  assert.equal(idCount('analysisSummaryPanel'), 1, 'analysisSummaryPanel count');
+});
+
+test('v3.4.5 — analysisClose occurs exactly once', () => {
+  assert.equal(idCount('analysisClose'), 1, 'analysisClose count');
+});
+
+test('v3.4.5 — analysisSummaryBody occurs exactly once', () => {
+  assert.equal(idCount('analysisSummaryBody'), 1, 'analysisSummaryBody count');
+});
+
+test('v3.4.5 — every id attribute in index.html is unique', () => {
+  const ids = htmlTxt.match(/id="[^"]+"/g) || [];
+  const seen = new Set();
+  const dup = [];
+  for (const raw of ids) {
+    if (seen.has(raw)) dup.push(raw);
+    seen.add(raw);
+  }
+  assert.equal(dup.length, 0, 'duplicate ids: ' + (dup.join(', ') || 'none'));
+});
+
+test('v3.4.5 — legend block ids remain unique (no collateral)', () => {
+  assert.equal(idCount('legendToggleBtn'), 1, 'legendToggleBtn count');
+  assert.equal(idCount('legendStack'), 1, 'legendStack count');
+});
+
+test('v3.4.5 — ui.js keeps analysisToggle binding', () => {
+  assert.ok(uiTxt.includes("document.getElementById('analysisToggle')?.addEventListener('click',()=>this.toggleRiskSummary());"), 'analysisToggle click binding preserved');
+});
+
+test('v3.4.5 — ui.js enforces DOM uniqueness contract in init', () => {
+  assert.ok(uiTxt.includes("const requiredUniqueIds=['analysisToggle','analysisSummaryPanel','analysisClose','analysisSummaryBody'];"), 'required ids array present');
+  assert.ok(uiTxt.includes('const nodes=document.querySelectorAll(`#${id}`);'), 'querySelectorAll uniqueness probe');
+  assert.ok(uiTxt.includes('if(nodes.length!==1)console.error(`DOM contract violation: #${id} count=${nodes.length}`);'), 'console.error on contract violation');
 });
 
 // ── Run ──

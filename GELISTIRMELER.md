@@ -1,5 +1,23 @@
 # Geliştirme Kaydı — Türkiye Wildfire Grid Risk Monitor v3.2.0
 
+# v3.4.5 — Acil Hotfix: Duplicate DOM ID'ler (Analizi Göster)
+
+**Branch:** `fix/v3.4.5-analysis-duplicate-dom`
+
+**Sorun:** v3.4.4 yayınında `index.html` içinde `#analysisToggle` (buton) ve `#analysisSummaryPanel`/`#analysisClose`/`#analysisSummaryBody` (panel bloğu) ikişer kez bulunuyordu. İlk buton/panel bloğu üzerine aynı bloğun ikinci kez eklenmesi (sürüm betiğindeki substring anchor eşleşmesi) sonucu oluşmuştu. `getElementById` ilk eşleşmeyi döndürdüğü için programatik `.click()` testleri geçti; ancak gerçek kullanıcı tıklaması üstte duran, bağlanmamış ikinci butona çarpıyor ve panel açılmıyordu.
+
+**Değişiklikler:**
+- **Duplicate kaldırıldı**: `#analysisToggle` butonu ve `#analysisSummaryPanel` panel bloğu (içindeki `#analysisClose`, `#analysisSummaryBody` ile) tekilleştirildi — DOM'da her biri tam 1 adet.
+- **DOM tekillik sözleşmesi** (`js/ui.js` init): `requiredUniqueIds` listesi (`analysisToggle`, `analysisSummaryPanel`, `analysisClose`, `analysisSummaryBody`) `querySelectorAll` ile sayılır; `count !== 1` ise `console.error('DOM contract violation: #id count=N')`.
+- **Binding korundu**: `document.getElementById('analysisToggle')?.addEventListener('click',()=>this.toggleRiskSummary())` aynen duruyor.
+- **Sürüm 3.4.5**: `package.json`, `js/config.js` (`appVersion`), `index.html` (buildPill + `?v=` cache-busting), `server.mjs` (`APP_VERSION`), `README.md`, sürüm geçmişi.
+
+**Testler:** `tests.mjs` — 4 kritik ID'nin count === 1 assertion'ları, index.html'deki TÜM `id=` değerlerinin global unique olması (duplicate → FAIL), lejant ID'lerinin etkilenmediği, ui.js binding'inin korunduğu ve init sözleşme kontrolünün varlığı.
+
+**Tarayıcı doğrulama:** Gerçek pointer testi — `elementFromPoint(centerX, centerY) === #analysisToggle`, CDP `Input.dispatchMouseEvent` ile buton merkezine tıklama (panelde `analysisHidden` yok, buton metni "Analizi Gizle", `pointer-events !== none`), ikinci tıklama kapar, × kapatır; 1440×900 ve 390×844 viewportlarında. Canlı Pages'te `querySelectorAll('#analysisToggle').length === 1` vb. koşulları PASS için zorunlu.
+
+---
+
 # v3.4.4 — ⚡ Şebeke Risk Özeti Paneli
 
 **Branch:** `feature/v3.4.4-risk-summary-panel`
