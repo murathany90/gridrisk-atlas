@@ -1521,6 +1521,8 @@ test('v3.4.8 — map: renderFires wires area history + time reference into toolt
   assert.ok(mapTxt.includes('reference=U.timeReference(this.currentSelectedTime'), 'time reference from timeline slider');
   assert.ok(mapTxt.includes('m.bindTooltip(this.firesDetectionTooltip(f,U.areaHistory(this.fireAll,f,radius),reference));'), 'detection tooltip bound with area history');
   assert.ok(mapTxt.includes('m.bindTooltip(this.firesEventTooltip(ev,U.areaHistory(this.fireAll,ev,radius),reference));'), 'cluster tooltip bound with area history');
+  assert.ok(mapTxt.includes('radius=C.fireClustering.radiusKm'), 'radius read from config object (C is not a function in map.js)');
+  assert.equal(mapTxt.includes('C().fireClustering'), false, 'no C() call syntax in map.js (C is the config object there)');
 });
 
 test('v3.4.8 — runtime: detection tooltip shows area first/last/count', () => {
