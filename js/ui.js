@@ -63,7 +63,10 @@
       const hidden=panel.classList.toggle('analysisHidden');
       document.body.classList.toggle('analysisOpen',!hidden);
       if(btn)btn.textContent=hidden?'⚡ Analizi Göster':'⚡ Analizi Gizle';
-      if(!hidden)this.renderRiskSummary();
+      if(!hidden){
+        if(window.innerWidth<=520){const lb=document.getElementById('layerPanelBody');if(lb&&!lb.classList.contains('hidden')){lb.classList.add('hidden');const cb=document.querySelector('.collapseBtn');if(cb)cb.textContent='+';}}
+        this.renderRiskSummary();
+      }
     }
     renderRiskSummary(){
       const panel=document.getElementById('analysisSummaryPanel'),body=document.getElementById('analysisSummaryBody');

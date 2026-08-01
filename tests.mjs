@@ -1333,7 +1333,8 @@ test('v3.4.4 — card click emits focusRisk with the same row object as the tabl
 test('v3.4.4 — toggle independent from legend toggle', () => {
   assert.ok(uiTxt.includes('document.getElementById(\'analysisToggle\')?.addEventListener(\'click\',()=>this.toggleRiskSummary());'), 'toggle wired');
   assert.ok(uiTxt.includes("btn.textContent=hidden?'⚡ Analizi Göster':'⚡ Analizi Gizle'"), 'button label swap');
-  assert.ok(uiTxt.includes('if(!hidden)this.renderRiskSummary();'), 're-render on open');
+  assert.ok(uiTxt.includes('if(!hidden){'), 're-render block on open');
+  assert.ok(uiTxt.includes('this.renderRiskSummary();'), 're-render on open');
   assert.ok(cssTxt.includes('.analysisStack.analysisHidden') && cssTxt.includes('.legendStack.legendsHidden'), 'separate hidden classes');
   assert.ok(htmlTxt.includes('<div id="analysisSummaryPanel" class="analysisStack analysisHidden">') && htmlTxt.includes('<div id="legendStack" class="legendStack legendsHidden">'), 'no shared open/close state in DOM');
 });
@@ -1391,8 +1392,10 @@ test('v3.4.5 — ui.js enforces DOM uniqueness contract in init', () => {
   assert.ok(uiTxt.includes('if(nodes.length!==1)console.error(`DOM contract violation: #${id} count=${nodes.length}`);'), 'console.error on contract violation');
 });
 
-test('v3.4.5 — mobile layerPanel cannot overlap analysis panel top (close button)', () => {
-  assert.ok(cssTxt.includes('@media(max-width:520px){body.analysisOpen .layerPanel{max-height:calc(100dvh - 40dvh - 192px)}}'), 'narrow screens clamp layerPanel above analysis stack');
+test('v3.4.5 — narrow screens collapse layerPanel body when analysis opens', () => {
+  assert.ok(uiTxt.includes("if(window.innerWidth<=520){const lb=document.getElementById('layerPanelBody');"), 'collapse layerPanelBody when analysis opens on narrow screens');
+  assert.ok(uiTxt.includes("lb.classList.add('hidden')"), 'uses the app collapse class');
+  assert.ok(uiTxt.includes("if(cb)cb.textContent='+';"), 'collapse button label syncs');
 });
 
 // ── Run ──
