@@ -4,16 +4,18 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
-  <title>Türkiye Wildfire Grid Risk Monitor</title>
+  <meta name="description" content="Wildfire and electricity grid risk monitoring for Türkiye, Spain and France." />
+  <title>Wildfire Grid Risk Monitor</title>
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="css/styles.css?v=3.4.13" />
+  <link rel="stylesheet" href="css/styles.css?v=3.5.0" />
 </head>
 <body>
 <div id="appShell">
   <header class="topbar">
-    <div class="brandBlock"><div class="brandIcon">🔥</div><div><h1>Türkiye Wildfire Grid Risk Monitor</h1><div class="subtitle">Orman yangını · duman taşınım bağlamı · 154/400 kV iletim şebekesi ve trafo merkezi etkisi</div></div></div>
-    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span class="domainPill">🇹🇷 VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.4.13</span><span id="lastUpdated">Son güncelleme: —</span></div>
+    <div class="brandBlock"><div class="brandIcon">🔥</div><div class="brandText"><h1>Wildfire Grid Risk Monitor</h1><div class="subtitle">Wildfire and Electricity Grid Risk Monitoring Platform</div></div></div>
+    <label class="countryControl" for="countrySelector"><span>Ülke:</span><select id="countrySelector" aria-label="Ülke seçin"><option value="TR">Türkiye</option><option value="ES">İspanya</option><option value="FR">Fransa</option></select></label>
+    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span id="domainPill" class="domainPill">VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.5.0</span><span id="lastUpdated">Son güncelleme: —</span></div>
   </header>
 
   <nav class="mainNav">
@@ -42,7 +44,7 @@
         <aside class="layerPanel panelFloating">
           <div class="panelHeader"><strong>Katmanlar</strong><button class="collapseBtn">−</button></div>
           <div id="layerPanelBody" class="panelBody">
-            <div class="layerGroup"><h3>🗺 Harita Altlığı</h3><p class="layerHint">Harita dünya üzerinde serbest pan/zoom. Yangın, duman, meteoroloji ve şebeke verileri yalnız Türkiye alanından sorgulanır.</p>
+            <div class="layerGroup"><h3>🗺 Harita Altlığı</h3><p id="countryCoverageHint" class="layerHint">Harita dünya üzerinde serbesttir. Aktif veri alanı: Türkiye.</p>
               <select id="baseMapSelect">
                 <option value="satellite">Uydu · Esri World Imagery</option>
                 <option value="osm">OpenStreetMap Standard</option>
@@ -88,8 +90,6 @@
                 <label><input class="gridLayer" data-grid="400" type="checkbox" checked/> <i class="lineSwatch s400"></i> 400 kV sınıfı</label>
                 <label><input class="gridLayer" data-grid="154" type="checkbox" checked/> <i class="lineSwatch s154"></i> 154 kV sınıfı</label>
                 <label><input class="gridLayer" data-grid="substations" type="checkbox"/> ■ Trafo merkezleri</label>
-                <label><input class="gridLayer" data-grid="33" type="checkbox"/> <i class="lineSwatch s33"></i> 20–66 kV</label>
-                <label><input class="gridLayer" data-grid="unknown" type="checkbox"/> <i class="lineSwatch sunk"></i> Gerilimi bilinmeyen</label>
               </div>
               <p class="layerHint">Risk çekirdeği görünürlükten bağımsız 400/154 kV hatları ve TM'leri kullanır. Haritada yalnız hatlar + TM gösterilir. 400/154 kV varsayılan açık; sayfa açılışında performans için kademeli yüklenir.</p>
             </div>
@@ -140,14 +140,14 @@
       <div class="analysisGrid">
         <article class="card wide"><div class="cardHeader"><h2>🔥 Teknik Terimler ve Kısaltmalar</h2><span class="badge analysis">BİLGİ</span></div><div class="metricGrid">
           <div class="metric"><small>FIRMS</small><strong>Fire Information for Resource Management System</strong><small>NASA'nın uydu tabanlı termal anomali/aktif yangın tespit sistemi. MODIS ve VIIRS sensörlerinden elde edilen verileri sunar. Tespitler hotspot (termal anomali) olup gerçek yangın perimetresi değildir.</small></div>
-          <div class="metric"><small>FRP</small><strong>Fire Radiative Power (MW)</strong><small>Yangının anlık ısıl gücü. Bir yangının ne kadar yoğun yandığını gösterir. Yüksek FRP daha yoğun yanma ve potansiyel olarak daha hızlı yayılma anlamına gelir. Uygulamada 50+ MW eşik değer olarak kullanılır.</small></div>
+          <div class="metric"><small>FRP</small><strong>Fire Radiative Power (MW)</strong><small>Yangının anlık ısıl gücü. Bir yangının ne kadar yoğun yandığını gösterir. Yüksek FRP daha yoğun yanma ve potansiyel olarak daha hızlı yayılma anlamına gelir. Uygulamada varsayılan eşik 30 MW'dır.</small></div>
           <div class="metric"><small>VIIRS</small><strong>Visible Infrared Imaging Radiometer Suite</strong><small>Suomi NPP, NOAA-20 ve NOAA-21 uydularındaki sensör. 375 m ve 750 m çözünürlükte termal tespit yapar. MODIS'ten daha yüksek çözünürlüklüdür.</small></div>
           <div class="metric"><small>MODIS</small><strong>Moderate Resolution Imaging Spectroradiometer</strong><small>Terra ve Aqua uydularındaki sensör. 1 km çözünürlükte günde 2-4 geçiş yapar. Daha düşük çözünürlük ama daha uzun veri geçmişi.</small></div>
           <div class="metric"><small>CAMS</small><strong>Copernicus Atmosphere Monitoring Service</strong><small>Avrupa Orta Vadeli Hava Tahminleri Merkezi (ECMWF) tarafından işletilen atmosfer bileşimi modeli. Yangın kaynaklı PM10 ve diğer aerosolleri ~11 km çözünürlükte tahmin eder.</small></div>
           <div class="metric"><small>PM10</small><strong>Particulate Matter &lt;10 µm</strong><small>Çapı 10 mikrometreden küçük partikül madde. Yangın dumanının ana bileşenidir. Solunum yoluyla akciğerlere ulaşır. Yüksek konsantrasyonlar sağlık riski oluşturur.</small></div>
           <div class="metric"><small>Open-Meteo</small><strong>Açık kaynak hava durumu API'si</strong><small>CAMS ve ECMWF verilerine ücretsiz erişim sağlayan API. Bu uygulama CAMS wildfire PM10 ve Open-Meteo rüzgâr/meteoroloji verilerini bu servis üzerinden alır.</small></div>
           <div class="metric"><small>EFFIS / FWI</small><strong>European Forest Fire Information System / Fire Weather Index</strong><small>Copernicus Acil Durum Yönetimi Servisi tarafından sağlanan yangın hava durumu indeksi. Sıcaklık, nem, rüzgâr ve yağış verilerini birleştirerek yangın tehlikesini gösterir.</small></div>
-          <div class="metric"><small>OSM Power Grid</small><strong>OpenStreetMap İletim Şebekesi</strong><small>OpenStreetMap topluluğu tarafından gönüllü olarak haritalanan elektrik iletim hatları ve trafo merkezleri. ODbL 1.0 lisansı ile kullanılmaktadır. Gerilim sınıfları: 400 kV, 154 kV, 20-66 kV.</small></div>
+          <div class="metric"><small>OSM Power Grid</small><strong>OpenStreetMap İletim Şebekesi</strong><small>Türkiye, İspanya ve Fransa için 50–550 kV gerçek OSM gerilimleri iki ortak risk sınıfına normalize edilir. Kaynak ODbL 1.0 lisanslıdır.</small></div>
           <div class="metric"><small>TM</small><strong>Trafo Merkezi (Substation)</strong><small>Elektrik iletim sisteminde gerilim seviyelerinin değiştirildiği, anahtarlama ve dağıtım yapılan tesis. Yüksek gerilim hatlarının birleşim/ayrışım noktalarıdır. Şebeke açısından kritik öneme sahiptir.</small></div>
           <div class="metric"><small>Hotspot</small><strong>FIRMS Termal Anomali Tespiti</strong><small>Uydu görüntülerinde çevresine göre anormal derecede sıcak piksel. Yangın perimetresi değildir. Bulut örtüsü, yoğun duman veya gece geçişlerinde tespit edilemeyebilir.</small></div>
           <div class="metric"><small>Küme / Cluster</small><strong>5 km / 6 saat uzamsal-zamansal kümeleme</strong><small>Birden çok FIRMS tespitinin aynı yangın olayına ait olacak şekilde gruplanması. 5 km yarıçap ve 6 saatlik zaman penceresi kullanılır. FRP ağırlıklı merkez hesaplanır.</small></div>
@@ -179,7 +179,7 @@
           <div class="metric"><small>Open-Meteo Weather</small><strong>open-meteo.com</strong><small>ECMWF tabanlı hava tahmini. Rüzgâr (10m/850/700 hPa), sıcaklık, nem. Ücretsiz API.</small></div>
           <div class="metric"><small>Copernicus EFFIS</small><strong>effis.emergency.copernicus.eu</strong><small>Fire Weather Index WMS katmanı ve NRT yanmış alan poligonu. Avrupa çapında yangın tehlike haritası. Resmî WMS servisi.</small></div>
           <div class="metric"><small>OpenStreetMap</small><strong>openstreetmap.org</strong><small>Gönüllü haritalama topluluğu. Power grid verisi (power=line, power=substation). ODbL 1.0 lisansı.</small></div>
-          <div class="metric"><small>Katkıda Bulunanlar</small><strong>OSM Türkiye Topluluğu</strong><small>Türkiye iletim şebekesi verisinin haritalanmasına katkıda bulunan tüm OSM gönüllülerine teşekkürler.</small></div>
+          <div class="metric"><small>Katkıda Bulunanlar</small><strong>OpenStreetMap topluluğu</strong><small>Türkiye, İspanya ve Fransa şebeke verisinin haritalanmasına katkıda bulunan tüm OSM gönüllülerine teşekkürler.</small></div>
         </div></article>
       </div>
     </section>
@@ -209,13 +209,14 @@
   });
 })();
 </script>
-<script src="js/config.js?v=3.4.13"></script>
-<script src="js/utils.js?v=3.4.13"></script>
-<script src="js/api.js?v=3.4.13"></script>
-<script src="js/grid.js?v=3.4.13"></script>
-<script src="js/map.js?v=3.4.13"></script>
-<script src="js/export.js?v=3.4.13"></script>
-<script src="js/ui.js?v=3.4.13"></script>
-<script src="js/app.js?v=3.4.13"></script>
+<script src="js/config.js?v=3.5.0"></script>
+<script src="js/utils.js?v=3.5.0"></script>
+<script src="js/countries.js?v=3.5.0"></script>
+<script src="js/api.js?v=3.5.0"></script>
+<script src="js/grid.js?v=3.5.0"></script>
+<script src="js/map.js?v=3.5.0"></script>
+<script src="js/export.js?v=3.5.0"></script>
+<script src="js/ui.js?v=3.5.0"></script>
+<script src="js/app.js?v=3.5.0"></script>
 </body>
 </html>
