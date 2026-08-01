@@ -1,6 +1,6 @@
 ﻿# Türkiye Wildfire Grid Risk Monitor
 
-> **Sürüm:** v3.4.4 · **Canlı:** <https://murathany90.github.io/tr_wildfire/> · **Harita serbesttir; veri Türkiye ile sınırlıdır.**
+> **Sürüm:** v3.4.5 · **Canlı:** <https://murathany90.github.io/tr_wildfire/> · **Harita serbesttir; veri Türkiye ile sınırlıdır.**
 
 ## Proje Özeti
 
@@ -173,7 +173,7 @@ Bağımsız regression paketi `tests.mjs` (Node, ağ gerekmez; tek istisna canl�
 npm test
 ```
 
-Mevcut durum: **116/116 test geçti** (v3.4.4 itibarıyla). Paket; FRP filtresi, clustering, dedupe, MTG frame/backfill davranışı, varsayılan katmanlar, risk sembolleri, risk özeti paneli, CSS mobil düzeni, sürüm tutarlılığı ve kaldırılan kaynakların kalıntılarının olmadığını (AtmoHub/GFW/FirePolygon yokluk assertion'ları) doğrular.
+Mevcut durum: **124/124 test geçti** (v3.4.5 itibarıyla). Paket; FRP filtresi, clustering, dedupe, MTG frame/backfill davranışı, varsayılan katmanlar, risk sembolleri, risk özeti paneli, DOM ID tekillik sözleşmesi, CSS mobil düzeni, sürüm tutarlılığı ve kaldırılan kaynakların kalıntılarının olmadığını (AtmoHub/GFW/FirePolygon yokluk assertion'ları) doğrular.
 
 ## GitHub Pages Deploy
 
@@ -197,6 +197,7 @@ Mevcut durum: **116/116 test geçti** (v3.4.4 itibarıyla). Paket; FRP filtresi,
 
 ## Sürüm Geçmişi
 
+- **v3.4.5** — Acil hotfix: "Analizi Göster" panelinde duplicate DOM ID'ler kaldırıldı (analysisToggle/analysisSummaryPanel/analysisClose/analysisSummaryBody artık tam 1'er adet; tüm ID'ler unique). ui.js init'ine DOM tekillik sözleşmesi kontrolü eklendi; gerçek pointer (elementFromPoint) tıklama testleri.
 - **v3.4.4** — ⚡ Şebeke Risk Özeti paneli: lejant toggle'ının altına bağımsız "Analizi Göster/Gizle" butonu; en yüksek öncelikli 5 yangın olayı kartı (risk bandı, en yakın hat/TM + mesafe, FRP, rüzgâr koridoru, risk skoru). Tablo ile aynı veri kaynağı/sıralama; kart tıklaması haritayı olaya odaklar; canlı güncelleme; mobil sınırlar.
 - **v3.4.3** — Varsayılan katman ve sembol düzeltmeleri: FRP varsayılanı 30 MW (tek kaynak), termal yayılım/EFFIS BA/koridor varsayılan açık, tüm TM risk kareleri tek tip (10×10, siyah + mavi çerçeve).
 - **v3.4.2** — MTG hotfix: kullanıcı zamanı seçiminde backfill bütçesi sıfırlanır; MTG metinlerinde tekrarlanan UTC eki kaldırıldı.

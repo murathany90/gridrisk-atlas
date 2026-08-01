@@ -7,6 +7,8 @@
       document.getElementById('legendToggleBtn')?.addEventListener('click',e=>{const stack=document.getElementById('legendStack'),hidden=stack.classList.toggle('legendsHidden');e.currentTarget.textContent=hidden?'◫ Lejantları Göster':'◫ Lejantları Gizle';});
       document.getElementById('analysisToggle')?.addEventListener('click',()=>this.toggleRiskSummary());
       document.getElementById('analysisClose')?.addEventListener('click',()=>this.toggleRiskSummary());
+      const requiredUniqueIds=['analysisToggle','analysisSummaryPanel','analysisClose','analysisSummaryBody'];
+      for(const id of requiredUniqueIds){const nodes=document.querySelectorAll(`#${id}`);if(nodes.length!==1)console.error(`DOM contract violation: #${id} count=${nodes.length}`);}
       A.Events.on('service',s=>this.updateService(s));A.Events.on('firesRendered',x=>{document.getElementById('kpiFireEvents').textContent=(x.events??0).toLocaleString('tr-TR');document.getElementById('kpiDetectionsNote').textContent=`${(x.detections??0).toLocaleString('tr-TR')} termal tespit · 5 km/6 saat küme`;const el=document.getElementById('frpCount');if(el)el.textContent=`${(x.events??0).toLocaleString('tr-TR')} / ${(x.eventsTotal??x.events??0).toLocaleString('tr-TR')} olay gösteriliyor`;});A.Events.on('gridCoreReady',s=>this.renderGridSummary(s));this.renderServices();
       document.querySelectorAll('#impactTable th[data-sort]').forEach(th=>th.addEventListener('click',()=>{const key=th.dataset.sort;if(this.sortKey===key)this.sortDir*=-1;else{this.sortKey=key;this.sortDir=1;}if(A.app?.state?.fireImpacts)this.renderImpact(A.app.state.fireImpacts);}));
     }
