@@ -73,9 +73,9 @@
     setView(lat,lon,zoom=9){const la=Number(lat),lo=Number(lon);if(Number.isFinite(la)&&Number.isFinite(lo))this.map.setView([U.clamp(la,-85,85),lo],zoom);}
     setFires(data,selectedTime){this.fireAll=(data||[]).filter(U.insideRegion.bind(U));this.renderFires(selectedTime);}
     renderFires(selectedTime){
-      this.currentSelectedTime=new Date(selectedTime);this.fireLayer.clearLayers();if(this.frpHeat){this.map.removeLayer(this.frpHeat);this.frpHeat=null;}const end=Math.min(this.currentSelectedTime.getTime(),Date.now()+15*60e3),start=end-24*3600e3;this.fireVisible=this.fireAll.filter(f=>{const t=Date.parse(f.detectedAt);return t>=start&&t<=end;});const allEvents=U.clusterFires(this.fireVisible);this.fireEventsVisible=allEvents.filter(ev=>ev.maxFrp>=this.frpThreshold);const detEvents=new Map();for(const ev of allEvents)for(const m of ev.members)if(!detEvents.has(m))detEvents.set(m,ev);
-      if(this.zoom()<9){for(const ev of this.fireEventsVisible){const count=ev.count,radius=U.clamp(7+Math.sqrt(count)*2.2+Math.sqrt(Math.max(0,ev.maxFrp))*0.35,8,24),opacity=U.ageOpacity(ev.latestDetectedAt,new Date(end)),m=new HexagonMarker([ev.lat,ev.lon],{pane:'firePane',renderer:this.renderer,radius,color:'#fff',weight:1.2,opacity,fillColor:U.frpColor(ev.maxFrp),fillOpacity:opacity*.92});m.bindTooltip(this.firesEventTooltip(ev,new Date(end)));if(this.zoom()<7&&count>1)m.bindTooltip(m.getTooltip().getContent()+`<br><strong>● ${count}</strong>`);m.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:ev.lat,lon:ev.lon,fire:ev.representative,fireEvent:ev});});m.addTo(this.fireLayer);}}
-      else{const bounds=this.map.getBounds();const inView=this.fireVisible.filter(f=>f.frp==null||f.frp>=this.frpThreshold).filter(f=>bounds.contains([f.lat,f.lon])).sort((a,b)=>Math.abs(b.frp||0)-Math.abs(a.frp||0)).slice(0,5000);for(const f of inView){const radius=U.clamp(4+Math.sqrt(Math.max(0,f.frp||0))*1.05,4,17),opacity=U.ageOpacity(f.detectedAt,new Date(end)),m=new HexagonMarker([f.lat,f.lon],{pane:'firePane',renderer:this.renderer,radius,color:'#fff',weight:1,opacity,fillColor:U.frpColor(f.frp),fillOpacity:opacity*.9});m.bindTooltip(this.firesDetectionTooltip(f,detEvents.get(f),new Date(end)));m.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:f.lat,lon:f.lon,fire:f});});m.addTo(this.fireLayer);}}
+      this.currentSelectedTime=new Date(selectedTime);this.fireLayer.clearLayers();if(this.frpHeat){this.map.removeLayer(this.frpHeat);this.frpHeat=null;}const end=Math.min(this.currentSelectedTime.getTime(),Date.now()+15*60e3),start=end-24*3600e3;this.fireVisible=this.fireAll.filter(f=>{const t=Date.parse(f.detectedAt);return t>=start&&t<=end;});const allEvents=U.clusterFires(this.fireVisible);this.fireEventsVisible=allEvents.filter(ev=>ev.maxFrp>=this.frpThreshold);const slider=document.getElementById('timeSlider'),reference=U.timeReference(this.currentSelectedTime,slider?Number(slider.value):0),radius=C().fireClustering.radiusKm;
+      if(this.zoom()<9){for(const ev of this.fireEventsVisible){const count=ev.count,radius=U.clamp(7+Math.sqrt(count)*2.2+Math.sqrt(Math.max(0,ev.maxFrp))*0.35,8,24),opacity=U.ageOpacity(ev.latestDetectedAt,new Date(end)),m=new HexagonMarker([ev.lat,ev.lon],{pane:'firePane',renderer:this.renderer,radius,color:'#fff',weight:1.2,opacity,fillColor:U.frpColor(ev.maxFrp),fillOpacity:opacity*.92});m.bindTooltip(this.firesEventTooltip(ev,U.areaHistory(this.fireAll,ev,radius),reference));if(this.zoom()<7&&count>1)m.bindTooltip(m.getTooltip().getContent()+`<br><strong>● ${count}</strong>`);m.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:ev.lat,lon:ev.lon,fire:ev.representative,fireEvent:ev});});m.addTo(this.fireLayer);}}
+      else{const bounds=this.map.getBounds();const inView=this.fireVisible.filter(f=>f.frp==null||f.frp>=this.frpThreshold).filter(f=>bounds.contains([f.lat,f.lon])).sort((a,b)=>Math.abs(b.frp||0)-Math.abs(a.frp||0)).slice(0,5000);for(const f of inView){const radius=U.clamp(4+Math.sqrt(Math.max(0,f.frp||0))*1.05,4,17),opacity=U.ageOpacity(f.detectedAt,new Date(end)),m=new HexagonMarker([f.lat,f.lon],{pane:'firePane',renderer:this.renderer,radius,color:'#fff',weight:1,opacity,fillColor:U.frpColor(f.frp),fillOpacity:opacity*.9});m.bindTooltip(this.firesDetectionTooltip(f,U.areaHistory(this.fireAll,f,radius),reference));m.on('click',e=>{L.DomEvent.stopPropagation(e);this.onPointClick?.({lat:f.lat,lon:f.lon,fire:f});});m.addTo(this.fireLayer);}}
       A.Events.emit('firesRendered',{detections:this.fireVisible.length,events:this.fireEventsVisible.length,eventsTotal:allEvents.length});
     }
     toggleFires(show){if(show){if(!this.map.hasLayer(this.fireLayer))this.fireLayer.addTo(this.map);}else this.map.removeLayer(this.fireLayer);}
@@ -268,27 +268,36 @@
     toggleEventEvolution(show){
       if(show){if(!this.map.hasLayer(this.evolutionLayer))this.evolutionLayer.addTo(this.map);}else{if(this.map.hasLayer(this.evolutionLayer))this.map.removeLayer(this.evolutionLayer);document.querySelector('[data-legend="evolution"]')?.remove();}
     }
-    firesDetectionTooltip(f,ev,reference){
+    firesDetectionTooltip(f,history,reference){
       const out=[`<strong>NASA FIRMS termal tespiti</strong>`];
       const src=U.escapeHtml(f.product||f.source||'');if(src)out.push(src);
       if(Number.isFinite(Number(f.frp)))out.push(`FRP: ${U.round(Number(f.frp),2)} MW`);
-      if(f.detectedAt)out.push(`Tespit: ${U.formatLocal(new Date(f.detectedAt))}`);
-      const first=ev&&ev.earliestDetectedAt?U.formatTrShortDateTime(new Date(ev.earliestDetectedAt)):null;
-      const last=ev&&ev.latestDetectedAt?U.formatTrShortDateTime(new Date(ev.latestDetectedAt)):null;
-      if(first)out.push(`İlk uydu tespiti: ${first}`);
-      if(last)out.push(`Son uydu tespiti: ${last}`);
-      const age=U.formatAgeSince(ev&&ev.latestDetectedAt?ev.latestDetectedAt:f.detectedAt,reference);
+      const h=history&&history.records?history:{count:0,first:null,last:null,window48:false};
+      if(h.count===1){out.push('Bölgedeki tek uydu tespiti');}
+      else{
+        const first=h.first?U.formatTrShortDateTime(new Date(h.first)):null;
+        const last=h.last?U.formatTrShortDateTime(new Date(h.last)):null;
+        if(first)out.push(`${h.window48?'Son 48 saatte ilk uydu tespiti':'İlk uydu tespiti'}: ${first}`);
+        if(last)out.push(`Son uydu tespiti: ${last}`);
+      }
+      const age=U.formatAgeSince(h.last||f.detectedAt,reference);
       if(age)out.push(`Son tespit yaşı: ${age}`);
+      if(h.count>1)out.push(`Bölgedeki tespit: ${h.count}`);
       return out.join('<br>');
     }
-    firesEventTooltip(ev,reference){
+    firesEventTooltip(ev,history,reference){
       const out=[`<strong>Yangın olayı kümesi</strong>`,`${ev.count} FIRMS termal tespiti`,`Maks. FRP: ${U.round(ev.maxFrp,1)} MW`];
-      const first=U.formatTrShortDateTime(new Date(ev.earliestDetectedAt));
-      const last=U.formatTrShortDateTime(new Date(ev.latestDetectedAt));
-      if(first)out.push(`İlk uydu tespiti: ${first}`);
-      if(last)out.push(`Son uydu tespiti: ${last}`);
-      const age=U.formatAgeSince(ev.latestDetectedAt,reference);
+      const h=history&&history.records?history:{count:0,first:null,last:null,window48:false};
+      if(h.count===1){out.push('Bölgedeki tek uydu tespiti');}
+      else{
+        const first=h.first?U.formatTrShortDateTime(new Date(h.first)):null;
+        const last=h.last?U.formatTrShortDateTime(new Date(h.last)):null;
+        if(first)out.push(`${h.window48?'Son 48 saatte ilk uydu tespiti':'İlk uydu tespiti'}: ${first}`);
+        if(last)out.push(`Son uydu tespiti: ${last}`);
+      }
+      const age=U.formatAgeSince(h.last||ev.latestDetectedAt,reference);
       if(age)out.push(`Son tespit yaşı: ${age}`);
+      if(h.count>1)out.push(`Bölgedeki tespit: ${h.count}`);
       return out.join('<br>');
     }
     substationIcon(){return L.divIcon({className:'substationIconWrap',html:'<span class="substationSquare substation-risk"></span>',iconSize:[10,10],iconAnchor:[5,5]});}
