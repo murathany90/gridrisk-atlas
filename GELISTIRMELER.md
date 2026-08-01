@@ -1,5 +1,23 @@
 # Geliştirme Kaydı — Türkiye Wildfire Grid Risk Monitor v3.2.0
 
+# v3.4.4 — ⚡ Şebeke Risk Özeti Paneli
+
+**Branch:** `feature/v3.4.4-risk-summary-panel`
+
+**Değişiklikler:**
+- **Analizi Göster/Gizle toggle**: `index.html`'de `legendToggleBtn`'in hemen altına `#analysisToggle` eklendi (`.analysisToggleBtn` — lejant butonuyla aynı paylaşımlı kural: aynı genişlik/yazı/yükseklik). Tıklama `ui.toggleRiskSummary()` ile açılır/kapanır; buton metni `⚡ Analizi Göster ↔ ⚡ Analizi Gizle` değişir.
+- **Panel**: `#analysisSummaryPanel` (`.analysisStack`), `legendHeader`/`legendTitle`/`legendClose` (×) iskeletini yeniden kullanır; alt açıklama "En yüksek öncelikli 5 yangın olayı"; kartlar `#analysisSummaryBody` içine render edilir. Lejanttan tamamen bağımsız (kendi `analysisHidden` sınıfı; lejant `legendsHidden`'a dokunmaz).
+- **Kartlar**: en fazla 5 kompakt kart — `#1`–`#5` sıra rozeti, mevcut `.riskBadge.{level}` seviye rengi (KRİTİK/YÜKSEK/ORTA/DÜŞÜK/İZLEME), `🔥 Yangın #<id>` + tespit sayısı, vurgulu `⚡ EN YAKIN VARLIK` bloğu (hat ⇔ TM en-küçük-mesafe seçimi, ad + voltaj + mesafe), alt meta satır (FRP, rüzgâr koridoru yönü, risk skoru). Boşsa `Aktif şebeke riski bulunamadı.`.
+- **Aynı veri kaynağı**: `ui.riskTableRows(arr)` ortak boru hattı çıkarıldı — tablo filtre/sıralama mantığının birebir kopyası (minDistanceKm≤25, ilk 200, `sortKey/sortDir`); hem `renderImpact` (tablo) hem `renderRiskSummary` (kartlar) aynı fonksiyondan beslenir → kart sırası tablonun görünen ilk-5'i ile birebir aynı.
+- **Tıklama → odak**: kart `A.Events.emit('focusRisk', rows[i])` fırlatır; mevcut `app.js` handler'ı haritayı olaya odaklar + noktayı seçer (tablo satırıyla aynı nesne).
+- **Canlı güncelleme**: `renderImpact` sonuna `this.renderRiskSummary()` eklendi → FRP kaydırıcısı, zaman tüneli, FIRMS yenileme, rüzgâr/koridor güncellemeleri paneli de tazeler; açıkken yeniden render `toggleRiskSummary` içinde.
+- **Mobil**: panel `max-width:min(220px,calc(100vw - 16px))`, `max-height:40dvh`, iç scroll; butonlar aynı genişlik; `body.analysisOpen` ile lejant buton/stack'i yukarı kayar (çakışma yok).
+- **Sürüm 3.4.4**: `package.json`, `js/config.js` (`appVersion`), `index.html` (buildPill + `?v=` cache-busting), `server.mjs` (`APP_VERSION`), `README.md`, sürüm geçmişi.
+
+**Testler:** `tests.mjs` — buton varlığı/DOM sırası/ortak stil kuralı, panel markup'ı (legendHeader yeniden kullanımı, başlık, alt açıklama, kapat), panel CSS (sınırlar, gizli durum, `analysisOpen` kaydırmaları), kart markup'ı (sıra, rozet, EN YAKIN VARLIK, FRP, skor, boş durum), tablo ile aynı kaynak/sıralama (riskTableRows tek boru), min-mesafe seçim paylaşımı, kart tıklama → focusRisk + aynı satır nesnesi, lejanttan bağımsızlık (ayrı gizli sınıflar), canlı güncelleme (renderImpact içinde çağrı).
+
+---
+
 # v3.4.3 — Varsayılan Katmanlar + FRP 30 + Tek Tip TM Karesi
 
 **Branch:** `fix/v3.4.3-default-layers-substation-style`

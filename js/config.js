@@ -2,7 +2,7 @@
 (function(A){
   A.CONFIG = {
     appName: 'Türkiye Wildfire Grid Risk Monitor',
-    appVersion: '3.4.3',
+    appVersion: '3.4.4',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
     mapMinZoom: 2,
