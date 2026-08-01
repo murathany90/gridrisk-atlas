@@ -1,4 +1,23 @@
-# Geliştirme Kaydı — Türkiye Wildfire Grid Risk Monitor v3.2.0
+# Geliştirme Kaydı — Wildfire Grid Risk Monitor
+
+# v3.5.0 — Türkiye, İspanya ve Fransa Çok Ülkeli Mimari
+
+**Branch:** `feature/multi-country-tr-es-fr`
+
+**Amaç:** Türkiye merkezli çalışma zamanını TR/ES/FR ülke registry'si, gerçek ülke sınırları, ülke-aware cache/abort/stale guard ve ülke bazlı OSM şebeke runtime dosyalarıyla genelleştirmek.
+
+**Değişiklikler:**
+- İspanya ve Fransa ham OSM GeoJSON girdileri doğrulandı; `tools/build_country_grid.py` ile üç ülke için 50–550 kV sade runtime dosyaları ve manifestler üretildi.
+- Gerilimler ortak `400 kV sınıfı` (300–550 kV) ve `154 kV sınıfı` (50–299.999 kV) sözleşmesine normalize edildi; gerçek OSM gerilimi ayrı korundu.
+- `CountryManager`, URL/localStorage önceliği, ülke değiştirme iptalleri, async stale-response korumaları, gerçek MultiPolygon filtreleme ve lazy grid yükleme eklendi.
+- Header ülke seçicisi, ülkeye göre saat dilimi, servis/analiz/export alanları, ülke önekli event/asset kimlikleri ve ülke-aware cache anahtarları eklendi.
+- 400 sınıfı tüm ülkelerde `#d7191c`/2.2 px, 154 sınıfı `#111111`/1.5 px; tüm TM'ler 10×10 px siyah/mavi kare olarak standardize edildi.
+- Fransa kaynağındaki 14 eksik indirme parçası manifest ve UI'da `Kısmi şebeke verisi` olarak açıkça korunur.
+- Pages artifact'ı yalnız commitli `data/countries/**` runtime ağacını yayınlar; ham root GeoJSON dosyaları dışarıda kalır.
+
+**Doğrulama:** Node regresyonları, Python import/runtime doğrulaması, üç masaüstü ülke yüklemesi, analiz/servis panelleri, hızlı ülke geçişi, 390×844 ve 844×390 responsive kontrolleri, console ve canlı Pages smoke testleri.
+
+---
 
 # v3.4.13 — Adaptif Rüzgâr Koridoru (10–30 km, 10 m yüzey rüzgârı)
 

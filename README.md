@@ -1,215 +1,125 @@
-﻿# Türkiye Wildfire Grid Risk Monitor
+# Wildfire Grid Risk Monitor
 
-> **Sürüm:** v3.4.13 · **Canlı:** <https://murathany90.github.io/tr_wildfire/> · **Harita serbesttir; veri Türkiye ile sınırlıdır.**
+> Sürüm: **v3.5.0** · Canlı: <https://murathany90.github.io/tr_wildfire/> · Arayüz dili: **Türkçe**
 
-## Proje Özeti
+Wildfire Grid Risk Monitor; Türkiye, İspanya ve metropolitan Fransa/Korsika için aktif orman yangınları ile elektrik iletim şebekesi yakınlığını aynı operasyonel ekranda inceleyen statik bir web uygulamasıdır. Genel uygulama adı İngilizcedir; kullanıcı arayüzü bu sürümde yalnız Türkçedir.
 
-Türkiye Wildfire Grid Risk Monitor, aktif orman yangınlarının elektrik iletim şebekesi üzerindeki etkisini operasyonel olarak izlemek için geliştirilmiş bir web uygulamasıdır. NASA FIRMS termal tespitlerini, gerçek uydu görüntüsünü (EUMETSAT MTG-I GeoColour), yangın kaynaklı PM10 model bileşenini (CAMS), rüzgârı (Open-Meteo), EFFIS yangın tehlike indeksi ve yanmış alan doğrulama katmanlarını ve OpenStreetMap kaynaklı iletim şebekesi verisini tek haritada birleştirir; hangi yangın olaylarının önce inceleneceğine öncelik veren bir risk analizi sunar.
+## Ülke kapsamı
 
-Uygulama **GitHub Pages üzerinde statik olarak** yayınlanır: tarayıcıda çalışan saf ön yüz (HTML/CSS/JS) + `data/` içindeki statik GeoJSON şebeke dosyaları. Yerel geliştirme için opsiyonel bir Node.js yardımcı sunucusu (`server.mjs`) sağlanır.
+Header içindeki `Ülke` seçicisi şu veri alanlarını değiştirir:
 
-Tüm veri katmanları yalnızca Türkiye operasyonel alanı (yaklaşık 25.6°–44.9° D, 35.8°–42.2° K) içinde sorgulanır; harita görünümü serbesttir.
+- **Türkiye (TR):** Türkiye sınırı ve şebekesi, `Europe/Istanbul`.
+- **İspanya (ES):** ana kara ve Balear Adaları; Kanarya Adaları kapsam dışıdır, `Europe/Madrid`.
+- **Fransa (FR):** metropolitan Fransa ve Korsika; denizaşırı bölgeler kapsam dışıdır, `Europe/Paris`.
 
-## Temel Özellikler
+Başlangıç ülkesi sırası geçerli `?country=TR|ES|FR` URL parametresi, `selectedCountry` localStorage değeri ve son olarak TR varsayılanıdır. Geçersiz URL kodu TR'ye döner. Seçim sayfa yenilenmeden uygulanır ve URL `history.replaceState` ile güncellenir.
 
-- **NASA FIRMS Multi-VIIRS aktif yangın tespitleri** — AUTO modunda NOAA-21, NOAA-20 ve Suomi-NPP paralel sorgulanır; aynı yangını birden çok uydudan saymamak için dedupe uygulanır. İsteğe bağlı MODIS kaynağı da desteklenir.
-- **FRP (Yangın Radyatif Gücü) filtresi** — varsayılan eşik **≥ 30 MW**; slider 0–200 MW arası ayarlanabilir. Eşik tek kaynaktan gelir (`config.js` → `frpThreshold`); state, slider ve sıfırlama aynı değeri kullanır.
-- **FireEvent clustering** — 5 km / 6 saat uzay-zaman kümelemesi; düşük zoom'da olay kümeleri, yakın zoom'da tekil hotspot'lar (altıgen) çizilir. Görünür alan + FRP filtresi sonrası en fazla **5.000 işaretçi** render edilir.
-- **Piksel ayak izi (pixel footprint)** — her tespitin scan×track boyutuna göre yangın piksel geometrisi.
-- **Tahmini Termal Yayılım** — tespit noktalarından türetilen, yangının olası genişleme alanını gösteren **tahmini** katman.
-- **CAMS Wildfire PM10 duman modeli** — Open-Meteo Air Quality API üzerinden CAMS European Air Quality `pm10_wildfires` bileşeni (~11 km çözünürlük, saatlik); toplam PM10 içindeki yangın payı türetilmiş katman olarak ayrıca gösterilir.
-- **EUMETSAT MTG-I FCI GeoColour gerçek uydu görüntüsü** — son 48 saat, 10 dakikalık slotlarla tarayıcıdan doğrudan WMS olarak çizilir.
-- **MTG timeline senkronu** — son 48 saat zaman çizelgesi; MTG açıkken 10 dakikalık frame/playback hızı.
-- **EFFIS Fire Weather Index (FWI)** — Copernicus EFFIS WMS `ecmwf007.fwi` katmanı, zaman çizelgesiyle senkron.
-- **EFFIS Yanmış Alanlar (Burnt Area)** — uydu tabanlı NRT doğrulama poligonu (`effis.nrt.ba.poly`), zaman çizelgesiyle senkron; varsayılan AÇIK.
-- **Open-Meteo rüzgâr ve meteoroloji** — 10 m / 850 hPa / 700 hPa rüzgâr alanı + geocode.
-- **OSM iletim şebekesi** — 400 kV, 154 kV, 20–66 kV ve gerilimi bilinmeyen hat sınıfları + trafo merkezi noktaları.
-- **30 km rüzgâr bazlı olası yayılım koridoru** — mevcut rüzgâr alanıyla aşağı-rüzgâr sektör (30 km, ±22°, en çok 30 koridor) taranır; koridor içindeki hatlar ve trafo merkezleri vurgulanır. Varsayılan AÇIK.
-- **Trafo merkezi risk analizi** — her yangın olayı için mesafe + FRP + tespit yaşı + gerilim/önem temelli öncelik skoru; riskli trafo merkezleri ve hat segmentleri haritada işaretlenir, risk tablosu sıralanabilir.
-- **Mobil responsive tasarım** — dokunmatik hedefler, kaydırılabilir KPI şeridi, alt sayfa detay paneli; 375 px'ten masaüstüne kadar taşmasız.
+Her ülke gerçek Natural Earth Polygon/MultiPolygon sınırıyla filtrelenir. FIRMS isteği önce sınır bbox'ını kullanır; dönen noktalar daha sonra gerçek ülke geometrisi ve polygon delikleriyle tekrar süzülür. Böylece sınır komşusu tespitleri yanlış ülkeye eklenmez.
 
-## Veri Kaynakları
+## Veri katmanları ve analiz
 
-| Kaynak | Kullanım | Tip | Durum |
-|---|---|---|---|
-| NASA FIRMS | Aktif termal yangın tespitleri + FRP | Gerçek uydu tespiti | Aktif |
-| EUMETSAT MTG-I GeoColour | Gerçek uydu görüntüsü | WMS / gerçek görüntü | Aktif |
-| CAMS (via Open-Meteo Air Quality) | Yangın kaynaklı PM10 model bileşeni | Model | Aktif |
-| EFFIS FWI | Yangın tehlike indeksi | Model | Aktif |
-| EFFIS Burnt Area | Yanmış alan doğrulaması | Uydu tabanlı NRT | Aktif |
-| Open-Meteo | Rüzgâr / meteoroloji / geocode | Model / API | Aktif |
-| OpenStreetMap | İletim şebekesi (hatlar + TM) | Harita / veri | Aktif |
+- NASA FIRMS Multi-VIIRS AUTO: NOAA-21, NOAA-20 ve Suomi-NPP NRT; isteğe bağlı MODIS NRT.
+- EUMETSAT MTG-I GeoColour gerçek uydu WMS görüntüsü.
+- CAMS Europe / Open-Meteo yangın kaynaklı PM10.
+- Open-Meteo 10 m, 850 hPa ve 700 hPa rüzgârı.
+- Copernicus EFFIS FWI ve NRT yanmış alan WMS katmanları.
+- OpenStreetMap 400/154 kV sınıfı iletim hatları ve trafo merkezleri.
+- 5 km/6 saat FIRMS olay kümelemesi, 30 MW varsayılan FRP eşiği.
+- Mesafe, FRP, tespit yaşı, şebeke sınıfı/TM önemi ve mevcutsa rüzgâr doğrultusunu kullanan operasyonel öncelik skoru.
+- 10 m yüzey rüzgârı ve maksimum FRP ile 10–30 km adaptif aşağı-rüzgâr tarama koridoru.
 
-AtmoHub, AFAD/İhtiyaç Haritası FirePolygon ve GFW kaynakları v3.4'te tamamen kaldırılmıştır; aktif veri kaynağı değildirler ve uygulamada referansları yoktur.
+Risk skoru bir arıza olasılığı, güvenlik mesafesi veya resmî yangın tahmini değildir. FIRMS tespiti yangın perimetresi değildir; CAMS ve Open-Meteo çıktıları model verisidir.
 
-## Gerçek Veri / Model Ayrımı
+## Şebeke sınıfları
 
-| Katman | Tür | Açıklama |
+Üç ülke aynı görsel ve risk sınıflarını kullanır:
+
+| Gerçek gerilim | Runtime sınıfı | Harita stili |
 |---|---|---|
-| NASA FIRMS | **Gerçek / gözlemsel** | Uydu termal anomali tespiti; hotspot yangın perimetresi değildir |
-| MTG GeoColour | **Gerçek / gözlemsel** | Gerçek uydu görüntüsü (RGB render); otomatik duman/aktif yangın tespiti yapmaz |
-| EFFIS Burnt Area | **Gerçek / gözlemsel** | Uydu tabanlı NRT algoritmik poligon; resmî saha perimetresi değildir |
-| CAMS PM10 | **Model** | Sayısal hava kalitesi model çıktısı; ölçüm değildir |
-| Open-Meteo rüzgâr | **Model** | Sayısal hava tahmini modeli |
-| EFFIS FWI | **Model** | Meteorolojik yangın tehlike indeksi |
-| Rüzgâr bazlı yayılım koridoru | **Model / türetilmiş** | Meteorolojik tarama geometrisi; duman yörüngesi veya tahmin ürünü değildir |
-| Tahmini termal yayılım | **Model / türetilmiş** | Tespit noktalarından türetilmiş olası genişleme alanı; resmî yangın perimetresi veya tahmin ürünü değildir |
+| 300–550 kV (iki sınır dahil) | `gridClass: "400"` / `400 kV sınıfı` | `#d7191c`, 2.2 px |
+| 50–299.999 kV | `gridClass: "154"` / `154 kV sınıfı` | `#111111`, 1.5 px |
+| 50 kV altı veya 550 kV üstü | Runtime dışında | Manifestte sayılır |
 
-> **Önemli:** "Tahmini Termal Yayılım" ve "Rüzgâr Bazlı Yayılım Koridoru" resmî yangın perimetresi veya tahmin ürünü değildir. Operasyonel taramayı destekleyen kartografik yardımcılardır.
+Gerçek kaynak gerilimi `actualVoltageKv` alanında korunur. Örneğin 225 kV bir hat `154 kV sınıfı` olarak analiz edilir, ancak tooltip'te ayrıca `Gerçek OSM gerilimi: 225 kV` gösterilir.
 
-## Katmanlar
+Trafo merkezleri tüm ülkelerde 10×10 px siyah dolgulu, 2 px mavi çerçeveli karelerdir. TM risk hesabında kalır; yalnız yangına en fazla 5 km uzaklıktaki TM ek risk vurgusu alır. Öncelik tablosu ve ilk beş analiz kartı daima en yakın hattı gösterir, TM'ye görsel fallback yapmaz.
 
-Varsayılan durumlar `js/config.js` ve `js/app.js` state'inden gelir (kullanıcı tercihleri localStorage'da kayıtlıysa o tercihler korunur):
+## Ham veri ve preprocessing
 
-| Katman | Varsayılan |
-|---|---|
-| Rüzgâr (10 m / 850 hPa / 700 hPa) | ✅ Açık |
-| FIRMS yangın tespitleri | ✅ Açık |
-| Öncelik halkaları + riskli varlık vurgusu | ✅ Açık |
-| Şebeke çekirdeği (400/154 kV + TM) | ✅ Açık |
-| Tahmini termal yayılım | ✅ Açık |
-| EFFIS Yanmış Alanlar — DOĞRULAMA | ✅ Açık |
-| Rüzgâr bazlı yayılım koridoru | ✅ Açık |
-| MTG GeoColour uydu görüntüsü | ⬜ Kapalı (kullanıcı açmalı) |
-| EFFIS FWI | ⬜ Kapalı |
-| FRP yoğunluğu | ⬜ Kapalı |
-| Piksel ayak izi / olay evrim izi | ⬜ Kapalı |
-| Duman izi (smoke points) | ⬜ Kapalı |
+Ham import girdileri runtime kaynağı değildir:
 
-## MTG GeoColour
+- `spain_osm_power_grid_50kv_plus_full.geojson`
+- `france_osm_power_grid_50kv_plus_full.geojson`
+- `raw/TR/*.geojson`
 
-- **Resmî endpoint:** `https://view.eumetsat.int/geoserver/wms`
-- **WMS sürümü:** 1.3.0 (GetCapabilities ile doğrulanmış), EPSG:4326 (lat,lon eksen sırası), PNG
-- **Katman:** `mtg_fd:rgb_geocolour` — MTG-I FCI GeoColour RGB gerçek görüntü
-- **Zaman aralığı:** son 48 saat (10 dakikalık slotlar)
-- **Frame backfill:** bir frame tamamen başarısız olursa en fazla 12 slot (10 dk) geriye gidilir; başarılı bir tile içeren frame "OK" sayılır
-- **Future timeline clamp:** gelecekteki zaman çizelgesi konumlarında MTG son mevcut gerçek frame'e kenetlenir; asla gelecek slota yuvarlama yapılmaz
-- **İstenen vs gösterilen:** lejant, kullanıcının seçtiği zaman ("Seçilen") ile ekrandaki gerçek frame'i ("Uydu karesi") ayrı gösterir
-- **Playback:** MTG açıkken oynatım 10 dk/frame; opaklık varsayılan %85 (kaydırıcı ile ayarlanır)
+Üretim komutu:
 
-MTG GeoColour **tek başına duman tespiti değildir** — görsel doğrulama ve bağlam amaçlı gerçek görüntüdür; bulut/duman ayrımı otomatik yapılmaz.
-
-## Şebeke Risk Analizi
-
-- Her yangın olayı için 1 / 3 / 10 / 25 km öncelik halkaları ve olay başına öncelik skoru hesaplanır.
-- Risk skoru: olay–şebeke mesafesi + FRP + tespit yaşı + gerilim/TM önemi; rüzgâr verisi varsa doğrultu katkısı eklenir.
-- Riskli trafo merkezleri **10×10 px, siyah dolgu (`#000`) + mavi 2 px dış çizgi (`#2f80ff`)** karelerle gösterilir — **tüm risk seviyelerinde aynı sembol boyutu ve stil** kullanılır; seviye bilgisi risk tablosu, halkalar ve tooltip'ten okunur.
-- Aşağı-rüzgâr koridorunda kalan hat segmentleri (mavi kesikli) ve trafo merkezleri (aynı kare sembol) vurgulanır.
-- Etki analizi sekmesinde sıralanabilir risk tablosu; bir satıra tıklayınca ilgili varlık haritada gösterilir.
-- Hat/TM kesişim mantığı: olaydan koridor içinde kalan hat parçaları ve TM'ler `insideRegion` filtresiyle Türkiye sınırı içinde sınırlanır.
-
-## FIRMS
-
-- **AUTO Multi-VIIRS:** NOAA-21, NOAA-20, Suomi-NPP NRT kaynakları paralel sorgulanır; aynı olayın birden çok uydudan tespiti `detectionIdentityKey` ile tekleştirilir (aynı zaman + konum + ürün aynı sayılır; farklı ürün/uydular ayrı gözlemdir).
-- **İsteğe bağlı kaynak:** `MODIS_NRT` dahil dört kaynak tek tek seçilebilir.
-- **Clustering:** 5 km / 6 saat uzay-zaman kümesi → "yangın olayı"; olay kaynak dağılımı (hangi uydular/ürünler katkıda bulundu) gösterilir.
-- **FRP filtresi:** varsayılan **≥ 30 MW**; 0 MW = tüm tespitler. Slider 0–200 MW.
-- **Render limitleri:** görünür alan filtresi + FRP filtresi + FRP'ye göre sıralama sonrası en fazla **5.000 işaretçi**; olay kümeleri düşük zoom'da özetlenir.
-- Tespit sembolleri yaşa göre soluklaşır ve FRP ile boyutlanır; tooltip FRP, ürün ve algılanma zamanını gösterir.
-
-## Teknik Mimari
-
-```
-index.html                  Uygulama kabuğu (paneller, katmanlar, timeline)
-css/styles.css              Tüm stiller (mobile + masaüstü, tek dosya)
-js/
-  config.js                 Tüm sabitler: kaynaklar, eşikler, timeline, risk bandları
-  utils.js                  Normalizasyon, dedupe, format, fetch yardımcıları
-  api.js                    Veri katmanları (FIRMS, CAMS/Open-Meteo, EFFIS, MTG)
-  grid.js                   Şebeke veri yükleme + JS fallback (file:// modu)
-  map.js                    Leaflet harita, katmanlar, MTG frame yöneticisi, risk sembolleri
-  ui.js                     Tablo/panel/KPI/lejant render, service monitor
-  app.js                    Uygulama state'i, init, zaman çizelgesi, kullanıcı akışı
-  export.js                 CSV/GeoJSON dışa aktarım
-data/
-  grid_400.geojson          OSM 400 kV sınıfı hatlar (ve .js fallback kopyası)
-  grid_154.geojson          OSM 154 kV sınıfı hatlar (ve .js fallback kopyası)
-  grid_33.geojson           20–66 kV hatlar (ve .js fallback kopyası)
-  grid_unknown.geojson      Gerilimi bilinmeyen hatlar (ve .js fallback kopyası)
-  substations.geojson       Trafo merkezleri (ve .js fallback kopyası)
-server.mjs                  Yalnız yerel geliştirme: statik servis + FIRMS/tile proxy + /api/health
-tests.mjs                   Bağımsız regression test paketi (Node, ağ gerektirmez)
-tools/build_grid_from_osm.py  OSM Power Grid export'undan data/ dosyalarını yeniden üretir
-.github/workflows/pages.yml GitHub Pages deploy workflow'u
+```powershell
+npm run build:grid
 ```
 
-**GitHub Pages statik deploy'dur:** tarayıcıya yalnız `index.html`, `css/`, `js/`, `data/` ve `.nojekyll` gider. `server.mjs`, `tests.mjs`, `tools/` ve dokümantasyon Pages artefaktına dahil edilmez. `server.mjs` yalnız yerel geliştirme içindir: statik dosya servisi, FIRMS proxy (MAP_KEY ile), tile proxy ve `/api/health` uç noktalarını sunar; AtmoHub/GFW gibi kaldırılmış kaynaklardan kalıntı route içermez.
+Yalnız mevcut commitli çıktıları doğrulamak için:
 
-Çalışma modu tespiti: `file://` → DOSYA MODU, `localhost`/`127.0.0.1` → SUNUCU MODU, GitHub Pages → GITHUB PAGES, diğer HTTPS → WEB MODU. DOSYA MODU'nda şebeke GeoJSON'ları `.js` fallback dosyalarından yüklenir; FIRMS Node proxy çalışmaz, MTG/EFFIS uydu katmanları doğrudan tarayıcıdan WMS'e gider.
-
-## FIRMS MAP_KEY
-
-NASA FIRMS Area API için bir MAP_KEY gerekir. Anahtar hiçbir zaman repoya yazılmaz:
-
-- **GitHub Pages:** `FIRMS_MAP_KEY` repository secret'ı olarak tanımlanır; Pages workflow'u build sırasında `js/config.js` içindeki `__FIRMS_MAP_KEY__` placeholder'ını secret değeriyle değiştirir.
-- **Yerel sunucu:** `FIRMS_MAP_KEY` ortam değişkeni olarak verilir (`start_windows.bat` / `start_linux_mac.sh` anahtarı sorar) ve `server.mjs` proxy'si kullanır.
-- Anahtar verilmezse uygulama MTG/EFFIS uydu katmanları, CAMS/Open-Meteo, rüzgâr ve OSM şebekesiyle çalışmaya devam eder; yalnız FIRMS tespitleri yüklenmez.
-
-## Kurulum
-
-Gereksinim: **Node.js 18+** (yalnız yerel sunucu ve testler için; Pages tarafında derleme yoktur).
-
-```bash
-git clone https://github.com/murathany90/tr_wildfire.git
-cd tr_wildfire
-npm install        # bağımlılık yoktur; paket kurulumunu onaylar
-npm test           # regression testleri (tests.mjs)
-npm start          # yerel sunucu: http://127.0.0.1:8890 (doluysa sıradaki port)
+```powershell
+npm run validate:grid
 ```
 
-Alternatif başlatma:
+`tools/build_country_grid.py` şu gerilim alanlarını sırayla okur: geçerli `voltageMaxKv`, `voltagesKv` maksimumu, `voltageRaw`, `voltage`. 10.000 üzeri değerleri volt kabul edip 1000'e böler; noktalı virgül, virgül ve çoklu değerleri destekler; NaN, sıfır ve negatif değerleri reddeder. `line`, `minor_line`, `cable` hat; `substation` TM kabul edilir. MultiLineString parçaları LineString'e normalize edilir.
 
-- **Windows:** `start_windows.bat` (FIRMS_MAP_KEY sorar, tarayıcıyı sunucu açıldıktan sonra açar)
-- **Linux/macOS:** `FIRMS_MAP_KEY=... ./start_linux_mac.sh`
-- `index.html`'i doğrudan tarayıcıda açmak da mümkündür (DOSYA MODU; FIRMS proxy'si hariç tüm statik katmanlar çalışır).
+Üretilen yapı:
 
-`server.mjs` varsayılan port 8890'dır; doluysa sıradaki boş portu seçer ve gerçek adresi yazdırır.
+```text
+data/countries/{TR,ES,FR}/
+  boundary.geojson
+  grid_400.geojson
+  grid_154.geojson
+  substations.geojson
+  manifest.json
+```
 
-## Test
+Runtime varlıkları ülke önekli benzersiz `assetId` taşır. Nested tags, ArcGIS `OBJECTID` ve yinelenen ham ID alanları yayın çıktısından çıkarılır; ad, operatör, gerçek gerilim ve OpenStreetMap/ODbL kaynak bilgisi korunur.
 
-Bağımsız regression paketi `tests.mjs` (Node, ağ gerekmez; tek istisna canlı EUMETView contract testidir — ağ yoksa SKIPPED):
+Fransa ham kaynağının metadata'sı 14 başarısız indirme parçası bildirmektedir. Bu parçaları güvenilir şekilde yeniden üretecek URL/chunk kimliği bulunmadığı için v3.5.0 manifesti `partial: true`, `failedRequests: 14` taşır. Uygulama analiz yapmayı sürdürür ve Ayarlar/Analiz ekranlarında **Kısmi şebeke verisi** uyarısını gösterir; veri tam kabul edilmez.
 
-```bash
+## Çalıştırma
+
+Node.js 18 veya üstü gerekir:
+
+```powershell
+npm start
+```
+
+Uygulama varsayılan olarak `http://localhost:8890` adresinde açılır. Yerel FIRMS verisi için `FIRMS_MAP_KEY` ortam değişkeni kullanılabilir; GitHub Pages dağıtımında aynı değer Actions secret'ından `js/config.js` içine enjekte edilir.
+
+## Testler
+
+```powershell
+node tests.mjs
 npm test
+npm run validate:grid
+git diff --check
 ```
 
-Mevcut durum: **162/162 test geçti** (v3.4.13 itibarıyla). Paket; FRP filtresi, clustering, dedupe, MTG frame/backfill davranışı, varsayılan katmanlar, risk sembolleri, TM ikon ayrımı (nötr katman / mavi risk; koridor TM işaretlemesi kaldırıldı), risk özeti paneli (yalnız en yakın hat gösterimi, TM risk matematiğinde), adaptif rüzgâr koridoru (10–30 km, 10 m yüzey rüzgârı + FRP, fallback zinciri, yüzey verisi 850/700'den bağımsız), DOM ID tekillik sözleşmesi, karşılıklı özel panel davranışı + aria senkronu, CSS mobil düzeni, minimal FIRMS tooltip alanları (kısa tarih, dinamik yaş, veri yoksa satır atlama), FIRMS bölge geçmişi (`areaHistory` — 5 km yarıçap, zaman sıralı ilk/son tespit, 48 saatlik pencere etiketi, tespit sayısı), riskli işaretlemenin 5 km ile sınırlanması (impactBands 0.5/1.5/3/5 km, mesafe ağırlıklı skor, >5 km'de skor <55 invarianti), sürüm tutarlılığı ve kaldırılan kaynakların kalıntılarının olmadığını (AtmoHub/GFW/FirePolygon yokluk assertion'ları) doğrular.
+Node regresyon paketi ülke registry/öncelik, sınır geometrisi, cache ve stale-response korumaları, saat dilimi, risk/UI sözleşmesi ve Pages staging davranışını kapsar. Python paketi ham sayıları, ülke kodlarını, geometry/asset bütünlüğünü, gerilim sınırlarını, runtime property temizliğini ve Fransa partial metadata'sını doğrular.
 
-## GitHub Pages Deploy
+## Cache, performans ve dağıtım
 
-`.github/workflows/pages.yml` workflow'u `master` branch'ine her push'ta çalışır (`workflow_dispatch` ile manuel de tetiklenebilir):
+Ülkeye bağlı cache anahtarları ülke kodu içerir (`grid:TR:400`, `firms:ES:...`, `weather:FR:...`). Ülke değişiminde devam eden grid/FIRMS/CAMS/Open-Meteo istekleri iptal edilir; sıra ve ülke kodu stale-response guard'ı olarak kontrol edilir. Eski katmanlar, spatial index, risk tablosu ve analiz kartları temizlenir. Yalnız aktif ülkenin üç runtime şebeke dosyası lazy-load edilir; düşük zoomda TM DOM marker sayısı sınırlandırılır ve Leaflet Canvas çizimi korunur.
 
-1. **Master push** → workflow başlar (permissions: `pages: write`, `id-token: write`).
-2. **FIRMS secret injection:** `sed` ile `js/config.js` içindeki `__FIRMS_MAP_KEY__` placeholder'ı `secrets.FIRMS_MAP_KEY` değeriyle değiştirilir.
-3. **Staging:** yalnızca runtime dosyaları `deploy/` klasörüne kopyalanır — `index.html`, `css/`, `js/`, `data/`, `.nojekyll`. README, testler, sunucu ve araçlar artefakta girmez.
-4. **Artefakt yükleme:** `actions/upload-pages-artifact@v3` → `actions/deploy-pages@v4` ile yayınlanır.
+Pages workflow yalnız `index.html`, `css/`, `js/`, `.nojekyll` ve `data/countries/**` içeriklerini stage eder. Büyük ham root GeoJSON dosyaları artifact'a girmez; deploy sırasında preprocessing çalıştırılmaz.
 
-## Bilinen Sınırlamalar
+## Export
 
-- MTG GeoColour gerçek görüntüsünde bulut/duman ayrımı otomatik değildir; katman görsel doğrulama amaçlıdır.
-- CAMS PM10 ve Open-Meteo rüzgârı model çıktısıdır; ölçüm değildir.
-- EFFIS Burnt Area resmî saha perimetresi değildir (algoritmik NRT ürünü).
-- Rüzgâr bazlı yayılım koridoru meteorolojik tarama geometrisidir; duman yörüngesi veya tahmin ürünü değildir.
-- FIRMS hotspot'u yangın perimetresi değildir; FRP yanmış alan değildir.
-- Risk skoru arıza olasılığı veya resmî güvenlik mesafesi değildir.
-- Harita karar destek amaçlıdır; resmî acil durum, SCADA/EMS veya şebeke işletme karar sistemi değildir.
-- FIRMS tespitleri MAP_KEY gerektirir; anahtar olmadan yalnız tespit katmanı eksik kalır.
+CSV, JSON ve GeoJSON adları ülke kodunu taşır:
 
-## Sürüm Geçmişi
+```text
+wildfire-grid-risk_TR_YYYY-MM-DD.csv
+wildfire-grid-risk_ES_YYYY-MM-DD.json
+wildfire-grid-risk_FR_YYYY-MM-DD.geojson
+```
 
-- **v3.4.13** — Rüzgâr bazlı koridor adaptif hale geldi: sabit 30 km yerine olay başına **10–30 km** (`adaptiveCorridorDistanceKm`: 10 m yüzey rüzgâr hızı + log-ölçekli maks. FRP ağırlıklı; hız eksikse 15 km/h fallback, yön yoksa koridor yok). 850/700 hPa yalnız görsel bağlamdır — koridor hesabı her zaman ayrı tutulan 10 m `surfaceWindData` ile yapılır. Her analizde `corridorDistanceKm/corridorWindSpeedKmh/corridorWindSource/corridorConfidence`; poligon, tooltip, lejant, kart, CSV/JSON aynı mesafeyi kullanır. Risk skoru formülü ve sıralaması değişmedi.
-- **v3.4.12** — Şebeke Öncelik Tablosu / Analiz Paneli varlık gösterimi düzeltmesi: tablo ve kartlarda "En yakın varlık" artık **yalnızca en yakın iletim hattını** gösterir (`EN YAKIN HAT`; hat yoksa "Yakın iletim hattı bulunamadı"); TM mesafesi/skoru risk hesaplamasına aynen katılmaya devam eder (top-5 sıralaması değişmedi), detay paneli "En yakın hat" ve "En yakın TM"yi ayrı gösterir. TM harita işaretleri korundu: ≤5 km riskli TM'ler mavi çerçeveli siyah kare (tek kaynak `substationRiskDisplayDistanceKm: 5`), diğerleri nötr gri kare.
-- **v3.4.11** — Rüzgâr koridorundaki TM işaretlemesi kaldırıldı: koridor yalnız hatları (kesikli turkuaz çizgi) işaretler; turkuaz kare TM sembolü, `sectorSubstationIcon` fabrikası ve CSS kuralı silindi. Haritadaki tek TM işareti artık **5 km içindeki riskli TM'ler** (siyah dolgu + mavi kenar); diğer tüm TM'ler nötr gri kare.
-- **v3.4.10** — TM sembol ayrımı: tüm trafo merkezleri artık mavi çerçeveli siyah kare **risk işareti** gibi görünmüyor. Şebeke katmanı TM'leri nötr küçük kare (gri çerçeve), **riskli TM** (≤5 km) mavi çerçeveli siyah kare, **koridor TM'si** turkuaz kare olarak gösteriliyor; lejant örnekleri güncellendi.
-- **v3.4.9** — Riskli şebeke işaretlemesi 5 km ile sınırlandı: yakınlık bantları 1/3/10/25 → **0.5/1.5/3/5 km**; mesafe skoru sertleştirildi (≤0.5→60 … ≤5→24, >5→0) ve mesafe dışı bileşenlerin üst limitleri düşürüldü (FRP 18, rüzgâr 8/4/3) — böylece 5 km'den uzak varlıkların skoru matematiksel olarak Yüksek eşiğinin (55) altında kalır (51 < 55) ve riskli TM karesi/hat vurgusu yalnızca ≤5 km'de görünür; TM kare ikonuna ek 5 km guard'ı eklendi; lejant notu güncellendi.
-- **v3.4.8** — FIRMS tooltip zaman mantığı: `İlk/Son uydu tespiti` artık 6 saatlik olay kümesinden değil, tespitin çevresindeki **5 km yarıçaplı bölge geçmişinden** (`areaHistory`; ham/dedupe kayıtlar, zaman sıralı) geliyor — uzun süren yangınlarda >6 saat tespit aralığı olsa bile ilk/son doğru görünüyor; veri penceresi ≤48 saatse `Son 48 saatte ilk uydu tespiti` etiketi; tek tespitte `Bölgedeki tek uydu tespiti`; `Bölgedeki tespit: N` sayacı; detay paneli tooltip ile aynı bölge geçmişini paylaşıyor; yaş referansı zaman çizelgesinde seçili zaman / Şimdi.
-- **v3.4.7** — UI/tooltip hotfix: NASA FIRMS termal tespiti tooltip'i minimal ve faydalı — başlık, sensör (örn. `VIIRS_NOAA21_NRT`), `FRP: 37.14 MW`, `Tespit`, `İlk uydu tespiti`, `Son uydu tespiti`, `Son tespit yaşı` satırları; okunur Türkçe kısa tarih (`31 Temmuz 14.20`), dinamik yaş (`11 saat 40 dakika`); `Hotspot = yangın perimetresi değildir.` gibi uzun notlar kaldırıldı; veri yoksa satır gösterilmiyor; olay kümesi tooltip'i de aynı kompakt düzenle yenilendi.
-- **v3.4.6** — UI hotfix: Şebeke Risk Özeti paneline lejant kartıyla aynı solid görünüm (opak arka plan, border, backdrop blur, gölge, padding); lejant ve analiz panelleri karşılıklı özel — biri açılınca diğeri kapanır (merkezi `setLegendOpen`/`setAnalysisOpen` helper'ları, aria-expanded/aria-hidden senkronu); `body.analysisOpen` kaydırma kuralları kaldırıldı, butonlar sabit (108/74 desktop, 126/92 mobil).
-- **v3.4.5** — Acil hotfix: "Analizi Göster" panelinde duplicate DOM ID'ler kaldırıldı (analysisToggle/analysisSummaryPanel/analysisClose/analysisSummaryBody artık tam 1'er adet; tüm ID'ler unique). ui.js init'ine DOM tekillik sözleşmesi kontrolü eklendi; gerçek pointer (elementFromPoint) tıklama testleri.
-- **v3.4.4** — ⚡ Şebeke Risk Özeti paneli: lejant toggle'ının altına bağımsız "Analizi Göster/Gizle" butonu; en yüksek öncelikli 5 yangın olayı kartı (risk bandı, en yakın hat/TM + mesafe, FRP, rüzgâr koridoru, risk skoru). Tablo ile aynı veri kaynağı/sıralama; kart tıklaması haritayı olaya odaklar; canlı güncelleme; mobil sınırlar.
-- **v3.4.3** — Varsayılan katman ve sembol düzeltmeleri: FRP varsayılanı 30 MW (tek kaynak), termal yayılım/EFFIS BA/koridor varsayılan açık, tüm TM risk kareleri tek tip (10×10, siyah + mavi çerçeve).
-- **v3.4.2** — MTG hotfix: kullanıcı zamanı seçiminde backfill bütçesi sıfırlanır; MTG metinlerinde tekrarlanan UTC eki kaldırıldı.
-- **v3.4.1** — MTG resmî EUMETView endpoint'i, slot floor + gelecek clamp, frame-bazlı backfill (max 12), istenen/gösterilen frame ayrımı, MTG'de 10 dk playback, riskli TM kare sembolleri, service monitor durumları.
-- **v3.4.0** — MTG-I FCI GeoColour gerçek uydu görüntüsü eklendi; AtmoHub, AFAD/İhtiyaç Haritası FirePolygon ve GFW tamamen kaldırıldı; EFFIS Burnt Area birincil doğrulama poligonu yapıldı; koridor 30 km'ye daraltıldı.
+Metadata ve satırlar uygun yerlerde `countryCode`, `countryName`, `assetId`, `gridClass` ve `actualVoltageKv` alanlarını içerir.
 
-Ayrıntılı geliştirme kaydı için `GELISTIRMELER.md`'ye bakınız.
+## Kaynak ve lisans
+
+Şebeke verisi © OpenStreetMap contributors, **ODbL 1.0** kapsamında kullanılır. Ülke sınırları Natural Earth 1:10m Admin 0 verisidir (public domain). Diğer sağlayıcıların verileri kendi kullanım ve lisans koşullarına tabidir.
