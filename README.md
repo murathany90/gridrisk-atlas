@@ -1,6 +1,6 @@
 ﻿# Türkiye Wildfire Grid Risk Monitor
 
-> **Sürüm:** v3.4.11 · **Canlı:** <https://murathany90.github.io/tr_wildfire/> · **Harita serbesttir; veri Türkiye ile sınırlıdır.**
+> **Sürüm:** v3.4.12 · **Canlı:** <https://murathany90.github.io/tr_wildfire/> · **Harita serbesttir; veri Türkiye ile sınırlıdır.**
 
 ## Proje Özeti
 
@@ -173,7 +173,7 @@ Bağımsız regression paketi `tests.mjs` (Node, ağ gerekmez; tek istisna canl�
 npm test
 ```
 
-Mevcut durum: **148/148 test geçti** (v3.4.11 itibarıyla). Paket; FRP filtresi, clustering, dedupe, MTG frame/backfill davranışı, varsayılan katmanlar, risk sembolleri, TM ikon ayrımı (nötr katman / mavi risk; koridor TM işaretlemesi kaldırıldı), risk özeti paneli, DOM ID tekillik sözleşmesi, karşılıklı özel panel davranışı + aria senkronu, CSS mobil düzeni, minimal FIRMS tooltip alanları (kısa tarih, dinamik yaş, veri yoksa satır atlama), FIRMS bölge geçmişi (`areaHistory` — 5 km yarıçap, zaman sıralı ilk/son tespit, 48 saatlik pencere etiketi, tespit sayısı), riskli işaretlemenin 5 km ile sınırlanması (impactBands 0.5/1.5/3/5 km, mesafe ağırlıklı skor, >5 km'de skor <55 invarianti), sürüm tutarlılığı ve kaldırılan kaynakların kalıntılarının olmadığını (AtmoHub/GFW/FirePolygon yokluk assertion'ları) doğrular.
+Mevcut durum: **155/155 test geçti** (v3.4.12 itibarıyla). Paket; FRP filtresi, clustering, dedupe, MTG frame/backfill davranışı, varsayılan katmanlar, risk sembolleri, TM ikon ayrımı (nötr katman / mavi risk; koridor TM işaretlemesi kaldırıldı), risk özeti paneli (yalnız en yakın hat gösterimi, TM risk matematiğinde), DOM ID tekillik sözleşmesi, karşılıklı özel panel davranışı + aria senkronu, CSS mobil düzeni, minimal FIRMS tooltip alanları (kısa tarih, dinamik yaş, veri yoksa satır atlama), FIRMS bölge geçmişi (`areaHistory` — 5 km yarıçap, zaman sıralı ilk/son tespit, 48 saatlik pencere etiketi, tespit sayısı), riskli işaretlemenin 5 km ile sınırlanması (impactBands 0.5/1.5/3/5 km, mesafe ağırlıklı skor, >5 km'de skor <55 invarianti), sürüm tutarlılığı ve kaldırılan kaynakların kalıntılarının olmadığını (AtmoHub/GFW/FirePolygon yokluk assertion'ları) doğrular.
 
 ## GitHub Pages Deploy
 
@@ -197,6 +197,7 @@ Mevcut durum: **148/148 test geçti** (v3.4.11 itibarıyla). Paket; FRP filtresi
 
 ## Sürüm Geçmişi
 
+- **v3.4.12** — Şebeke Öncelik Tablosu / Analiz Paneli varlık gösterimi düzeltmesi: tablo ve kartlarda "En yakın varlık" artık **yalnızca en yakın iletim hattını** gösterir (`EN YAKIN HAT`; hat yoksa "Yakın iletim hattı bulunamadı"); TM mesafesi/skoru risk hesaplamasına aynen katılmaya devam eder (top-5 sıralaması değişmedi), detay paneli "En yakın hat" ve "En yakın TM"yi ayrı gösterir. TM harita işaretleri korundu: ≤5 km riskli TM'ler mavi çerçeveli siyah kare (tek kaynak `substationRiskDisplayDistanceKm: 5`), diğerleri nötr gri kare.
 - **v3.4.11** — Rüzgâr koridorundaki TM işaretlemesi kaldırıldı: koridor yalnız hatları (kesikli turkuaz çizgi) işaretler; turkuaz kare TM sembolü, `sectorSubstationIcon` fabrikası ve CSS kuralı silindi. Haritadaki tek TM işareti artık **5 km içindeki riskli TM'ler** (siyah dolgu + mavi kenar); diğer tüm TM'ler nötr gri kare.
 - **v3.4.10** — TM sembol ayrımı: tüm trafo merkezleri artık mavi çerçeveli siyah kare **risk işareti** gibi görünmüyor. Şebeke katmanı TM'leri nötr küçük kare (gri çerçeve), **riskli TM** (≤5 km) mavi çerçeveli siyah kare, **koridor TM'si** turkuaz kare olarak gösteriliyor; lejant örnekleri güncellendi.
 - **v3.4.9** — Riskli şebeke işaretlemesi 5 km ile sınırlandı: yakınlık bantları 1/3/10/25 → **0.5/1.5/3/5 km**; mesafe skoru sertleştirildi (≤0.5→60 … ≤5→24, >5→0) ve mesafe dışı bileşenlerin üst limitleri düşürüldü (FRP 18, rüzgâr 8/4/3) — böylece 5 km'den uzak varlıkların skoru matematiksel olarak Yüksek eşiğinin (55) altında kalır (51 < 55) ve riskli TM karesi/hat vurgusu yalnızca ≤5 km'de görünür; TM kare ikonuna ek 5 km guard'ı eklendi; lejant notu güncellendi.
