@@ -4,9 +4,20 @@
     constructor(){this.services={basemap:{name:'Harita Altlığı',state:'idle'},firms:{name:'NASA FIRMS',state:'idle'},air:{name:'CAMS Wildfire PM10',state:'idle'},weather:{name:'Open-Meteo Weather',state:'idle'},effis:{name:'Copernicus EFFIS FWI',state:'idle'},effisBurntArea:{name:'EFFIS Yanmış Alan',state:'idle'},mtg:{name:'EUMETSAT MTG GeoColour',state:'idle'},grid:{name:'OSM İletim Şebekesi',state:'idle'},geocode:{name:'Geocoding',state:'idle'}};this.chart=null;this.sortKey=null;this.sortDir=1;}
     init(){
       document.querySelectorAll('.navBtn').forEach(b=>b.addEventListener('click',()=>this.showView(b.dataset.view)));document.querySelector('.collapseBtn')?.addEventListener('click',e=>{const body=document.getElementById('layerPanelBody');body.classList.toggle('hidden');e.currentTarget.textContent=body.classList.contains('hidden')?'+':'−';if(document.getElementById('view-map')?.classList.contains('active'))setTimeout(()=>A.app?.map?.map?.invalidateSize(),30);});
-      document.getElementById('legendToggleBtn')?.addEventListener('click',e=>{const stack=document.getElementById('legendStack'),hidden=stack.classList.toggle('legendsHidden');e.currentTarget.textContent=hidden?'◫ Lejantları Göster':'◫ Lejantları Gizle';});
-      document.getElementById('analysisToggle')?.addEventListener('click',()=>this.toggleRiskSummary());
-      document.getElementById('analysisClose')?.addEventListener('click',()=>this.toggleRiskSummary());
+      const legendBtn=document.getElementById('legendToggleBtn'),legendStack=document.getElementById('legendStack'),analysisBtn=document.getElementById('analysisToggle'),analysisPanel=document.getElementById('analysisSummaryPanel');
+      legendBtn?.addEventListener('click',()=>{
+        const willOpen=legendStack.classList.contains('legendsHidden');
+        if(willOpen)this.setAnalysisOpen(false);
+        this.setLegendOpen(willOpen);
+        if(willOpen)this.holdLayerPanel(true);
+      });
+      analysisBtn?.addEventListener('click',()=>{
+        const willOpen=analysisPanel.classList.contains('analysisHidden');
+        if(willOpen)this.setLegendOpen(false);
+        this.setAnalysisOpen(willOpen);
+        if(willOpen)this.holdLayerPanel(true);
+      });
+      document.getElementById('analysisClose')?.addEventListener('click',()=>this.setAnalysisOpen(false));
       const requiredUniqueIds=['analysisToggle','analysisSummaryPanel','analysisClose','analysisSummaryBody'];
       for(const id of requiredUniqueIds){const nodes=document.querySelectorAll(`#${id}`);if(nodes.length!==1)console.error(`DOM contract violation: #${id} count=${nodes.length}`);}
       A.Events.on('service',s=>this.updateService(s));A.Events.on('firesRendered',x=>{document.getElementById('kpiFireEvents').textContent=(x.events??0).toLocaleString('tr-TR');document.getElementById('kpiDetectionsNote').textContent=`${(x.detections??0).toLocaleString('tr-TR')} termal tespit · 5 km/6 saat küme`;const el=document.getElementById('frpCount');if(el)el.textContent=`${(x.events??0).toLocaleString('tr-TR')} / ${(x.eventsTotal??x.events??0).toLocaleString('tr-TR')} olay gösteriliyor`;});A.Events.on('gridCoreReady',s=>this.renderGridSummary(s));this.renderServices();
@@ -57,16 +68,31 @@
       if(this.sortKey){const d=this.sortDir;rows.sort((a,b)=>{let va,vb;switch(this.sortKey){case'riskScore':va=a.riskScore;vb=b.riskScore;break;case'count':va=a.event.count;vb=b.event.count;break;case'maxFrp':va=a.event.maxFrp;vb=b.event.maxFrp;break;case'asset':{const la=a.nearest.line,sa=a.nearest.substation,ua=la&&(!sa||la.distanceKm<=sa.distanceKm),pa=ua?la?.feature?.props?.name||la?.feature?.props?.ref:'TM';const lb=b.nearest.line,sb=b.nearest.substation,ub=lb&&(!sb||lb.distanceKm<=sb.distanceKm),pb=ub?lb?.feature?.props?.name||lb?.feature?.props?.ref:'TM';va=(pa||'Adsız').toLowerCase();vb=(pb||'Adsız').toLowerCase();break;}case'distance':{const la=a.nearest.line,sa=a.nearest.substation,ua=la&&(!sa||la.distanceKm<=sa.distanceKm);va=ua?la.distanceKm:sa?.distanceKm??Infinity;const lb=b.nearest.line,sb=b.nearest.substation,ub=lb&&(!sb||lb.distanceKm<=sb.distanceKm);vb=ub?lb.distanceKm:sb?.distanceKm??Infinity;break;}case'voltage':{const la=a.nearest.line,sa=a.nearest.substation,ua=la&&(!sa||la.distanceKm<=sa.distanceKm),pa=ua?la?.feature?.props:sa?.feature?.props;const lb=b.nearest.line,sb=b.nearest.substation,ub=lb&&(!sb||lb.distanceKm<=sb.distanceKm),pb=ub?lb?.feature?.props:sb?.feature?.props;va=(pa?.voltage||pa?.voltageGroup||'').toLowerCase();vb=(pb?.voltage||pb?.voltageGroup||'').toLowerCase();break;}case'wind':va=a.wind?a.downwindAlignment?2:1:0;vb=b.wind?b.downwindAlignment?2:1:0;break;case'latest':va=new Date(a.event.latestDetectedAt).getTime();vb=new Date(b.event.latestDetectedAt).getTime();break;default:va=0;vb=0;}if(va<vb)return-d;if(va>vb)return d;return 0;});}
       return rows;
     }
-    toggleRiskSummary(){
-      const panel=document.getElementById('analysisSummaryPanel'),btn=document.getElementById('analysisToggle');
-      if(!panel)return;
-      const hidden=panel.classList.toggle('analysisHidden');
-      document.body.classList.toggle('analysisOpen',!hidden);
-      if(btn)btn.textContent=hidden?'⚡ Analizi Göster':'⚡ Analizi Gizle';
-      if(!hidden){
-        if(window.innerWidth<=520){const lb=document.getElementById('layerPanelBody');if(lb&&!lb.classList.contains('hidden')){lb.classList.add('hidden');const cb=document.querySelector('.collapseBtn');if(cb)cb.textContent='+';}}
-        this.renderRiskSummary();
+    setLegendOpen(open){
+      const stack=document.getElementById('legendStack');
+      const btn=document.getElementById('legendToggleBtn');
+      if(!stack)return;
+      stack.classList.toggle('legendsHidden',!open);
+      stack.setAttribute('aria-hidden',String(!open));
+      if(btn){
+        btn.textContent=open?'◫ Lejantları Gizle':'◫ Lejantları Göster';
+        btn.setAttribute('aria-expanded',String(open));
       }
+    }
+    setAnalysisOpen(open){
+      const panel=document.getElementById('analysisSummaryPanel');
+      const btn=document.getElementById('analysisToggle');
+      if(!panel)return;
+      panel.classList.toggle('analysisHidden',!open);
+      panel.setAttribute('aria-hidden',String(!open));
+      if(btn){
+        btn.textContent=open?'⚡ Analizi Gizle':'⚡ Analizi Göster';
+        btn.setAttribute('aria-expanded',String(open));
+      }
+      if(open)this.renderRiskSummary();
+    }
+    holdLayerPanel(open){
+      if(window.innerWidth<=520){const lb=document.getElementById('layerPanelBody');if(open&&lb&&!lb.classList.contains('hidden')){lb.classList.add('hidden');const cb=document.querySelector('.collapseBtn');if(cb)cb.textContent='+';}}
     }
     renderRiskSummary(){
       const panel=document.getElementById('analysisSummaryPanel'),body=document.getElementById('analysisSummaryBody');
