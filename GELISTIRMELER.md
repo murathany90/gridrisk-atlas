@@ -1,5 +1,23 @@
 # Geliştirme Kaydı — Türkiye Wildfire Grid Risk Monitor v3.2.0
 
+# v3.4.10 — TM Sembol Ayrımı: Katman / Risk / Koridor
+
+**Branch:** `fix/v3.4.10-tm-marker-distinction`
+
+**Amaç:** Yangından uzaktaki trafo merkezlerinin "riskli gösterim" olarak algılanması sorununu çözmek — üç ikon fabrikası da aynı mavi çerçeveli siyah dolgu kareyi ürettiği için şebeke katmanındaki tüm TM'ler risk işareti gibi görünüyordu.
+
+**Değişiklikler:**
+- **`css/styles.css`** — üç ayrı kural:
+  - `.substationSquare` (temel, şebeke katmanı TM'si): 8×8, koyu dolgu `#1b2a44`, gri çerçeve `#8b98ad` — nötr varlık sembolü.
+  - `.substationSquare.substation-risk` (riskli TM ≤5 km): 10×10 siyah dolgu + mavi çerçeve `#2f80ff` (korundu).
+  - `.substationSquare.substation-sector` (rüzgâr koridoru TM'si): 10×10 turkuaz dolgu `#7be6ff` + koyu turkuaz çerçeve `#0e7490`.
+- **`js/map.js`** — `substationIcon()` (şebeke katmanı) artık yalnız `substationSquare` temel sınıfını kullanır (8×8); `riskSubstationIcon()` değişmedi; `sectorSubstationIcon()` → `substation-sector`. Koridor lejantı turkuaz kareye geçti; risk lejantı notundaki yanlış iç içe `<strong>` düzeltildi.
+- **Sürüm 3.4.10**: `package.json`, `js/config.js`, `index.html` (pill + cache-buster), `server.mjs`, `README.md`, sürüm geçmişi.
+
+**Testler:** v3.4.3 "tek tip kare" testi yerine v3.4.10 testi — fabrika kaynaklarında temel/risk/koridor sınıfı ayrımı (şebeke ikonu artık `substation-risk` içermez), CSS kuralları, ikon fabrikalarında inline renk yokluğu. `3.4.1` yokluk assertion'u `3\.4\.1[^0-9]` regex'ine geçirildi (3.4.10 substring çakışması). Toplam **148/148** test geçti.
+
+---
+
 # v3.4.9 — Riskli Şebeke İşaretlemesi En Fazla 5 km
 
 **Branch:** `fix/v3.4.9-risk-distance-5km`

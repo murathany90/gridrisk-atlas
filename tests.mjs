@@ -791,7 +791,7 @@ test('v3.4.3 — substation squares uniform: same size, black fill, blue border,
   assert.equal(mapTxt.includes('width:${size}px'), false, 'no dynamic size template');
   assert.equal(mapTxt.includes('tmIcon'), false, 'legacy tmIcon class removed from map.js');
   assert.equal(cssTxt.includes('.tmIcon'), false, 'legacy tmIcon CSS removed');
-  assert.ok(cssTxt.includes('.substationSquare.substation-risk{width:10px;height:10px;background:#000;border:2px solid #2f80ff;box-sizing:border-box}'), 'uniform 10px black-fill blue-border square CSS');
+  assert.ok(cssTxt.includes('.substationSquare.substation-risk{width:10px;height:10px;background:#000;border:2px solid #2f80ff}'), 'uniform 10px black-fill blue-border risk square CSS');
   assert.equal(cssTxt.includes('.substation-risk-critical'), false, 'risk-critical CSS removed');
   assert.equal(cssTxt.includes('.substation-risk-low'), false, 'risk-low CSS removed');
 });
@@ -802,7 +802,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.4.9'"), 'config appVersion 3.4.9');
+  assert.ok(cfgTxt2.includes("appVersion: '3.4.10'"), 'config appVersion 3.4.10');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1070,19 +1070,19 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.4.9 version bump to 3.4.9 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.4.9'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.4.9'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.4.9'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.4.9'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.4.9"'), 'package.json version');
+test('v3.4.10 version bump to 3.4.10 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.4.10'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.4.10'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.4.10'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.4.10'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.4.10"'), 'package.json version');
   assert.equal(htmlTxt.includes('3.4.7'), false, 'no stale 3.4.7 in index.html');
   assert.equal(htmlTxt.includes('3.4.6'), false, 'no stale 3.4.6 in index.html');
   assert.equal(htmlTxt.includes('3.4.5'), false, 'no stale 3.4.5 in index.html');
   assert.equal(htmlTxt.includes('3.4.4'), false, 'no stale 3.4.4 in index.html');
   assert.equal(htmlTxt.includes('3.4.3'), false, 'no stale 3.4.3 in index.html');
   assert.equal(htmlTxt.includes('3.4.2'), false, 'no stale 3.4.2 in index.html');
-  assert.equal(htmlTxt.includes('3.4.1'), false, 'no stale 3.4.1 in index.html');
+  assert.equal(/3\.4\.1[^0-9]/.test(htmlTxt), false, 'no stale 3.4.1 in index.html (3.4.10 excluded via digit anchor)');
   assert.equal(htmlTxt.includes('3.4.0'), false, 'no stale 3.4.0 in index.html');
 });
 
@@ -1107,14 +1107,17 @@ test('v3.4.3 — thermal envelope / EFFIS BA / downwind default ON', () => {
   assert.ok(appTxt.includes('if(this.state.effisBurntAreaEnabled)this.map.toggleEffisBurntArea(true,this.state.selectedTime);'), 'EFFIS BA applied at init');
 });
 
-test('v3.4.3 — all three TM icon factories are identical 10px squares', () => {
+test('v3.4.10 — TM icons distinct: grid neutral, risk blue, sector teal', () => {
   const icons = mapTxt.slice(mapTxt.indexOf('substationIcon(){'), mapTxt.indexOf('setGridGroup'));
-  assert.ok(icons.includes('substationSquare substation-risk'), 'uniform square class in all factories');
-  assert.equal((icons.match(/iconSize:\[10,10\]/g) || []).length, 3, 'all three icons 10x10');
-  assert.equal((icons.match(/iconAnchor:\[5,5\]/g) || []).length, 3, 'all three anchored center');
-  assert.equal(icons.includes('width:${size}px'), false, 'no dynamic sizing');
+  assert.ok(icons.includes('<span class="substationSquare"></span>'), 'grid-layer substation icon is neutral base square');
+  assert.equal(icons.includes('substationIcon(){return L.divIcon({className:\'substationIconWrap\',html:\'<span class="substationSquare substation-risk"></span>\''), false, 'grid icon no longer risk-styled');
+  assert.ok(icons.includes('substationSquare substation-risk'), 'risk factory keeps blue-border square');
+  assert.ok(icons.includes('substationSquare substation-sector'), 'sector factory uses distinct teal square');
+  assert.ok(cssTxt.includes('.substationSquare{display:block;width:8px;height:8px;background:#1b2a44;border:1.5px solid #8b98ad;box-sizing:border-box}'), 'base neutral square CSS');
+  assert.ok(cssTxt.includes('.substationSquare.substation-risk{width:10px;height:10px;background:#000;border:2px solid #2f80ff}'), 'risk square CSS kept');
+  assert.ok(cssTxt.includes('.substationSquare.substation-sector{width:10px;height:10px;background:#7be6ff;border:2px solid #0e7490}'), 'sector square CSS');
   assert.equal(icons.includes('background:#0a2531'), false, 'sector icon no legacy dark fill');
-  assert.equal(icons.includes('#7be6ff'), false, 'sector icon no legacy cyan border');
+  assert.equal(icons.includes('#7be6ff'), false, 'no inline hex colors in icon factories (CSS only)');
 });
 
 // ── FIRMS hexagon markers + Ayarlar tab rename ──
