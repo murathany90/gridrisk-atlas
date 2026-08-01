@@ -2,7 +2,7 @@
 (function(A){
   A.CONFIG = {
     appName: 'Türkiye Wildfire Grid Risk Monitor',
-    appVersion: '3.4.8',
+    appVersion: '3.4.9',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
     mapMinZoom: 2,
@@ -104,10 +104,10 @@
     downwindMaxDistanceKm: 30,
     downwind: { halfAngleDeg: 22, maxCorridors: 30 },
     impactBands: [
-      {maxKm:1,label:'Kritik yakınlık',level:'critical'},
-      {maxKm:3,label:'Yüksek yakınlık',level:'high'},
-      {maxKm:10,label:'Orta yakınlık',level:'medium'},
-      {maxKm:25,label:'İzleme alanı',level:'watch'}
+      {maxKm:0.5,label:'Kritik yakınlık',level:'critical'},
+      {maxKm:1.5,label:'Yüksek yakınlık',level:'high'},
+      {maxKm:3,label:'Orta yakınlık',level:'medium'},
+      {maxKm:5,label:'İzleme alanı',level:'watch'}
     ],
     riskScoreBands: [
       {min:75,label:'Kritik',level:'critical'},
