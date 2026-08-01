@@ -1,5 +1,24 @@
 # Geliştirme Kaydı — Türkiye Wildfire Grid Risk Monitor v3.2.0
 
+# v3.4.8 — FIRMS Tooltip Bölge Geçmişi (Area History) Zaman Mantığı
+
+**Branch:** `fix/v3.4.8-tooltip-area-history`
+
+**Amaç:** Tooltip/detay panelindeki `İlk uydu tespiti` / `Son uydu tespiti` değerlerinin 6 saatlik olay kümesine değil, tespitin çevresindeki **5 km yarıçaplı bölge geçmişine** (tüm ham/dedupe FIRMS kayıtları, zaman sıralı) dayanmasını sağlamak — 6 saatten uzun gözlem aralığı olan uzun süreli yangınlarda ilk/son tespitin aynı görünmesi sorununu çözmek.
+
+**Değişiklikler:**
+- **`js/utils.js`** — iki yeni helper:
+  - `timeReference(selectedTime, sliderValue=0)` — geçersiz seçim veya slider 0 (Şimdi) → şimdi; geçmiş seçim → seçili zaman; gelecek → `now + 15 dk` üstünde sınırlanır.
+  - `areaHistory(fires, center, radiusKm)` — yarıçap varsayılanı `C().fireClustering.radiusKm` (5 km); geçerli lat/lon + `Date.parse(detectedAt)` filtresi; zaman sıralı (artan); `{records, count, first, last, windowHours, window48}` — `window48` = en eski kaydın yaşı ≤ 49 saat (veri penceresi ≤ 48 saat → tooltip'te `Son 48 saatte ilk uydu tespiti` etiketi).
+- **`js/map.js`** — `renderFires` artık `reference = U.timeReference(this.currentSelectedTime, slider.value)` ve `radius = C().fireClustering.radiusKm` hesaplıyor; her iki `bindTooltip` çağrısı `U.areaHistory(this.fireAll, f|ev, radius)` kullanıyor; `detEvents` Map'i kaldırıldı. `firesDetectionTooltip(f, history, reference)` ve `firesEventTooltip(ev, history, reference)` yeniden yazıldı: başlık → sensör/`Maks. FRP` → tek tespitte `Bölgedeki tek uydu tespiti` (ilk/son satırları yok), değilse `[Son 48 saatte ilk uydu tespiti | İlk uydu tespiti]` + `Son uydu tespiti` → `Son tespit yaşı` (referans = seçili zaman/Şimdi; negatif yaş yok) → `Bölgedeki tespit: N` (N > 1 ise). Eski `Tespit: ... GMT+3` satırı kaldırıldı; `<br>` ile 6-7 kısa satır.
+- **`js/app.js`** — tespit tıklamasında `U.areaHistory(this.map.fireAll, {lat, lon}, C.fireClustering.radiusKm)` hesaplanıp detay paneline geçirilir.
+- **`js/ui.js`** — `renderPointDetail(point, air, weather, nearbyFires, areaHistory, fire, fireEvent, gridFeature, nearest)` imzası; olay ve tespit bloklarındaki eski `İlk/Son tespit` metrikleri yerine aynı bölge geçmişinden `İlk uydu tespiti` (48 saat etiketiyle), `Son uydu tespiti`, `Bölgedeki tespit` metrikleri — tooltip ile birebir aynı değerler.
+- **Sürüm 3.4.8**: `package.json`, `js/config.js`, `index.html` (pill + cache-buster), `server.mjs`, `README.md`, sürüm geçmişi.
+
+**Testler:** 13 yeni/güncellenen test — `areaHistory` aynı bölgedeki tespitleri 6 saatlik olay sınırı boyunca birleştirir (10 saatlik aralık, 3 km mesafe → count 2, first ≠ last), uzak yangın (>5 km) + geçersiz/eksik zaman damgası dışlanır, zaman sıralaması, 48 saatlik pencere etiketi (47h → true, 60h → false), `timeReference` (Şimdi → now, geçmiş → seçili, gelecek sınırı, negatif olmayan yaş), tooltip builder imzaları + ifadeler + `detEvents` yokluğu + `Tespit:` satırı yokluğu + `<br><br>` yokluğu, `renderFires` bağlantısı, runtime çıktılar: bölge ilk/son/sayı, tek tespit (`Bölgedeki tek uydu tespiti`), 48 saat etiketi, 6 saat sınırı boyunca küme geçmişi (olay sayısı 5 korunur, bölge sayısı 8), tooltip ve detay panelinin aynı `areaHistory` değerlerini paylaşması.
+
+---
+
 # v3.4.7 — UI/Tooltip Hotfix: Minimal FIRMS Tooltip
 
 **Branch:** `fix/v3.4.7-minimal-tooltip`

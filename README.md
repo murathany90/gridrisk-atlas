@@ -1,6 +1,6 @@
 ﻿# Türkiye Wildfire Grid Risk Monitor
 
-> **Sürüm:** v3.4.7 · **Canlı:** <https://murathany90.github.io/tr_wildfire/> · **Harita serbesttir; veri Türkiye ile sınırlıdır.**
+> **Sürüm:** v3.4.8 · **Canlı:** <https://murathany90.github.io/tr_wildfire/> · **Harita serbesttir; veri Türkiye ile sınırlıdır.**
 
 ## Proje Özeti
 
@@ -173,7 +173,7 @@ Bağımsız regression paketi `tests.mjs` (Node, ağ gerekmez; tek istisna canl�
 npm test
 ```
 
-Mevcut durum: **138/138 test geçti** (v3.4.7 itibarıyla). Paket; FRP filtresi, clustering, dedupe, MTG frame/backfill davranışı, varsayılan katmanlar, risk sembolleri, risk özeti paneli, DOM ID tekillik sözleşmesi, karşılıklı özel panel davranışı + aria senkronu, CSS mobil düzeni, minimal FIRMS tooltip alanları (kısa tarih, dinamik yaş, veri yoksa satır atlama), sürüm tutarlılığı ve kaldırılan kaynakların kalıntılarının olmadığını (AtmoHub/GFW/FirePolygon yokluk assertion'ları) doğrular.
+Mevcut durum: **143/143 test geçti** (v3.4.8 itibarıyla). Paket; FRP filtresi, clustering, dedupe, MTG frame/backfill davranışı, varsayılan katmanlar, risk sembolleri, risk özeti paneli, DOM ID tekillik sözleşmesi, karşılıklı özel panel davranışı + aria senkronu, CSS mobil düzeni, minimal FIRMS tooltip alanları (kısa tarih, dinamik yaş, veri yoksa satır atlama), FIRMS bölge geçmişi (`areaHistory` — 5 km yarıçap, zaman sıralı ilk/son tespit, 48 saatlik pencere etiketi, tespit sayısı), sürüm tutarlılığı ve kaldırılan kaynakların kalıntılarının olmadığını (AtmoHub/GFW/FirePolygon yokluk assertion'ları) doğrular.
 
 ## GitHub Pages Deploy
 
@@ -197,6 +197,7 @@ Mevcut durum: **138/138 test geçti** (v3.4.7 itibarıyla). Paket; FRP filtresi,
 
 ## Sürüm Geçmişi
 
+- **v3.4.8** — FIRMS tooltip zaman mantığı: `İlk/Son uydu tespiti` artık 6 saatlik olay kümesinden değil, tespitin çevresindeki **5 km yarıçaplı bölge geçmişinden** (`areaHistory`; ham/dedupe kayıtlar, zaman sıralı) geliyor — uzun süren yangınlarda >6 saat tespit aralığı olsa bile ilk/son doğru görünüyor; veri penceresi ≤48 saatse `Son 48 saatte ilk uydu tespiti` etiketi; tek tespitte `Bölgedeki tek uydu tespiti`; `Bölgedeki tespit: N` sayacı; detay paneli tooltip ile aynı bölge geçmişini paylaşıyor; yaş referansı zaman çizelgesinde seçili zaman / Şimdi.
 - **v3.4.7** — UI/tooltip hotfix: NASA FIRMS termal tespiti tooltip'i minimal ve faydalı — başlık, sensör (örn. `VIIRS_NOAA21_NRT`), `FRP: 37.14 MW`, `Tespit`, `İlk uydu tespiti`, `Son uydu tespiti`, `Son tespit yaşı` satırları; okunur Türkçe kısa tarih (`31 Temmuz 14.20`), dinamik yaş (`11 saat 40 dakika`); `Hotspot = yangın perimetresi değildir.` gibi uzun notlar kaldırıldı; veri yoksa satır gösterilmiyor; olay kümesi tooltip'i de aynı kompakt düzenle yenilendi.
 - **v3.4.6** — UI hotfix: Şebeke Risk Özeti paneline lejant kartıyla aynı solid görünüm (opak arka plan, border, backdrop blur, gölge, padding); lejant ve analiz panelleri karşılıklı özel — biri açılınca diğeri kapanır (merkezi `setLegendOpen`/`setAnalysisOpen` helper'ları, aria-expanded/aria-hidden senkronu); `body.analysisOpen` kaydırma kuralları kaldırıldı, butonlar sabit (108/74 desktop, 126/92 mobil).
 - **v3.4.5** — Acil hotfix: "Analizi Göster" panelinde duplicate DOM ID'ler kaldırıldı (analysisToggle/analysisSummaryPanel/analysisClose/analysisSummaryBody artık tam 1'er adet; tüm ID'ler unique). ui.js init'ine DOM tekillik sözleşmesi kontrolü eklendi; gerçek pointer (elementFromPoint) tıklama testleri.
