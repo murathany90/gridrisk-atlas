@@ -11,10 +11,8 @@
 .legendToggleBtn{bottom:108px}.analysisToggleBtn{bottom:74px}
 .legendStack{bottom:142px;transition:opacity .15s ease,transform .15s ease}
 .legendStack.legendsHidden{opacity:0;pointer-events:none;transform:translateY(8px)}
-.analysisStack{position:absolute;z-index:550;left:12px;bottom:108px;display:flex;flex-direction:column;gap:6px;max-width:min(220px,calc(100vw - 16px));max-height:40dvh;overflow-y:auto;transition:opacity .15s ease,transform .15s ease}
+.analysisStack{position:absolute;z-index:550;left:12px;bottom:142px;width:min(220px,calc(100vw - 16px));max-width:min(220px,calc(100vw - 16px));max-height:40dvh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:8px;background:#09151fee;backdrop-filter:blur(8px);border:1px solid var(--line);border-radius:9px;box-shadow:var(--shadow);font-size:9px;transition:opacity .15s ease,transform .15s ease}
 .analysisStack.analysisHidden{opacity:0;pointer-events:none;transform:translateY(8px)}
-body.analysisOpen .legendToggleBtn{bottom:182px}
-body.analysisOpen .legendStack{bottom:216px}
 .analysisSub{font-size:8px;color:#7590a5;margin-bottom:2px}
 .riskCard{background:#0d1924;border:1px solid #1f3244;border-radius:9px;padding:8px;font-size:9px;cursor:pointer}
 .riskCard:hover{background:#132536}
@@ -32,7 +30,7 @@ body.analysisOpen .legendStack{bottom:216px}
 .riskTable tbody tr[data-risk-index]{cursor:pointer}.riskTable tbody tr[data-risk-index]:hover{background:#132536}
 .kpiCard strong.zeroValue{color:#b9c4ce}
 .kpiCard small.statusWarn{color:#e9b961}
-@media(max-width:760px){.legendToggleBtn{bottom:126px;left:8px}.analysisToggleBtn{bottom:92px;left:8px}.legendStack{bottom:158px}.analysisStack{bottom:126px;left:8px}.timelineDomains{display:none}body.analysisOpen .legendToggleBtn{bottom:200px}body.analysisOpen .legendStack{bottom:232px}}
+@media(max-width:760px){.legendToggleBtn{bottom:126px;left:8px}.analysisToggleBtn{bottom:92px;left:8px}.legendStack{bottom:158px}.analysisStack{bottom:158px;left:8px}.timelineDomains{display:none}}
 
 
 .inlineActions{display:flex;gap:7px;align-items:center;flex-wrap:wrap}.linkBtn{display:inline-block;color:#cfe7f7;text-decoration:none;background:#132536;border:1px solid #2b4154;border-radius:8px;padding:7px 10px;font-size:10px}.linkBtn:hover{background:#183047}.candidateRow{padding:6px 0;border-bottom:1px solid #1f3140}.candidateRow code{margin-top:3px}.discoverySummary{padding:7px;border:1px solid #263a4c;border-radius:7px;background:#0b1823;margin-bottom:7px}

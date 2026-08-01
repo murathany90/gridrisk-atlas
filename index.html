@@ -7,13 +7,13 @@
   <title>Türkiye Wildfire Grid Risk Monitor</title>
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="css/styles.css?v=3.4.5" />
+  <link rel="stylesheet" href="css/styles.css?v=3.4.6" />
 </head>
 <body>
 <div id="appShell">
   <header class="topbar">
     <div class="brandBlock"><div class="brandIcon">🔥</div><div><h1>Türkiye Wildfire Grid Risk Monitor</h1><div class="subtitle">Orman yangını · duman taşınım bağlamı · 154/400 kV iletim şebekesi ve trafo merkezi etkisi</div></div></div>
-    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span class="domainPill">🇹🇷 VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.4.5</span><span id="lastUpdated">Son güncelleme: —</span></div>
+    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span class="domainPill">🇹🇷 VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.4.6</span><span id="lastUpdated">Son güncelleme: —</span></div>
   </header>
 
   <nav class="mainNav">
@@ -36,8 +36,8 @@
   <main>
     <section id="view-map" class="view active">
       <div class="mapWorkspace">
-        <button id="legendToggleBtn" class="legendToggleBtn panelFloating">◫ Lejantları Göster</button>
-        <button id="analysisToggle" class="analysisToggleBtn panelFloating">⚡ Analizi Göster</button>
+        <button id="legendToggleBtn" class="legendToggleBtn panelFloating" aria-expanded="false">◫ Lejantları Göster</button>
+        <button id="analysisToggle" class="analysisToggleBtn panelFloating" aria-expanded="false">⚡ Analizi Göster</button>
 
         <aside class="layerPanel panelFloating">
           <div class="panelHeader"><strong>Katmanlar</strong><button class="collapseBtn">−</button></div>
@@ -96,8 +96,8 @@
           </div>
         </aside>
 
-        <div id="map"></div><div id="legendStack" class="legendStack legendsHidden"></div>
-        <div id="analysisSummaryPanel" class="analysisStack analysisHidden">
+        <div id="map"></div><div id="legendStack" class="legendStack legendsHidden" aria-hidden="true"></div>
+        <div id="analysisSummaryPanel" class="analysisStack analysisHidden" aria-hidden="true">
           <div class="legendHeader"><div class="legendTitle">⚡ Şebeke Risk Özeti</div><button id="analysisClose" class="legendClose" title="Analizi kapat">×</button></div>
           <div class="analysisSub">En yüksek öncelikli 5 yangın olayı</div>
           <div id="analysisSummaryBody"></div>
@@ -209,13 +209,13 @@
   });
 })();
 </script>
-<script src="js/config.js?v=3.4.5"></script>
-<script src="js/utils.js?v=3.4.5"></script>
-<script src="js/api.js?v=3.4.5"></script>
-<script src="js/grid.js?v=3.4.5"></script>
-<script src="js/map.js?v=3.4.5"></script>
-<script src="js/export.js?v=3.4.5"></script>
-<script src="js/ui.js?v=3.4.5"></script>
-<script src="js/app.js?v=3.4.5"></script>
+<script src="js/config.js?v=3.4.6"></script>
+<script src="js/utils.js?v=3.4.6"></script>
+<script src="js/api.js?v=3.4.6"></script>
+<script src="js/grid.js?v=3.4.6"></script>
+<script src="js/map.js?v=3.4.6"></script>
+<script src="js/export.js?v=3.4.6"></script>
+<script src="js/ui.js?v=3.4.6"></script>
+<script src="js/app.js?v=3.4.6"></script>
 </body>
 </html>

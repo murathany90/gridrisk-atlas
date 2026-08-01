@@ -1,5 +1,28 @@
 # Geliştirme Kaydı — Türkiye Wildfire Grid Risk Monitor v3.2.0
 
+# v3.4.6 — UI Hotfix: Karşılıklı Özel Solid Paneller
+
+**Branch:** `fix/v3.4.6-exclusive-solid-panels`
+
+**Sorunlar:**
+1. `#analysisSummaryPanel` şeffaftı — arka plan, border, padding, backdrop-filter ve box-shadow yoktu; harita yazıları panel arkasından görünüyordu. Lejant kartlarındaki görünüm `.legend` sınıfında vardı.
+2. Lejant ve analiz panelleri aynı anda açık kalabiliyordu (butonlar yalnız kendi `legendsHidden`/`analysisHidden` sınıfını değiştiriyordu).
+3. `body.analysisOpen` lejant butonunu/paneli yukarı kaydırıyordu (`bottom:182px`/`216px`, mobil `200px`/`232px`); paneller birlikte açıkken yerleşim bozuluyordu.
+
+**Değişiklikler:**
+- **Ortak panel görünümü**: `.analysisStack` artık lejant kartıyla aynı visual: `padding:8px; background:#09151fee; backdrop-filter:blur(8px); border:1px solid var(--line); border-radius:9px; box-shadow:var(--shadow); font-size:9px` + `bottom:142px` (lejant ile aynı konum), `width/max-width:min(220px,calc(100vw - 16px))`. Mobilde `left:8px; bottom:158px` (lejant ile aynı). Header, alt açıklama ve kartlar panel sınırları içinde; arka plan opak + blur → harita yazıları görünmez.
+- **Karşılıklı özellik**: UIManager'a merkezi `setLegendOpen(open)` / `setAnalysisOpen(open)` helper'ları eklendi (sınıf toggle + buton metni `Gizle/Göster` + `aria-expanded` + panel `aria-hidden`). Event binding: lejant açılacaksa önce `setAnalysisOpen(false)`; analiz açılacaksa önce `setLegendOpen(false)`; × → `setAnalysisOpen(false)`; aynı butona ikinci basış kendi panelini kapatır. `toggleRiskSummary()` kaldırıldı.
+- **Kaydırma kaldırıldı**: `body.analysisOpen .legendToggleBtn` ve `body.analysisOpen .legendStack` kuralları (desktop + mobil) silindi; `document.body.classList.toggle('analysisOpen',...)` kullanımı kaldırıldı. Butonlar sabit: desktop 108/74, mobil 126/92.
+- **Mobil layer panel**: dar ekranda (≤520px) analiz VEYA lejant açıldığında `#layerPanelBody` ortak `holdLayerPanel(true)` helper'ıyla geçici kapatılır (collapse butonu `+` ile senkron); panel kapanınca layer paneli otomatik yeniden açılmaz.
+- **Erişilebilirlik**: HTML başlangıç durumları — her iki butonda `aria-expanded="false"`, her iki panelde `aria-hidden="true"`; helper'lar bu değerleri günceller.
+- **Sürüm 3.4.6**: `package.json`, `js/config.js`, `index.html` (pill + cache-buster), `server.mjs`, `README.md`, sürüm geçmişi.
+
+**Testler:** v3.4.6 bloğu — helper'ların varlığı + aria senkronu, karşılıklı kapanma kod yolları (lejant açılınca analiz kapanır ve tersi), `body.analysisOpen` kalıntısı yok (JS + CSS), buton sabit konumları (108/74, 126/92), mobil analiz/lejant aynı 158px hizası, aria başlangıç durumları. v3.4.4 "toggle bağımsızlığı" testi "paneller karşılıklı özel" olarak yeniden yazıldı; duplicate-ID testleri korundu.
+
+**Tarayıcı doğrulama:** Desktop 1440×900 + mobil 390×844 — başlangıçta iki panel kapalı; lejant açılır (analiz kapalı kalır); analiz açılır (lejant otomatik kapanır); lejant tekrar açılır (analiz otomatik kapanır); aynı buton ikinci basış kendi panelini kapatır; × analizi kapatır; her etkileşim sonrası `!(legendOpen && analysisOpen)`; panel computed `background alpha > 0.85`, border ve backdrop-filter mevcut; genişlik lejant toleransında; `elementFromPoint` görünür buton; yatay overflow yok; console exception yok. Gerçek pointer (CDP `Input.dispatchMouseEvent` + `Page.bringToFront`).
+
+---
+
 # v3.4.5 — Acil Hotfix: Duplicate DOM ID'ler (Analizi Göster)
 
 **Branch:** `fix/v3.4.5-analysis-duplicate-dom`

@@ -802,7 +802,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.4.5'"), 'config appVersion 3.4.5');
+  assert.ok(cfgTxt2.includes("appVersion: '3.4.6'"), 'config appVersion 3.4.6');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1069,12 +1069,13 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.4.5 version bump to 3.4.5 in all files', () => {
-  assert.ok(htmlTxt.includes('v3.4.5'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.4.5'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.4.5'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.4.5'"), 'server.mjs APP_VERSION');
-  assert.ok(pkgTxt.includes('"version":"3.4.5"'), 'package.json version');
+test('v3.4.6 version bump to 3.4.6 in all files', () => {
+  assert.ok(htmlTxt.includes('v3.4.6'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.4.6'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.4.6'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.4.6'"), 'server.mjs APP_VERSION');
+  assert.ok(pkgTxt.includes('"version":"3.4.6"'), 'package.json version');
+  assert.equal(htmlTxt.includes('3.4.5'), false, 'no stale 3.4.5 in index.html');
   assert.equal(htmlTxt.includes('3.4.4'), false, 'no stale 3.4.4 in index.html');
   assert.equal(htmlTxt.includes('3.4.3'), false, 'no stale 3.4.3 in index.html');
   assert.equal(htmlTxt.includes('3.4.2'), false, 'no stale 3.4.2 in index.html');
@@ -1295,10 +1296,9 @@ test('v3.4.4 — panel markup reuses legend visual language', () => {
 });
 
 test('v3.4.4 — panel stack CSS: independent from legend, bounded on mobile', () => {
-  assert.ok(/\.analysisStack\{position:absolute;z-index:550;left:12px;bottom:108px;display:flex;flex-direction:column;gap:6px;max-width:min\(220px,calc\(100vw - 16px\)\);max-height:40dvh;overflow-y:auto;/.test(cssTxt), 'panel positioned + bounded');
+  assert.ok(/\.analysisStack\{position:absolute;z-index:550;left:12px;bottom:142px;width:min\(220px,calc\(100vw - 16px\)\);max-width:min\(220px,calc\(100vw - 16px\)\);max-height:40dvh;overflow-y:auto;display:flex;flex-direction:column;gap:6px;padding:8px;background:#09151fee;backdrop-filter:blur\(8px\);border:1px solid var\(--line\);border-radius:9px;box-shadow:var\(--shadow\);font-size:9px;/.test(cssTxt), 'panel positioned + bounded + solid legend-like look');
   assert.ok(cssTxt.includes('.analysisStack.analysisHidden{opacity:0;pointer-events:none;transform:translateY(8px)}'), 'hidden state');
-  assert.ok(cssTxt.includes('body.analysisOpen .legendToggleBtn{bottom:182px}'), 'legend button shifts when analysis open');
-  assert.ok(cssTxt.includes('body.analysisOpen .legendStack{bottom:216px}'), 'legend stack shifts when analysis open');
+  assert.equal(cssTxt.includes('body.analysisOpen'), false, 'no analysisOpen shifting rules left');
 });
 
 test('v3.4.4 — risk card markup: rank, badge, event, nearest asset, distance, meta', () => {
@@ -1330,13 +1330,16 @@ test('v3.4.4 — card click emits focusRisk with the same row object as the tabl
   assert.ok(uiTxt.includes('data-risk-index="${i}"'), 'card carries row index');
 });
 
-test('v3.4.4 — toggle independent from legend toggle', () => {
-  assert.ok(uiTxt.includes('document.getElementById(\'analysisToggle\')?.addEventListener(\'click\',()=>this.toggleRiskSummary());'), 'toggle wired');
-  assert.ok(uiTxt.includes("btn.textContent=hidden?'⚡ Analizi Göster':'⚡ Analizi Gizle'"), 'button label swap');
-  assert.ok(uiTxt.includes('if(!hidden){'), 're-render block on open');
-  assert.ok(uiTxt.includes('this.renderRiskSummary();'), 're-render on open');
+test('v3.4.6 — legend and analysis panels are mutually exclusive', () => {
+  assert.ok(uiTxt.includes('const willOpen=legendStack.classList.contains(\'legendsHidden\');'), 'legend willOpen probe');
+  assert.ok(uiTxt.includes('if(willOpen)this.setAnalysisOpen(false);'), 'opening legend closes analysis');
+  assert.ok(uiTxt.includes('const willOpen=analysisPanel.classList.contains(\'analysisHidden\');'), 'analysis willOpen probe');
+  assert.ok(uiTxt.includes('if(willOpen)this.setLegendOpen(false);'), 'opening analysis closes legend');
+  assert.ok(uiTxt.includes('document.getElementById(\'analysisClose\')?.addEventListener(\'click\',()=>this.setAnalysisOpen(false));'), 'close button closes analysis');
+  assert.ok(uiTxt.includes("btn.textContent=open?'⚡ Analizi Gizle':'⚡ Analizi Göster';"), 'analysis label swap via setAnalysisOpen');
+  assert.ok(uiTxt.includes("btn.textContent=open?'◫ Lejantları Gizle':'◫ Lejantları Göster';"), 'legend label swap via setLegendOpen');
   assert.ok(cssTxt.includes('.analysisStack.analysisHidden') && cssTxt.includes('.legendStack.legendsHidden'), 'separate hidden classes');
-  assert.ok(htmlTxt.includes('<div id="analysisSummaryPanel" class="analysisStack analysisHidden">') && htmlTxt.includes('<div id="legendStack" class="legendStack legendsHidden">'), 'no shared open/close state in DOM');
+  assert.ok(htmlTxt.includes('<div id="analysisSummaryPanel" class="analysisStack analysisHidden" aria-hidden="true">') && htmlTxt.includes('<div id="legendStack" class="legendStack legendsHidden" aria-hidden="true">'), 'no shared open/close state in DOM');
 });
 
 test('v3.4.4 — live update: renderImpact re-renders the summary (single funnel)', () => {
@@ -1383,7 +1386,8 @@ test('v3.4.5 — legend block ids remain unique (no collateral)', () => {
 });
 
 test('v3.4.5 — ui.js keeps analysisToggle binding', () => {
-  assert.ok(uiTxt.includes("document.getElementById('analysisToggle')?.addEventListener('click',()=>this.toggleRiskSummary());"), 'analysisToggle click binding preserved');
+  assert.ok(uiTxt.includes('analysisBtn?.addEventListener(\'click\',()=>{'), 'analysisToggle click binding preserved');
+  assert.ok(uiTxt.includes('this.setAnalysisOpen(willOpen);'), 'binding routes through setAnalysisOpen');
 });
 
 test('v3.4.5 — ui.js enforces DOM uniqueness contract in init', () => {
@@ -1392,10 +1396,48 @@ test('v3.4.5 — ui.js enforces DOM uniqueness contract in init', () => {
   assert.ok(uiTxt.includes('if(nodes.length!==1)console.error(`DOM contract violation: #${id} count=${nodes.length}`);'), 'console.error on contract violation');
 });
 
-test('v3.4.5 — narrow screens collapse layerPanel body when analysis opens', () => {
-  assert.ok(uiTxt.includes("if(window.innerWidth<=520){const lb=document.getElementById('layerPanelBody');"), 'collapse layerPanelBody when analysis opens on narrow screens');
+test('v3.4.5 — narrow screens collapse layerPanel body when a panel opens', () => {
+  assert.ok(uiTxt.includes('holdLayerPanel(open){'), 'common holdLayerPanel helper');
+  assert.ok(uiTxt.includes("if(window.innerWidth<=520){const lb=document.getElementById('layerPanelBody');"), 'collapse layerPanelBody on narrow screens');
   assert.ok(uiTxt.includes("lb.classList.add('hidden')"), 'uses the app collapse class');
   assert.ok(uiTxt.includes("if(cb)cb.textContent='+';"), 'collapse button label syncs');
+  assert.ok((uiTxt.match(/if\(willOpen\)this\.holdLayerPanel\(true\);/g) || []).length >= 2, 'helper called from both legend and analysis bindings');
+});
+
+// ── v3.4.6 — exclusive solid panels (shared panel look, mutual exclusion, no shifting) ──
+console.log('\nv3.4.6 — exclusive solid panels');
+
+test('v3.4.6 — central setLegendOpen/setAnalysisOpen helpers with aria sync', () => {
+  assert.ok(uiTxt.includes('setLegendOpen(open){'), 'setLegendOpen helper');
+  assert.ok(uiTxt.includes('setAnalysisOpen(open){'), 'setAnalysisOpen helper');
+  assert.ok(uiTxt.includes("stack.classList.toggle('legendsHidden',!open);"), 'legend class toggle driven by state');
+  assert.ok(uiTxt.includes("panel.classList.toggle('analysisHidden',!open);"), 'analysis class toggle driven by state');
+  assert.ok(uiTxt.includes("stack.setAttribute('aria-hidden',String(!open));"), 'legend aria-hidden sync');
+  assert.ok(uiTxt.includes("panel.setAttribute('aria-hidden',String(!open));"), 'analysis aria-hidden sync');
+  assert.ok(uiTxt.includes("btn.setAttribute('aria-expanded',String(open));"), 'aria-expanded sync on buttons');
+  assert.ok(uiTxt.includes('if(open)this.renderRiskSummary();'), 're-render only when opening');
+});
+
+test('v3.4.6 — no body.analysisOpen left in JS or CSS', () => {
+  assert.equal(uiTxt.includes('analysisOpen'), false, 'ui.js no analysisOpen body class');
+  assert.equal(cssTxt.includes('body.analysisOpen'), false, 'styles.css no analysisOpen rules');
+});
+
+test('v3.4.6 — buttons stay fixed: desktop 108/74, mobile 126/92', () => {
+  assert.ok(cssTxt.includes('.legendToggleBtn{bottom:108px}.analysisToggleBtn{bottom:74px}'), 'desktop fixed positions');
+  assert.ok(cssTxt.includes('@media(max-width:760px){.legendToggleBtn{bottom:126px;left:8px}.analysisToggleBtn{bottom:92px;left:8px}'), 'mobile fixed positions');
+});
+
+test('v3.4.6 — mobile analysis stack aligns with legend stack (158px)', () => {
+  assert.ok(cssTxt.includes('.analysisStack{bottom:158px;left:8px}'), 'mobile analysisStack bottom 158 left 8');
+  assert.ok(cssTxt.includes('.legendStack{bottom:158px}'), 'mobile legendStack bottom 158');
+});
+
+test('v3.4.6 — aria initial states in index.html', () => {
+  assert.ok(htmlTxt.includes('<button id="legendToggleBtn" class="legendToggleBtn panelFloating" aria-expanded="false">'), 'legend button aria-expanded=false');
+  assert.ok(htmlTxt.includes('<button id="analysisToggle" class="analysisToggleBtn panelFloating" aria-expanded="false">'), 'analysis button aria-expanded=false');
+  assert.ok(htmlTxt.includes('<div id="legendStack" class="legendStack legendsHidden" aria-hidden="true">'), 'legendStack aria-hidden=true');
+  assert.ok(htmlTxt.includes('<div id="analysisSummaryPanel" class="analysisStack analysisHidden" aria-hidden="true">'), 'analysisSummaryPanel aria-hidden=true');
 });
 
 // ── Run ──
