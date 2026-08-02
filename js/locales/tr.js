@@ -97,7 +97,7 @@
     "layers.riskHint":
       "Operasyonel ön-elemedir; arıza olasılığı veya duman yörüngesi değildir.",
     "layers.mobileTitle": "Katman Kontrolleri",
-    "quickLayers.fabLabel": "Katmanlar / Layers",
+    "quickLayers.fabLabel": "Katmanlar",
     "quickLayers.fabAria": "Hızlı katman menüsünü aç/kapat",
     "quickLayers.satellite": "Uydu",
     "quickLayers.heat": "Isı",

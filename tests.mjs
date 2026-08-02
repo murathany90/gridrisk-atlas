@@ -495,14 +495,31 @@ test("mobile quick layer menu contract (FAB, 2x2 popover, checkbox sync)", () =>
     "quickLayers.all",
   ])
     assert.ok(key in A.LOCALES.tr && key in A.LOCALES.en, key);
-  assert.match(source.ui, /dispatchEvent\(new Event\("change", \{ bubbles: true \}\)/);
+  assert.equal(A.LOCALES.tr["quickLayers.fabLabel"], "Katmanlar");
+  assert.equal(A.LOCALES.en["quickLayers.fabLabel"], "Layers");
+  assert.ok(html.includes('role="group"'));
+  assert.ok(!html.includes("menuitemcheckbox"));
+  assert.ok(!html.includes("Katmanlar / Layers"));
+  assert.match(source.ui, /input\.click\(\)/);
+  assert.ok(!source.ui.includes("input.checked = !input.checked"));
+  assert.ok(
+    !source.ui.includes('dispatchEvent(new Event("change", { bubbles: true }))'),
+  );
   assert.match(source.ui, /aria-pressed/);
   assert.match(source.ui, /closeQuickLayers\(\)/);
   assert.match(source.ui, /popstate/);
   assert.match(source.ui, /Escape/);
   assert.match(source.ui, /pointerdown/);
   assert.match(source.ui, /syncQuickLayers\(\)/);
+  assert.match(source.ui, /orientationchange/);
+  assert.match(source.ui, /addEventListener\("resize"/);
+  assert.match(source.ui, /focus\(\{ preventScroll: true \}\)/);
+  assert.match(source.ui, /loading\?\.size/);
+  assert.match(source.ui, /"error"/);
   assert.match(css, /\.quickLayersFab/);
+  assert.match(css, /\.quickLayersPopover\s*\{\s*display: none/s);
+  assert.match(css, /\.quickLayersPopover:not\(\.hidden\)/);
+  assert.match(css, /\.quickLayerBtn\.warn/);
   assert.match(css, /max-width: 190px/);
   assert.match(css, /min-height: 44px/);
   assert.match(css, /min-width: 48px/);

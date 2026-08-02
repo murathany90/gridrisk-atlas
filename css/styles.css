@@ -2288,6 +2288,9 @@ main {
 .quickLayersFab {
   display: none;
 }
+.quickLayersPopover {
+  display: none;
+}
 @media (max-width: 760px), (max-height: 500px) and (orientation: landscape) {
   .quickLayersFab {
     position: absolute;
@@ -2314,7 +2317,7 @@ main {
   .quickLayersFab:active {
     background: #132536;
   }
-  .quickLayersPopover {
+  .quickLayersPopover:not(.hidden) {
     position: absolute;
     top: 68px;
     right: 12px;
@@ -2368,6 +2371,11 @@ main {
     background: #2f80ff;
     border-color: #7fb3ff;
     box-shadow: 0 0 6px #2f80ffaa;
+  }
+  .quickLayerBtn.warn .qlDot {
+    background: #ffb020;
+    border-color: #ffd27a;
+    box-shadow: 0 0 6px #ffb02088;
   }
   .quickLayerBtn.loading .qlDot {
     background: transparent;

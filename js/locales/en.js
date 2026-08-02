@@ -97,7 +97,7 @@
     "layers.riskHint":
       "Operational screening only; not an outage probability or smoke trajectory.",
     "layers.mobileTitle": "Layer Controls",
-    "quickLayers.fabLabel": "Katmanlar / Layers",
+    "quickLayers.fabLabel": "Layers",
     "quickLayers.fabAria": "Toggle quick layer menu",
     "quickLayers.satellite": "Satellite",
     "quickLayers.heat": "Heat",
