@@ -74,10 +74,10 @@ global.document = documentStub;
 global.location = {
   protocol: "https:",
   hostname: "localhost",
-  pathname: "/gridrisk-atlas/",
+  pathname: "/",
   search: "?country=TR&lang=tr",
   hash: "",
-  href: "https://localhost/gridrisk-atlas/?country=TR&lang=tr",
+  href: "https://localhost/?country=TR&lang=tr",
 };
 global.history = {
   replaceState(_state, _title, url) {
@@ -153,7 +153,7 @@ test("PWA and social metadata use GridRisk Atlas and relative runtime paths", ()
   assert.equal(manifest.start_url, "./?country=TR&lang=tr");
   assert.equal(manifest.scope, "./");
   assert.ok(manifest.icons.every((icon) => !icon.src.startsWith("/")));
-  assert.ok(html.includes("https://murathany90.github.io/gridrisk-atlas/"));
+  assert.ok(html.includes("https://gridriskatlas.com/"));
   assert.equal(html.includes("/tr_wildfire/"), false);
 });
 
@@ -161,7 +161,7 @@ test("repository, README and Pages workflow use the renamed project", () => {
   const combined = `${readme}\n${pagesWorkflow}\n${JSON.stringify(pkg)}`;
   assert.match(readme, /^# GridRisk Atlas$/m);
   assert.ok(readme.includes("Satellite Wildfire & Grid Risk Intelligence"));
-  assert.ok(readme.includes("https://murathany90.github.io/gridrisk-atlas/"));
+  assert.ok(readme.includes("https://gridriskatlas.com/"));
   assert.ok(
     readme.includes("https://github.com/murathany90/gridrisk-atlas.git"),
   );
@@ -199,10 +199,10 @@ test("URL language has priority and localStorage is the second choice", () => {
       console,
       location: {
         search,
-        href: `https://example.test/gridrisk-atlas/${search}`,
+        href: `https://example.test/${search}`,
         hostname: "example.test",
         protocol: "https:",
-        pathname: "/gridrisk-atlas/",
+        pathname: "/",
         hash: "",
       },
       localStorage: { getItem: () => stored, setItem() {} },

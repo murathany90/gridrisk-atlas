@@ -5,7 +5,9 @@
 [![CI](https://github.com/murathany90/gridrisk-atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/murathany90/gridrisk-atlas/actions/workflows/ci.yml)
 [![Deploy to GitHub Pages](https://github.com/murathany90/gridrisk-atlas/actions/workflows/pages.yml/badge.svg)](https://github.com/murathany90/gridrisk-atlas/actions/workflows/pages.yml)
 
-> Sürüm / Version: **v3.7.0** · [Canlı demo / Live demo](https://murathany90.github.io/gridrisk-atlas/) · Arayüz / Interface: **Türkçe + English**
+> Sürüm / Version: **v3.7.0** · [Canlı demo / Live demo](https://gridriskatlas.com/) · Arayüz / Interface: **Türkçe + English**
+
+> Not: Eski GitHub Pages adresi `https://murathany90.github.io/gridrisk-atlas/` yeni canonical domaine yönlendirilir.
 
 GridRisk Atlas; uydu yangın gözlemlerini, atmosfer modellerini ve gerçek OpenStreetMap iletim şebekesi verisini tek bir karar destek haritasında birleştirir. Türkiye, İspanya, Fransa, Portekiz ve İtalya desteklenir.
 
@@ -15,8 +17,8 @@ GridRisk Atlas combines satellite fire observations, atmospheric models and real
 
 ## Hızlı bağlantılar / Quick links
 
-- [Canlı demo — Türkçe](https://murathany90.github.io/gridrisk-atlas/?country=TR&lang=tr)
-- [Live demo — English](https://murathany90.github.io/gridrisk-atlas/?country=TR&lang=en)
+- [Canlı demo — Türkçe](https://gridriskatlas.com/?country=TR&lang=tr)
+- [Live demo — English](https://gridriskatlas.com/?country=TR&lang=en)
 - [Kurulum / Installation](#kurulum--installation)
 - [Kullanım / Usage](#kullanım--usage)
 - [Kaynak kod / Source](https://github.com/murathany90/gridrisk-atlas)
