@@ -2,7 +2,7 @@
 (function(A){
   A.CONFIG = {
     appName: 'GridMoni',
-    appVersion: '3.6.1',
+    appVersion: '3.6.2',
     activeCountryCode: 'TR',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,

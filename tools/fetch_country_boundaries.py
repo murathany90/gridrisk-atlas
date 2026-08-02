@@ -96,7 +96,7 @@ def main() -> int:
     args = parser.parse_args()
     response = requests.get(
         args.source_url,
-        headers={"User-Agent": "GridMoni/3.6.1"},
+        headers={"User-Agent": "GridMoni/3.6.2"},
         timeout=120,
     )
     response.raise_for_status()

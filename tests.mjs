@@ -770,11 +770,11 @@ test('v3.4.0 — index.html: MTG layer + opacity slider present, removed layers 
   assert.equal(htmlTxt.includes('atmoHub'), false, 'no AtmoHub markup in index.html');
 });
 
-test('v3.4.3 — app.js: removed services gone, defaults wind/thermal/EFFIS BA/downwind ON, MTG OFF', () => {
+test('v3.6.2 — app.js: removed services gone, wind vectors OFF, thermal/EFFIS BA/downwind ON, MTG OFF', () => {
   assert.equal(appTxt.includes('loadGfw'), false, 'loadGfw removed');
   assert.equal(appTxt.includes('loadFirePolygons'), false, 'loadFirePolygons removed');
   assert.equal(appTxt.includes('discoverAtmoHub'), false, 'discoverAtmoHub removed');
-  assert.ok(/windEnabled:\s*true/.test(appTxt), 'windEnabled default true');
+  assert.ok(/windEnabled:\s*false/.test(appTxt), 'windEnabled default false');
   assert.ok(/downwindEnabled:\s*true/.test(appTxt), 'downwindEnabled default true');
   assert.ok(/mtgEnabled:\s*false/.test(appTxt), 'mtgEnabled default false');
   assert.ok(/effisBurntAreaEnabled:\s*true/.test(appTxt), 'EFFIS BA default true');
@@ -810,7 +810,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.6.1'"), 'config appVersion 3.6.1');
+  assert.ok(cfgTxt2.includes("appVersion: '3.6.2'"), 'config appVersion 3.6.2');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1038,10 +1038,12 @@ test('v3.3.4 HTML: no inline grid-template-columns left', () => {
   assert.ok(!/style="grid-template-columns/.test(htmlTxt), 'no style= grid-template-columns anywhere');
 });
 
-test('v3.3.4 JS: debounced invalidateSize on resize/orientation + panel collapse', () => {
+test('v3.6.2 JS: debounced resize and desktop-only layer panel collapse', () => {
   assert.ok(/scheduleResize\(\)\{clearTimeout\(this\.resizeT\);this\.resizeT=setTimeout\(\(\)=>\{const v=document\.getElementById\('view-map'\);if\(v\?\.classList\.contains\('active'\)\)this\.map\?\.map\?\.invalidateSize\(\);},150\);}/.test(appTxt), 'scheduleResize debounce in app.js');
   assert.ok(/window\.addEventListener\('resize',\(\)=>this\.scheduleResize\(\)\);window\.addEventListener\('orientationchange',\(\)=>this\.scheduleResize\(\)\);/.test(appTxt), 'resize+orientationchange listeners');
-  assert.ok(/collapseBtn'\)\?\.addEventListener\('click',e=>\{const body=document\.getElementById\('layerPanelBody'\);body\.classList\.toggle\('hidden'\);e\.currentTarget\.textContent=body\.classList\.contains\('hidden'\)\?'\+':'−';if\(document\.getElementById\('view-map'\)\?\.classList\.contains\('active'\)\)setTimeout\(\(\)=>A\.app\?\.map\?\.map\?\.invalidateSize\(\),30\);/.test(uiTxt), 'collapse triggers invalidateSize');
+  assert.ok(uiTxt.includes("window.matchMedia('(max-width:760px), (max-height:500px) and (orientation:landscape)').matches"), 'mobile map breakpoint guarded in JS');
+  assert.ok(uiTxt.includes("layerPanel?.setAttribute('inert','')"), 'mobile layer panel made inert');
+  assert.ok(uiTxt.includes("else document.querySelector('.collapseBtn')?.addEventListener('click'"), 'collapse listener only attached outside mobile');
 });
 
 // ── v3.3.5 landscape phone + tablet KPI + safe-area top ──
@@ -1054,7 +1056,7 @@ test('v3.3.5 CSS: landscape phone breakpoint (max-height:500px landscape)', () =
   assert.ok(/\.topbar\{height:calc\(44px \+ env\(safe-area-inset-top\)\);padding:0 10px;padding-top:env\(safe-area-inset-top\)\}/.test(cssTxt), 'landscape topbar 44px + safe-area top');
   assert.ok(/\.kpiBar\{height:64px;grid-template-columns:repeat\(6,minmax\(96px,1fr\)\);padding:4px 6px\}/.test(cssTxt), 'landscape KPI rail 64px (no 118px grid)');
   assert.ok(/main\{height:calc\(100% - 144px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'landscape main calc -> map >=55%');
-  assert.ok(/\.layerPanel\{top:50px;right:8px;width:240px;max-height:calc\(100% - 62px\)\}/.test(cssTxt), 'landscape layer panel height');
+  assert.ok((cssTxt.match(/\.layerPanel\{display:none!important\}/g) || []).length >= 2, 'portrait and landscape phones hide layer panel');
   assert.ok(/\.timelineBtn\{min-height:30px;padding:3px 6px;font-size:9px\}/.test(cssTxt), 'landscape compact timeline');
 });
 
@@ -1078,12 +1080,12 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.6.1 version bump in all runtime files', () => {
-  assert.ok(htmlTxt.includes('v3.6.1'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.6.1'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.6.1'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.6.1'"), 'server.mjs APP_VERSION');
-  assert.equal(JSON.parse(pkgTxt).version, '3.6.1', 'package.json version');
+test('v3.6.2 version bump in all runtime files', () => {
+  assert.ok(htmlTxt.includes('v3.6.2'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.6.2'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.6.2'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.6.2'"), 'server.mjs APP_VERSION');
+  assert.equal(JSON.parse(pkgTxt).version, '3.6.2', 'package.json version');
   assert.equal(htmlTxt.includes('3.4.7'), false, 'no stale 3.4.7 in index.html');
   assert.equal(htmlTxt.includes('3.4.6'), false, 'no stale 3.4.6 in index.html');
   assert.equal(htmlTxt.includes('3.4.5'), false, 'no stale 3.4.5 in index.html');
@@ -1162,6 +1164,32 @@ test('v3.4.3 — thermal envelope / EFFIS BA / downwind default ON', () => {
   assert.ok(/effisBurntAreaEnabled:\s*true/.test(appTxt), 'state EFFIS BA true');
   assert.ok(/downwindEnabled:\s*true/.test(appTxt), 'state downwind true');
   assert.ok(appTxt.includes('if(this.state.effisBurntAreaEnabled)this.map.toggleEffisBurntArea(true,this.state.selectedTime);'), 'EFFIS BA applied at init');
+});
+
+test('v3.6.2 — mobile header, production layers and wind arrow follow the hotfix contract', () => {
+  assert.ok(cssTxt.includes('.brandIcon{width:40px;height:40px;border-radius:9px}'), 'portrait mobile icon is larger');
+  assert.ok(cssTxt.includes('.subtitle{display:block;font-size:8px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}'), 'portrait subtitle remains one-line with ellipsis');
+  assert.ok((cssTxt.match(/\.layerPanel\{display:none!important\}/g) || []).length >= 2, 'layer panel hidden in portrait and landscape phone layouts');
+  assert.ok(htmlTxt.includes('id="layerSmoke" type="checkbox"'), 'single production smoke checkbox exists');
+  assert.equal(htmlTxt.includes('id="layerSmoke" type="checkbox" checked'), false, 'smoke defaults off');
+  assert.equal(htmlTxt.includes('CAMS yangın PM10 payı (%) — MODEL'), false, 'share layer removed from production UI');
+  assert.equal(htmlTxt.includes('layerSmokePoints'), false, 'sample-point production control removed');
+  assert.equal(mapTxt.includes('airPointLayer'), false, 'sample marker layer removed');
+  assert.equal(mapTxt.includes('showSmokePoints'), false, 'sample marker rendering removed');
+  assert.ok(mapTxt.includes('Düşük<br><b>0–3</b>') && mapTxt.includes('Orta<br><b>3–15</b>') && mapTxt.includes('Yüksek<br><b>15+</b>'), 'smoke legend has low/medium/high bands');
+  assert.ok(/windEnabled:\s*false/.test(appTxt), 'wind vector state defaults off');
+  assert.ok(htmlTxt.includes('id="layerWind" type="checkbox"/>'), 'wind checkbox defaults off');
+  assert.ok(mapTxt.includes("Math.ceil(valid.length/12)"), 'wind vector density capped');
+  const windVector = mapTxt.slice(mapTxt.indexOf('drawWindVector('), mapTxt.indexOf('clearWindVector'));
+  assert.ok(windVector.includes('windDirectionArrow'), 'direction arrowhead marker present');
+  assert.equal(windVector.includes('circleMarker'), false, 'wind vector endpoint dot removed');
+  assert.ok(windVector.includes('Rüzgâr yönü:') && windVector.includes('Hız:') && windVector.includes('Model zamanı:'), 'wind tooltip has direction, speed and model time');
+  assert.ok(htmlTxt.includes('data-grid="400" type="checkbox" checked'), '400 kV grid default on');
+  assert.ok(htmlTxt.includes('data-grid="154" type="checkbox" checked'), '154 kV grid default on');
+  assert.ok(htmlTxt.includes('data-grid="substations" type="checkbox" checked'), 'TM default on');
+  assert.ok(htmlTxt.includes('id="layerFireGridImpact" type="checkbox" checked'), 'risk markers default on');
+  assert.ok(htmlTxt.includes('id="layerThermalEnvelope" type="checkbox" checked'), 'thermal envelope default on');
+  assert.ok(htmlTxt.includes('id="layerEffisBurntArea" type="checkbox" checked'), 'EFFIS default on');
 });
 
 test('v3.5.0 — all TM icons share the 10px black/blue square contract', () => {
@@ -1469,11 +1497,10 @@ test('v3.4.5 — ui.js enforces DOM uniqueness contract in init', () => {
   assert.ok(uiTxt.includes('if(nodes.length!==1)console.error(`DOM contract violation: #${id} count=${nodes.length}`);'), 'console.error on contract violation');
 });
 
-test('v3.4.5 — narrow screens collapse layerPanel body when a panel opens', () => {
-  assert.ok(uiTxt.includes('holdLayerPanel(open){'), 'common holdLayerPanel helper');
-  assert.ok(uiTxt.includes("if(window.innerWidth<=520){const lb=document.getElementById('layerPanelBody');"), 'collapse layerPanelBody on narrow screens');
-  assert.ok(uiTxt.includes("lb.classList.add('hidden')"), 'uses the app collapse class');
-  assert.ok(uiTxt.includes("if(cb)cb.textContent='+';"), 'collapse button label syncs');
+test('v3.6.2 — narrow screens do not run legacy layer panel open/close behavior', () => {
+  assert.ok(uiTxt.includes('holdLayerPanel(){'), 'common holdLayerPanel helper remains');
+  assert.ok(uiTxt.includes('Layer panel is not part of the mobile map interaction model.'), 'mobile interaction model documented');
+  assert.equal(uiTxt.includes('window.innerWidth<=520'), false, 'legacy narrow panel breakpoint removed');
   assert.ok((uiTxt.match(/if\(willOpen\)this\.holdLayerPanel\(true\);/g) || []).length >= 2, 'helper called from both legend and analysis bindings');
 });
 
@@ -1899,7 +1926,7 @@ test('v3.5.0 — UI selector is Turkish, accessible and keeps a 40px touch targe
   assert.ok(htmlTxt.includes('<option value="PT">Portekiz</option>'));
   assert.ok(htmlTxt.includes('<option value="IT">İtalya</option>'));
   assert.ok(htmlTxt.includes('aria-label="Ülke seçin"'));
-  assert.ok(htmlTxt.includes('css/styles.css?v=3.6.1&amp;r=branding'), 'responsive CSS revision is cache-safe');
+  assert.ok(htmlTxt.includes('css/styles.css?v=3.6.2&amp;r=mobile-ux'), 'responsive CSS revision is cache-safe');
   assert.ok(cssTxt.includes('.countryControl select{width:128px;min-height:40px'));
   assert.equal(/countryControl select\{min-height:(?:3[0-9]|[0-9])px/.test(cssTxt), false, 'landscape override cannot shrink below 40px');
 });

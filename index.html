@@ -14,14 +14,14 @@
   <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="css/styles.css?v=3.6.1&amp;r=branding" />
+  <link rel="stylesheet" href="css/styles.css?v=3.6.2&amp;r=mobile-ux" />
 </head>
 <body>
 <div id="appShell">
   <header class="topbar">
     <div class="brandBlock"><img class="brandIcon" src="assets/icons/gridmoni.png" width="38" height="38" alt="" aria-hidden="true" /><div class="brandText"><h1>GridMoni</h1><div class="subtitle">Wildfire Intelligence for Power Grids</div></div></div>
     <label class="countryControl" for="countrySelector"><span>Ülke:</span><select id="countrySelector" aria-label="Ülke seçin"><option value="TR">Türkiye</option><option value="ES">İspanya</option><option value="FR">Fransa</option><option value="PT">Portekiz</option><option value="IT">İtalya</option></select></label>
-    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span id="domainPill" class="domainPill">VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.6.1</span><span id="lastUpdated">Son güncelleme: —</span></div>
+    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span id="domainPill" class="domainPill">VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.6.2</span><span id="lastUpdated">Son güncelleme: —</span></div>
   </header>
 
   <nav class="mainNav">
@@ -62,15 +62,12 @@
             <div class="layerGroup"><h3>🛰 Uydu ve Duman</h3>
               <label><input id="layerMtg" type="checkbox"/> EUMETSAT MTG-I GeoColour — GERÇEK UYDU</label>
               <label class="rangeLine">Uydu görünürlüğü <input id="mtgOpacity" type="range" min="30" max="100" step="5" value="85"/><span id="mtgOpacityValue">%85</span></label>
-              <label><input class="smokeLayer" data-var="pm10_wildfires" type="radio" name="smokeLayer" checked/> CAMS yangın kaynaklı PM10 plume — MODEL</label>
-              <label><input class="smokeLayer" data-var="wildfire_share" type="radio" name="smokeLayer"/> CAMS yangın PM10 payı (%) — MODEL</label>
-              <label><input id="layerSmokePoints" type="checkbox"/> Model örnekleme noktalarını göster</label>
+              <label title="CAMS modelindeki yüzeye yakın, yangın kaynaklı PM10 yoğunluğunu gösterir"><input id="layerSmoke" type="checkbox"/> CAMS yangın kaynaklı PM10 plume — MODEL</label>
               <label class="rangeLine">Duman görünümü <input id="smokeOpacity" type="range" min="0.25" max="1" step="0.05" value="0.80"/><span id="smokeOpacityValue">%80</span></label>
-              <button id="clearSmokeLayer" class="tinyBtn">Duman katmanını kapat</button>
-              <p class="layerHint">MTG GeoColour, EUMETSAT MTG-I FCI'nin 10 dk slotlu gerçek uydu görüntüsüdür (model değil). CAMS plume görünümü yalnız gerçek <strong>PM10 caused by wildfires</strong> gridini görsel olarak enterpole eder; ~11 km bilimsel çözünürlük artmaz; sıfır/veri-yok alanında duman üretilmez.</p>
+              <p class="layerHint">MTG GeoColour gerçek uydu görüntüsüdür (model değil). CAMS plume, yüzeye yakın <strong>PM10 caused by wildfires</strong> model gridini düşük / orta / yüksek yoğunluk gradyanıyla gösterir; ~11 km bilimsel çözünürlük artmaz.</p>
             </div>
             <div class="layerGroup"><h3>💨 Meteoroloji</h3>
-              <label><input id="layerWind" type="checkbox" checked/> Rüzgâr vektörlerini göster</label>
+              <label><input id="layerWind" type="checkbox"/> Rüzgâr vektörlerini göster</label>
               <select id="windLevel"><option value="10m">10 m yüzey</option><option value="850hPa">850 hPa</option><option value="700hPa">700 hPa</option></select>
               <label><input id="layerFwi" type="checkbox"/> Fire Weather Index — EFFIS</label>
             </div>
@@ -95,7 +92,7 @@
               <div id="gridSublayers" class="subLayers">
                 <label><input class="gridLayer" data-grid="400" type="checkbox" checked/> <i class="lineSwatch s400"></i> 400 kV sınıfı</label>
                 <label><input class="gridLayer" data-grid="154" type="checkbox" checked/> <i class="lineSwatch s154"></i> 154 kV sınıfı</label>
-                <label><input class="gridLayer" data-grid="substations" type="checkbox"/> ■ Trafo merkezleri</label>
+                <label><input class="gridLayer" data-grid="substations" type="checkbox" checked/> ■ Trafo merkezleri</label>
               </div>
               <p class="layerHint">Risk çekirdeği görünürlükten bağımsız 400/154 kV hatları ve TM'leri kullanır. Haritada yalnız hatlar + TM gösterilir. 400/154 kV varsayılan açık; sayfa açılışında performans için kademeli yüklenir.</p>
             </div>
@@ -215,14 +212,14 @@
   });
 })();
 </script>
-<script src="js/config.js?v=3.6.1"></script>
-<script src="js/utils.js?v=3.6.1"></script>
-<script src="js/countries.js?v=3.6.1"></script>
-<script src="js/api.js?v=3.6.1"></script>
-<script src="js/grid.js?v=3.6.1"></script>
-<script src="js/map.js?v=3.6.1"></script>
-<script src="js/export.js?v=3.6.1"></script>
-<script src="js/ui.js?v=3.6.1"></script>
-<script src="js/app.js?v=3.6.1"></script>
+<script src="js/config.js?v=3.6.2"></script>
+<script src="js/utils.js?v=3.6.2"></script>
+<script src="js/countries.js?v=3.6.2"></script>
+<script src="js/api.js?v=3.6.2"></script>
+<script src="js/grid.js?v=3.6.2"></script>
+<script src="js/map.js?v=3.6.2"></script>
+<script src="js/export.js?v=3.6.2"></script>
+<script src="js/ui.js?v=3.6.2"></script>
+<script src="js/app.js?v=3.6.2"></script>
 </body>
 </html>
