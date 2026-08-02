@@ -2,7 +2,7 @@
 
 **Wildfire Intelligence for Power Grids**
 
-> Sürüm: **v3.6.2** · Canlı: <https://murathany90.github.io/tr_wildfire/> · Arayüz dili: **Türkçe**
+> Sürüm: **v3.6.3** · Canlı: <https://murathany90.github.io/tr_wildfire/> · Arayüz dili: **Türkçe**
 
 GridMoni provides wildfire intelligence and power grid risk monitoring for Türkiye, Spain, France, Portugal and Italy.
 

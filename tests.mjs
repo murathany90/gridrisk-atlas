@@ -810,7 +810,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.6.2'"), 'config appVersion 3.6.2');
+  assert.ok(cfgTxt2.includes("appVersion: '3.6.3'"), 'config appVersion 3.6.3');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1080,12 +1080,12 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.6.2 version bump in all runtime files', () => {
-  assert.ok(htmlTxt.includes('v3.6.2'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.6.2'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.6.2'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.6.2'"), 'server.mjs APP_VERSION');
-  assert.equal(JSON.parse(pkgTxt).version, '3.6.2', 'package.json version');
+test('v3.6.3 version bump in all runtime files', () => {
+  assert.ok(htmlTxt.includes('v3.6.3'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.6.3'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.6.3'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.6.3'"), 'server.mjs APP_VERSION');
+  assert.equal(JSON.parse(pkgTxt).version, '3.6.3', 'package.json version');
   assert.equal(htmlTxt.includes('3.4.7'), false, 'no stale 3.4.7 in index.html');
   assert.equal(htmlTxt.includes('3.4.6'), false, 'no stale 3.4.6 in index.html');
   assert.equal(htmlTxt.includes('3.4.5'), false, 'no stale 3.4.5 in index.html');
@@ -1928,8 +1928,8 @@ test('v3.5.0 — UI selector is Turkish, accessible and keeps a 40px touch targe
   assert.ok(htmlTxt.includes('<option value="PT">Portekiz</option>'));
   assert.ok(htmlTxt.includes('<option value="IT">İtalya</option>'));
   assert.ok(htmlTxt.includes('aria-label="Ülke seçin"'));
-  assert.ok(htmlTxt.includes('css/styles.css?v=3.6.2&amp;r=tm-7px'), 'responsive CSS revision is cache-safe');
-  assert.ok(htmlTxt.includes('js/map.js?v=3.6.2&amp;r=tm-7px'), 'TM marker geometry revision is cache-safe');
+  assert.ok(htmlTxt.includes('css/styles.css?v=3.6.3&amp;r=header-timeline-layers'), 'responsive CSS revision is cache-safe');
+  assert.ok(htmlTxt.includes('js/map.js?v=3.6.3'), 'map revision is cache-safe');
   assert.ok(cssTxt.includes('.countryControl select{width:128px;min-height:40px'));
   assert.equal(/countryControl select\{min-height:(?:3[0-9]|[0-9])px/.test(cssTxt), false, 'landscape override cannot shrink below 40px');
 });
@@ -2235,6 +2235,47 @@ test('v3.5.1 — substation culling is viewport-aware and not file-stride based'
   assert.ok(mapTxt.includes('latLngToContainerPoint'));
   assert.ok(mapTxt.includes('refreshSubstationLayer()'));
   assert.equal(mapTxt.includes('i%stride'), false);
+});
+
+test('v3.6.3 — header, timeline and accordion layer contracts', () => {
+  assert.ok(htmlTxt.includes('id="brandHomeLink"') && htmlTxt.includes('href="?country=TR"'));
+  assert.ok(htmlTxt.includes('assets/icons/gridmoni-header.png'));
+  assert.ok(cssTxt.includes('.brandIcon{width:52px;height:52px'));
+  assert.ok(cssTxt.includes('.topbar h1{font-size:22px'));
+  assert.ok(cssTxt.includes('.topbar{height:70px}'));
+  assert.ok(cssTxt.includes('width:min(480px,calc(100% - 24px))'));
+  assert.ok(cssTxt.includes('max-height:96px'));
+  assert.ok(cssTxt.includes('.panelBody{min-height:0;overflow-y:auto'));
+  assert.equal(htmlTxt.indexOf('data-layer-group="fire"') < htmlTxt.indexOf('data-layer-group="grid"'), true);
+  assert.equal(htmlTxt.indexOf('data-layer-group="grid"') < htmlTxt.indexOf('data-layer-group="weather"'), true);
+  assert.equal(htmlTxt.indexOf('data-layer-group="weather"') < htmlTxt.indexOf('data-layer-group="map"'), true);
+  assert.equal((htmlTxt.match(/class="layerGroup[^\"]*accordionOpen/g) || []).length, 2);
+  for (const badge of ['real','observation','model','verification']) assert.ok(htmlTxt.includes(`layerBadge ${badge}`), badge);
+  assert.ok(uiTxt.includes("group.classList.toggle('accordionOpen',open)"));
+  assert.ok(uiTxt.includes('home.href=`?country=${encodeURIComponent(country.code)}`'));
+});
+
+test('v3.6.3 — mobile layer, mini-card, detail and MTG time contracts', () => {
+  assert.ok(htmlTxt.includes('id="mobileLayerSettingsBody"'));
+  assert.ok(uiTxt.includes('mobileLayerSettingsBody') && uiTxt.includes('appendChild(layerBody)'));
+  assert.ok(htmlTxt.includes('id="mapMiniCard"') && htmlTxt.includes('>Detayı Aç<'));
+  assert.ok(htmlTxt.includes('id="detailBackdrop"'));
+  assert.ok(cssTxt.includes('max-height:48dvh'));
+  assert.ok(cssTxt.includes('.timelinePanel{height:70px;max-height:70px'));
+  assert.ok(cssTxt.includes('.timelineBtn{min-width:40px;min-height:40px'));
+  assert.ok(cssTxt.includes('.brandIcon{width:44px;height:44px'));
+  assert.ok(cssTxt.includes('.topbar h1{font-size:18px'));
+  assert.ok(htmlTxt.includes('id="mtgTimeBadge"'));
+  assert.ok(uiTxt.includes('Seçilen ${selected} / Gösterilen ${displayed} UTC'));
+  assert.ok(uiTxt.includes("A.Events.on('mtgFrame'"));
+  assert.ok(mapTxt.includes("A.Events.emit('mtgFrame'"));
+  assert.ok(mapTxt.includes('this.mtgLayer=null;this._mtgFrameMgr=null'), 'MTG can reload cleanly after being disabled');
+  assert.ok(htmlTxt.includes('Duman Yayılımı — CAMS Modeli'));
+  assert.equal(htmlTxt.includes('yangın PM10 payı'), false);
+  assert.equal(uiTxt.includes('Yangın PM10 payı'), false);
+  assert.ok(cssTxt.includes('.timelinePanel{left:max(8px,env(safe-area-inset-left));right:max(8px,env(safe-area-inset-right));width:auto;transform:none}'), 'landscape timeline stays full width');
+  assert.ok(cssTxt.includes('.mobileLayerSettings{display:block}.mapMiniCard'), 'landscape settings and mini-card stay available');
+  assert.ok(uiTxt.includes('e.clientY-this.detailSwipeStart>50'), 'downward swipe closes mobile detail');
 });
 
 await run();

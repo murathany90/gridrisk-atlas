@@ -2,7 +2,7 @@
 (function(A){
   A.CONFIG = {
     appName: 'GridMoni',
-    appVersion: '3.6.2',
+    appVersion: '3.6.3',
     activeCountryCode: 'TR',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
@@ -91,8 +91,7 @@
       'substations': {label:'Trafo merkezleri',file:'data/countries/TR/substations.geojson',color:'#111111',weight:1.0,description:'OSM power=substation merkez noktaları'}
     },
     smokeVariables: {
-      pm10_wildfires: { label:'Yangın kaynaklı PM10',unit:'µg/m³',source:'CAMS European Air Quality via Open-Meteo',resolution:'~11 km',type:'TAHMİN',surface:true,fireSpecific:true },
-      wildfire_share: { label:'Yangın PM10 payı',unit:'%',source:'CAMS European Air Quality via Open-Meteo · toplam PM10 üzerinden türetilmiş oran',resolution:'~11 km',type:'TÜRETİLMİŞ',surface:true,fireSpecific:true }
+      pm10_wildfires: { label:'Duman Yayılımı — CAMS Modeli',unit:'µg/m³',source:'CAMS European Air Quality via Open-Meteo',resolution:'~11 km',type:'TAHMİN',surface:true,fireSpecific:true }
     },
     windLevels: {
       '10m': {label:'10 m yüzey rüzgârı',speed:'wind_speed_10m',direction:'wind_direction_10m'},

@@ -25,7 +25,7 @@
     }
     bindUI(){
       document.getElementById('countrySelector').addEventListener('change',e=>this.countryManager.switchCountry(e.target.value));
-      document.getElementById('closeDetailBtn').addEventListener('click',()=>{this.ui.closeDetail();this.map.clearWindVector();});
+      document.getElementById('closeDetailBtn').addEventListener('click',()=>{this.ui.closeDetail(true);this.map.clearWindVector();});
       document.getElementById('baseMapSelect').addEventListener('change',e=>this.map.setBaseMap(e.target.value));
       document.getElementById('layerFires').addEventListener('change',e=>{this.state.firesEnabled=e.target.checked;this.map.toggleFires(e.target.checked);});
       document.getElementById('layerFrpHeat').addEventListener('change',e=>{this.state.heatEnabled=e.target.checked;this.map.toggleHeat(e.target.checked);});
