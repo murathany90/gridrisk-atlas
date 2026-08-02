@@ -588,18 +588,23 @@ test("sparkline series selection (48h window, FRP >= 5, 12x4h buckets, peak kept
   assert.equal(zero.length, 0);
 });
 
-test("fire event popup 48h chart contract (fireAll+10km, 12x4h, mini chart, popup layout)", () => {
+test("fire event tooltip compact contract (single bindTooltip, 12x4h, real labels, no peak)", () => {
   const tooltip = source.map
-    .split("firesEventTooltip(ev, history, reference) {")[1]
+    .split("firesEventTooltip(ev, history, reference, opts = {}) {")[1]
     .split("fireSparklineData(ev, reference) {")[0];
   assert.match(tooltip, /summary\.detections/);
   assert.match(tooltip, /sparkline\.title/);
   assert.match(tooltip, /sparkline\.empty/);
   assert.match(tooltip, /"fire-popup-metrics"/);
-  assert.match(tooltip, /map\.peakTime/);
-  assert.match(tooltip, /map\.lastAgeLabel/);
-  assert.ok(!tooltip.includes("analysis.maxFrp"), "no duplicated Max FRP line");
+  assert.match(tooltip, /analysis\.maxFrp/);
+  assert.match(tooltip, /sparkline\.firstLast/);
+  assert.match(tooltip, /sparkline\.lastSeen/);
+  assert.match(tooltip, /map\.viewDetails/);
+  assert.match(tooltip, /opts\.withDetails/);
+  assert.ok(!tooltip.includes("map.peakTime"), "no Tepe zamanı row");
+  assert.ok(!tooltip.includes("map.lastAgeLabel"), "no lastAgeLabel row");
   assert.ok(!tooltip.includes("map.areaCount"), "no Bölgedeki tespit line");
+  assert.ok(!tooltip.includes("detail.first"), "single İlk / Son row");
   const src = source.map
     .split("fireSparklineData(ev, reference) {")[1]
     .split("fireFrpChart(spark) {")[0];
@@ -609,25 +614,47 @@ test("fire event popup 48h chart contract (fireAll+10km, 12x4h, mini chart, popu
   assert.match(src, /minFrp: 5/);
   assert.match(src, /maxPoints: 12/);
   assert.match(src, /_sparkCache/);
-  assert.match(src, /formatShortDateTime/);
+  assert.ok(!src.includes("peakFrp"), "no peakFrp field");
+  assert.ok(!src.includes("peakTime"), "no peakTime field");
+  assert.match(src, /maxFrp: Math\.max/);
   const chart = source.map
     .split("fireFrpChart(spark) {")[1]
     .split("substationIcon() {")[0];
   assert.match(chart, /buckets = 12/);
   assert.match(chart, /bucketMs = 4 \* 3600e3/);
+  assert.match(chart, /barW = 9/);
+  assert.match(chart, /minH = 5/);
   assert.match(chart, /viewBox="0 0 \$\{W\} \$\{H\}"/);
   assert.match(chart, /role="img"/);
   assert.match(chart, /aria-hidden="true"/);
   assert.match(chart, /fire-frp-bars/);
-  assert.match(chart, /fire-frp-peak/);
-  assert.match(chart, /aria-label="\$\{U\.escapeHtml\(T\("sparkline\.aria",/);
-  assert.match(chart, /T\("sparkline\.peak",/);
-  assert.match(chart, /T\("sparkline\.from"\)/);
-  assert.match(chart, /T\("sparkline\.now"\)/);
-  assert.ok(!source.map.includes("fireSparklineSvg"), "old sparkline svg removed");
+  assert.match(chart, /formatCompactHour/);
+  assert.match(chart, /sparkline\.now/);
+  assert.match(chart, /<line/);
+  assert.match(chart, /#e5edf3/);
+  assert.ok(!chart.includes("fire-frp-peak"), "no peak overlay");
+  assert.ok(!chart.includes("<circle"), "no peak dot");
+  assert.ok(!chart.includes("sparkline.peak"), "no peak label");
+  assert.ok(!chart.includes("sparkline.aria"), "no peak aria");
+  assert.ok(!chart.includes("sparkline.from"), "no fixed −48h label");
+  assert.ok(!chart.includes("#e25c1f"), "no peak color");
+  const binding = source.map
+    .split("const tooltipOptions = {")[1]
+    .split("m.addTo(this.fireLayer)")[0];
+  assert.match(binding, /className: "fire-event-tooltip"/);
+  assert.match(binding, /direction: "top"/);
+  assert.match(binding, /offset: L\.point\(0, -8\)/);
+  assert.match(binding, /opacity: 0\.97/);
+  assert.match(binding, /sticky: false/);
+  assert.match(binding, /permanent: false/);
+  assert.match(binding, /interactive: false/);
+  assert.match(binding, /pointer: coarse/);
+  assert.match(binding, /maxWidth: 236/);
+  assert.ok(!source.map.includes("● ${count}"), "zoom<7 rebind removed");
+  assert.ok(!source.map.includes("getTooltip().getContent()"), "single bindTooltip only");
   assert.ok(
-    !source.map.includes("const members = ev.members || []"),
-    "ev.members fallback removed from chart source",
+    !source.map.includes("fireClustering.radiusKm"),
+    "no pixel radius into areaHistory",
   );
   assert.match(
     source.map,
@@ -637,43 +664,69 @@ test("fire event popup 48h chart contract (fireAll+10km, 12x4h, mini chart, popu
     source.map,
     /U\.areaHistory\(this\.fireAll, f, C\.NEARBY_FIRMS_RADIUS_KM\)/,
   );
-  assert.match(source.map, /className: "fire-event-popup"/);
   assert.match(source.utils, /sparklinePoints\(detections,opts=\{}\)\{/);
+  assert.match(source.utils, /formatCompactDateTime\(date\)/);
+  assert.match(source.utils, /formatCompactHour\(date\)/);
+  assert.match(source.utils, /formatAgeShort\(iso,reference=new Date\(\)\)/);
   for (const key of [
     "sparkline.title",
-    "sparkline.peak",
     "sparkline.empty",
-    "sparkline.from",
     "sparkline.now",
+    "sparkline.firstLast",
+    "sparkline.lastSeen",
+    "sparkline.ago",
+    "map.viewDetails",
+    "duration.dayShort",
+    "duration.hourShort",
+    "duration.minuteShort",
+  ])
+    assert.ok(key in A.LOCALES.tr && key in A.LOCALES.en, key);
+  for (const key of [
+    "sparkline.peak",
+    "sparkline.from",
     "sparkline.aria",
     "map.peakTime",
     "map.lastAgeLabel",
   ])
-    assert.ok(key in A.LOCALES.tr && key in A.LOCALES.en, key);
-  assert.equal(A.LOCALES.tr["sparkline.title"], "Son 48 saat FRP");
-  assert.equal(A.LOCALES.en["sparkline.title"], "FRP — last 48 hours");
-  assert.equal(A.LOCALES.tr["sparkline.peak"], "Tepe {value} MW");
-  assert.equal(A.LOCALES.en["sparkline.peak"], "Peak {value} MW");
+    assert.ok(!(key in A.LOCALES.tr) && !(key in A.LOCALES.en), `${key} removed`);
+  assert.equal(A.LOCALES.tr["sparkline.title"], "FRP · son 48 saat");
+  assert.equal(A.LOCALES.en["sparkline.title"], "FRP · last 48 hours");
   assert.equal(A.LOCALES.tr["sparkline.empty"], "Son 48 saatte FRP ≥ 5 MW tespiti yok.");
-  assert.equal(A.LOCALES.en["sparkline.empty"], "No detections with FRP ≥ 5 MW in the last 48 hours.");
-  assert.equal(A.LOCALES.tr["sparkline.from"], "−48 sa");
-  assert.equal(A.LOCALES.en["sparkline.from"], "−48 h");
-  assert.equal(A.LOCALES.tr["sparkline.aria"], "Son 48 saatte en yüksek FRP {value} MW, {time}");
-  assert.equal(A.LOCALES.en["sparkline.aria"], "Peak FRP over the last 48 hours: {value} MW at {time}");
-  assert.equal(A.LOCALES.tr["map.peakTime"], "Tepe zamanı");
-  assert.equal(A.LOCALES.en["map.peakTime"], "Peak time");
-  assert.equal(A.LOCALES.tr["map.lastAgeLabel"], "Son tespit yaşı");
-  assert.equal(A.LOCALES.en["map.lastAgeLabel"], "Latest detection age");
-  assert.equal(A.LOCALES.tr["sparkline.from"].includes("48s"), false);
+  assert.equal(A.LOCALES.en["sparkline.empty"], "No FRP ≥ 5 MW detections in the last 48 hours.");
+  assert.equal(A.LOCALES.tr["sparkline.firstLast"], "İlk / Son");
+  assert.equal(A.LOCALES.en["sparkline.firstLast"], "First / Last");
+  assert.equal(A.LOCALES.tr["sparkline.lastSeen"], "Son tespit");
+  assert.equal(A.LOCALES.en["sparkline.lastSeen"], "Last seen");
+  assert.equal(A.LOCALES.tr["sparkline.ago"], "{age} önce");
+  assert.equal(A.LOCALES.en["sparkline.ago"], "{age} ago");
+  assert.equal(A.LOCALES.tr["map.viewDetails"], "Detayı Aç");
+  assert.equal(A.LOCALES.en["map.viewDetails"], "View Details");
+  assert.equal(A.LOCALES.tr["duration.hourShort"], "{count} sa");
+  assert.equal(A.LOCALES.en["duration.hourShort"], "{count} h");
+  assert.equal(A.LOCALES.tr["duration.minuteShort"], "{count} dk");
+  assert.equal(A.LOCALES.en["duration.minuteShort"], "{count} min");
 });
 
-test("fire event popup CSS (width, mini chart, metrics grid)", () => {
-  assert.match(css, /\.fire-event-popup \{\s*width: 250px;\s*max-width: calc\(100vw - 28px\);/);
-  assert.match(css, /\.fire-event-popup \{\s*[^}]*white-space: normal;/);
-  assert.match(css, /\.fire-frp-chart \{\s*position: relative;\s*width: 100%;\s*height: 58px;/);
+test("fire event tooltip CSS (no scroll, compact chart, popup close target)", () => {
+  assert.match(
+    css,
+    /\.leaflet-tooltip\.fire-event-tooltip \{\s*width: 236px;\s*max-width: calc\(100vw - 24px\);\s*max-height: none;\s*overflow: visible;\s*white-space: normal;\s*padding: 9px 10px;\s*font-size: 12px;\s*line-height: 1\.3;/,
+  );
+  assert.match(css, /\.fire-frp-chart \{\s*position: relative;\s*width: 100%;\s*height: 52px;/);
   assert.match(css, /\.fire-popup-metrics \{\s*display: grid;\s*grid-template-columns: auto 1fr;/);
-  assert.match(css, /\.fire-frp-peak/);
+  assert.match(
+    css,
+    /\.leaflet-popup\.fire-event-popup \.leaflet-popup-close-button \{[^}]*width: 40px;[^}]*height: 40px;[^}]*min-width: 40px;[^}]*min-height: 40px;/,
+  );
+  assert.match(css, /\.leaflet-popup\.fire-event-popup \.leaflet-popup-content \{[^}]*width: 236px !important;/);
   assert.match(css, /\.fire-frp-bars/);
+  assert.match(css, /\.fire-event-detail/);
+  const fireCss = css
+    .split("/* v3.7.1 fire event tooltip & popup")[1]
+    .split("/* v3.7.0 mobile quick layer menu")[0];
+  assert.ok(!fireCss.includes(".fire-frp-peak"), "no peak overlay css");
+  assert.ok(!fireCss.includes("max-height: 230px"), "no old scroll cap");
+  assert.ok(!fireCss.includes("overflow-y"), "no vertical scrollbar in fire rules");
   assert.ok(!css.includes(".fireSparkline"), "old .fireSparkline rule removed");
 });
 

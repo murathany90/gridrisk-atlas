@@ -490,6 +490,28 @@
           slider ? Number(slider.value) : 0,
         );
       if (this.zoom() < 9) {
+        if (!this._fireDetailBound) {
+          this._fireDetailBound = true;
+          document.addEventListener(
+            "click",
+            (e) => {
+              const a = e.target?.closest?.("a.fire-event-detail");
+              if (!a) return;
+              e.preventDefault();
+              this.fireLayer.eachLayer((l) => l.closePopup?.());
+              const ev2 = this.fireEventsVisible.find(
+                (x) => x.id === a.dataset.id,
+              );
+              this.onPointClick?.({
+                lat: Number(a.dataset.lat),
+                lon: Number(a.dataset.lon),
+                fire: ev2?.representative,
+                fireEvent: ev2,
+              });
+            },
+            true,
+          );
+        }
         for (const ev of this.fireEventsVisible) {
           const count = ev.count,
             radius = U.clamp(
@@ -510,28 +532,45 @@
               fillColor: U.frpColor(ev.maxFrp),
               fillOpacity: opacity * 0.92,
             });
-          m.bindTooltip(
-            this.firesEventTooltip(
-              ev,
-              U.areaHistory(this.fireAll, ev, C.NEARBY_FIRMS_RADIUS_KM),
-              reference,
-            ),
-            { className: "fire-event-popup" },
-          );
-          if (this.zoom() < 7 && count > 1)
-            m.bindTooltip(
-              m.getTooltip().getContent() + `<br><strong>● ${count}</strong>`,
-              { className: "fire-event-popup" },
+          const tooltipOptions = {
+            className: "fire-event-tooltip",
+            direction: "top",
+            offset: L.point(0, -8),
+            opacity: 0.97,
+            sticky: false,
+            permanent: false,
+            interactive: false,
+          };
+          if (window.matchMedia?.("(pointer: coarse)").matches) {
+            m.bindPopup(
+              this.firesEventTooltip(
+                ev,
+                U.areaHistory(this.fireAll, ev, C.NEARBY_FIRMS_RADIUS_KM),
+                reference,
+                { withDetails: true },
+              ),
+              { className: "fire-event-popup", maxWidth: 236 },
             );
-          m.on("click", (e) => {
-            L.DomEvent.stopPropagation(e);
-            this.onPointClick?.({
-              lat: ev.lat,
-              lon: ev.lon,
-              fire: ev.representative,
-              fireEvent: ev,
+          } else {
+            m.bindTooltip(
+              this.firesEventTooltip(
+                ev,
+                U.areaHistory(this.fireAll, ev, C.NEARBY_FIRMS_RADIUS_KM),
+                reference,
+              ),
+              tooltipOptions,
+            );
+          }
+          if (!window.matchMedia?.("(pointer: coarse)").matches)
+            m.on("click", (e) => {
+              L.DomEvent.stopPropagation(e);
+              this.onPointClick?.({
+                lat: ev.lat,
+                lon: ev.lon,
+                fire: ev.representative,
+                fireEvent: ev,
+              });
             });
-          });
           m.addTo(this.fireLayer);
         }
       } else {
@@ -1303,9 +1342,9 @@
       if (h.count > 1) out.push(T("map.areaCount", { count: I.formatNumber(h.count) }));
       return out.join("<br>");
     }
-    firesEventTooltip(ev, history, reference) {
+    firesEventTooltip(ev, history, reference, opts = {}) {
       const out = [
-        `<strong>${T("map.eventCluster")}</strong> — ${T("summary.detections", { count: I.formatNumber(ev.count) })}`,
+        `<strong>${T("map.eventCluster")}</strong> · ${T("summary.detections", { count: I.formatNumber(ev.count) })}`,
         T("sparkline.title"),
       ];
       const spark = this.fireSparklineData(ev, reference);
@@ -1317,22 +1356,32 @@
           : { count: 0, first: null, last: null, window48: false };
       const rows = [];
       if (spark)
-        rows.push(`<span>${T("map.peakTime")}</span><span>${U.escapeHtml(spark.peakTime)}</span>`);
+        rows.push(
+          `<span>${T("analysis.maxFrp")}</span><span>${I.formatNumber(U.round(spark.maxFrp, 1))} MW</span>`,
+        );
       if (h.count === 1) {
         rows.push(`<span class="fire-popup-full">${T("map.singleDetection")}</span>`);
       } else {
-        const first = h.first
-          ? U.formatTrShortDateTime(new Date(h.first))
-          : null;
-        const last = h.last ? U.formatTrShortDateTime(new Date(h.last)) : null;
-        if (first)
-          rows.push(`<span>${T(h.window48 ? "detail.first48" : "detail.first")}</span><span>${first}</span>`);
-        if (last) rows.push(`<span>${T("detail.last")}</span><span>${last}</span>`);
+        const first = h.first ? U.formatCompactDateTime(new Date(h.first)) : null;
+        const last = h.last ? U.formatCompactDateTime(new Date(h.last)) : null;
+        if (first && last)
+          rows.push(
+            `<span>${T("sparkline.firstLast")}</span><span>${first} · ${last}</span>`,
+          );
+        else if (first)
+          rows.push(`<span>${T("sparkline.firstLast")}</span><span>${first}</span>`);
       }
-      const age = U.formatAgeSince(h.last || ev.latestDetectedAt, reference);
+      const age = U.formatAgeShort(h.last || ev.latestDetectedAt, reference);
       if (age)
-        rows.push(`<span>${T("map.lastAgeLabel")}</span><span>${U.escapeHtml(age)}</span>`);
-      if (rows.length) out.push(`<div class="fire-popup-metrics">${rows.join("")}</div>`);
+        rows.push(
+          `<span>${T("sparkline.lastSeen")}</span><span>${U.escapeHtml(age)}</span>`,
+        );
+      if (rows.length)
+        out.push(`<div class="fire-popup-metrics">${rows.join("")}</div>`);
+      if (opts.withDetails)
+        out.push(
+          `<a class="fire-event-detail" href="#" data-id="${U.escapeHtml(String(ev.id))}" data-lat="${ev.lat}" data-lon="${ev.lon}">${T("map.viewDetails")}</a>`,
+        );
       return out.join("<br>");
     }
     fireSparklineData(ev, reference) {
@@ -1351,33 +1400,29 @@
       const points = U.sparklinePoints(near, { endMs, minFrp: 5, maxPoints: 12 });
       let result = null;
       if (points.length) {
-        const peak = points.reduce(
-          (best, p) => (Number(p.frp) > Number(best.frp) ? p : best),
-          points[0],
-        );
         result = {
           points,
           endMs,
           start: endMs - 48 * 3600e3,
-          peakFrp: Number(peak.frp),
-          peakTime: U.formatShortDateTime(new Date(Date.parse(peak.detectedAt))),
+          maxFrp: Math.max(...points.map((p) => Number(p.frp))),
         };
       }
       this._sparkCache.set(key, result);
       return result;
     }
     fireFrpChart(spark) {
-      const W = 190,
-        H = 40,
-        barW = 8,
+      const W = 176,
+        H = 52,
+        barW = 9,
         buckets = 12,
         bucketMs = 4 * 3600e3,
-        plotT = 6,
-        plotB = 12,
+        plotT = 8,
+        plotB = 14,
         plotH = H - plotT - plotB,
         slot = W / buckets,
         maxFrp = Math.max(...spark.points.map((p) => Number(p.frp))),
-        height = (frp) => Math.max(2, (frp / maxFrp) * plotH),
+        minH = 5,
+        height = (frp) => Math.max(minH, (frp / maxFrp) * plotH),
         x = (idx) => slot * idx + (slot - barW) / 2,
         y = (frp) => plotT + plotH - (frp / maxFrp) * plotH,
         idxOf = (t) =>
@@ -1385,22 +1430,31 @@
             buckets - 1,
             Math.max(0, Math.floor((Date.parse(t) - spark.start) / bucketMs)),
           );
-      let peakIdx = 0;
-      for (let i = 1; i < spark.points.length; i++) {
-        if (Number(spark.points[i].frp) > Number(spark.points[peakIdx].frp))
-          peakIdx = i;
+      const heights = new Array(buckets).fill(0);
+      for (const p of spark.points) {
+        const idx = idxOf(p.detectedAt);
+        heights[idx] = Math.max(heights[idx], Number(p.frp));
       }
-      const parts = spark.points.map((p, i) => {
-        const frp = Number(p.frp),
-          idx = idxOf(p.detectedAt);
-        return `<rect x="${x(idx).toFixed(1)}" y="${y(frp).toFixed(1)}" width="${barW}" height="${height(frp).toFixed(1)}" rx="1.5" fill="${i === peakIdx ? "#e25c1f" : "#f2a35c"}"/>`;
-      });
-      const pPeak = spark.points[peakIdx],
-        peakX = slot * idxOf(pPeak.detectedAt) + slot / 2;
+      const parts = [];
+      for (let i = 0; i < buckets; i++) {
+        if (heights[i] > 0) {
+          parts.push(
+            `<rect x="${x(i).toFixed(1)}" y="${y(heights[i]).toFixed(1)}" width="${barW}" height="${height(heights[i]).toFixed(1)}" rx="1.5" fill="#f2a35c"/>`,
+          );
+        } else {
+          parts.push(
+            `<rect x="${x(i).toFixed(1)}" y="${(plotT + plotH - 1).toFixed(1)}" width="${barW}" height="1" fill="#e5edf3"/>`,
+          );
+        }
+      }
+      const baselineY = plotT + plotH + 0.5;
       parts.push(
-        `<circle cx="${peakX.toFixed(1)}" cy="${(y(Number(pPeak.frp)) - 3.5).toFixed(1)}" r="2.5" fill="#e25c1f"/>`,
+        `<line x1="0" y1="${baselineY}" x2="${W}" y2="${baselineY}" stroke="#94a8ba" stroke-width="1"/>`,
+        `<text x="0" y="${H - 2}" font-size="9" fill="#64788c">${U.escapeHtml(U.formatCompactHour(new Date(spark.start)))}</text>`,
+        `<text x="${W / 2}" y="${H - 2}" font-size="9" fill="#64788c" text-anchor="middle">${U.escapeHtml(U.formatCompactHour(new Date(spark.start + 24 * 3600e3)))}</text>`,
+        `<text x="${W}" y="${H - 2}" font-size="9" fill="#64788c" text-anchor="end">${U.escapeHtml(T("sparkline.now"))}</text>`,
       );
-      return `<div class="fire-frp-chart"><span class="fire-frp-peak">${T("sparkline.peak", { value: I.formatNumber(U.round(spark.peakFrp, 1)) })}</span><svg class="fire-frp-bars" width="100%" height="${H}" viewBox="0 0 ${W} ${H}" focusable="false" role="img" aria-label="${U.escapeHtml(T("sparkline.aria", { value: I.formatNumber(U.round(spark.peakFrp, 1)), time: spark.peakTime }))}"><g aria-hidden="true">${parts.join("")}<text x="0" y="${H - 2}" font-size="9" fill="#64788c">${U.escapeHtml(T("sparkline.from"))}</text><text x="${W}" y="${H - 2}" font-size="9" fill="#64788c" text-anchor="end">${U.escapeHtml(T("sparkline.now"))}</text></g></svg></div>`;
+      return `<div class="fire-frp-chart"><svg class="fire-frp-bars" width="100%" height="${H}" viewBox="0 0 ${W} ${H}" focusable="false" role="img" aria-label="${U.escapeHtml(T("sparkline.title"))}"><g aria-hidden="true">${parts.join("")}</g></svg></div>`;
     }
     substationIcon() {
       return L.divIcon({
