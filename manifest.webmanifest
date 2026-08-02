@@ -1,20 +1,20 @@
 {
-  "name": "GridMoni",
-  "short_name": "GridMoni",
-  "description": "GridMoni provides wildfire intelligence and power grid risk monitoring for Türkiye, Spain, France, Portugal and Italy.",
-  "start_url": "./",
+  "name": "GridRisk Atlas",
+  "short_name": "GridRisk",
+  "description": "Satellite Wildfire & Grid Risk Intelligence for Türkiye, Spain, France, Portugal and Italy.",
+  "start_url": "./?country=TR&lang=tr",
   "scope": "./",
   "display": "standalone",
   "background_color": "#08121b",
   "theme_color": "#09151f",
   "icons": [
     {
-      "src": "assets/icons/gridmoni-192.png",
+      "src": "assets/icons/gridrisk-atlas-192.png",
       "sizes": "192x192",
       "type": "image/png"
     },
     {
-      "src": "assets/icons/gridmoni-512.png",
+      "src": "assets/icons/gridrisk-atlas-512.png",
       "sizes": "512x512",
       "type": "image/png"
     }

@@ -1,7 +1,15 @@
 {
-  "name": "wildfire-grid-risk-monitor",
-  "version": "3.6.3",
-  "description": "GridMoni provides wildfire intelligence and power grid risk monitoring for Türkiye, Spain, France, Portugal and Italy.",
+  "name": "gridrisk-atlas",
+  "version": "3.7.0",
+  "description": "Satellite Wildfire & Grid Risk Intelligence for Türkiye, Spain, France, Portugal and Italy.",
+  "homepage": "https://murathany90.github.io/gridrisk-atlas/",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/murathany90/gridrisk-atlas.git"
+  },
+  "bugs": {
+    "url": "https://github.com/murathany90/gridrisk-atlas/issues"
+  },
   "private": true,
   "type": "module",
   "scripts": {

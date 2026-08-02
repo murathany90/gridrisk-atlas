@@ -41,6 +41,13 @@ jobs:
           cp .nojekyll deploy/
           test ! -e deploy/spain_osm_power_grid_50kv_plus_full.geojson
           test ! -e deploy/france_osm_power_grid_50kv_plus_full.geojson
+          test -f deploy/assets/icons/gridrisk-atlas-header.png
+          test -f deploy/assets/icons/gridrisk-atlas-512.png
+          test -f deploy/js/locales/tr.js
+          test -f deploy/js/locales/en.js
+          test -f deploy/data/countries/IT/manifest.json
+          grep -q '"start_url": "./?country=TR&lang=tr"' deploy/manifest.webmanifest
+          grep -q '"scope": "./"' deploy/manifest.webmanifest
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
@@ -48,7 +55,7 @@ jobs:
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: 'deploy'
+          path: "deploy"
 
       - name: Deploy to Pages
         id: deployment

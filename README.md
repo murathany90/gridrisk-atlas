@@ -1,82 +1,106 @@
-# GridMoni
+# GridRisk Atlas
 
-**Wildfire Intelligence for Power Grids**
+**Satellite Wildfire & Grid Risk Intelligence**
 
-> Sürüm: **v3.6.3** · Canlı: <https://murathany90.github.io/tr_wildfire/> · Arayüz dili: **Türkçe**
+[![CI](https://github.com/murathany90/gridrisk-atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/murathany90/gridrisk-atlas/actions/workflows/ci.yml)
+[![Deploy to GitHub Pages](https://github.com/murathany90/gridrisk-atlas/actions/workflows/pages.yml/badge.svg)](https://github.com/murathany90/gridrisk-atlas/actions/workflows/pages.yml)
 
-GridMoni provides wildfire intelligence and power grid risk monitoring for Türkiye, Spain, France, Portugal and Italy.
+> Sürüm / Version: **v3.7.0** · [Canlı demo / Live demo](https://murathany90.github.io/gridrisk-atlas/) · Arayüz / Interface: **Türkçe + English**
 
-GridMoni; Türkiye, İspanya, Fransa, Portekiz ve İtalya için aktif orman yangınları ile elektrik iletim şebekesi yakınlığını aynı operasyonel ekranda inceleyen statik bir web uygulamasıdır. Kullanıcı arayüzü bu sürümde yalnız Türkçedir.
+GridRisk Atlas; uydu yangın gözlemlerini, atmosfer modellerini ve gerçek OpenStreetMap iletim şebekesi verisini tek bir karar destek haritasında birleştirir. Türkiye, İspanya, Fransa, Portekiz ve İtalya desteklenir.
 
-## Ülke kapsamı
+GridRisk Atlas combines satellite fire observations, atmospheric models and real OpenStreetMap transmission-grid data in one decision-support map. It supports Türkiye, Spain, France, Portugal and Italy.
 
-Header içindeki `Ülke` seçicisi şu veri alanlarını değiştirir:
+![GridRisk Atlas uygulama ekranı](docs/gridrisk-atlas-screenshot.png)
 
-- **Türkiye (TR):** Türkiye sınırı ve şebekesi, `Europe/Istanbul`.
-- **İspanya (ES):** ana kara ve Balear Adaları; Kanarya Adaları kapsam dışıdır, `Europe/Madrid`.
-- **Fransa (FR):** metropolitan Fransa ve Korsika; denizaşırı bölgeler kapsam dışıdır, `Europe/Paris`.
-- **Portekiz (PT):** Portekiz ana karası; Azorlar ve Madeira kapsam dışıdır, `Europe/Lisbon`.
-- **İtalya (IT):** İtalya ana karası, Sicilya ve Sardinya, `Europe/Rome`.
+## Hızlı bağlantılar / Quick links
 
-Başlangıç ülkesi sırası geçerli `?country=TR|ES|FR|PT|IT` URL parametresi, `selectedCountry` localStorage değeri ve son olarak TR varsayılanıdır. Geçersiz URL kodu TR'ye döner. Seçim sayfa yenilenmeden uygulanır ve URL `history.replaceState` ile güncellenir.
+- [Canlı demo — Türkçe](https://murathany90.github.io/gridrisk-atlas/?country=TR&lang=tr)
+- [Live demo — English](https://murathany90.github.io/gridrisk-atlas/?country=TR&lang=en)
+- [Kurulum / Installation](#kurulum--installation)
+- [Kullanım / Usage](#kullanım--usage)
+- [Kaynak kod / Source](https://github.com/murathany90/gridrisk-atlas)
+- [Issues](https://github.com/murathany90/gridrisk-atlas/issues)
+- [Releases](https://github.com/murathany90/gridrisk-atlas/releases)
 
-Her ülke gerçek Polygon/MultiPolygon sınırıyla filtrelenir. TR/ES/FR Natural Earth, PT/IT ise Eurostat/GISCO Countries 2024 sınırlarını kullanır. FIRMS isteği önce sınır bbox'ını kullanır; dönen noktalar daha sonra gerçek ülke geometrisi ve polygon delikleriyle tekrar süzülür. Böylece sınır komşusu tespitleri yanlış ülkeye eklenmez.
+## Özellikler / Features
 
-## Veri katmanları ve analiz
+- Sayfa yenilenmeden çalışan bağımsız ülke ve dil seçicileri; `?country=TR|ES|FR|PT|IT&lang=tr|en` URL durumu.
+- FIRMS tespitlerini 5 km/6 saat penceresinde olaylara kümeleme ve varsayılan 30 MW FRP filtresi.
+- Yangın–hat/TM yakınlığı, FRP, tespit yaşı, varlık sınıfı ve rüzgâr doğrultusunu kullanan operasyonel öncelik skoru.
+- CAMS yangın kaynaklı PM10 yayılımı, Open-Meteo rüzgârı, EFFIS doğrulama katmanları ve MTG uydu zaman çizelgesi.
+- CSV, JSON ve GeoJSON dışa aktarımı; makine alanları dil değişiminden bağımsız kalır.
+- Responsive masaüstü/mobil arayüz, mobil mini-card ve isteğe bağlı detay paneli.
 
-- NASA FIRMS Multi-VIIRS AUTO: NOAA-21, NOAA-20 ve Suomi-NPP NRT; isteğe bağlı MODIS NRT.
-- EUMETSAT MTG-I GeoColour gerçek uydu WMS görüntüsü.
-- CAMS Europe / Open-Meteo yangın kaynaklı PM10.
-- Open-Meteo 10 m, 850 hPa ve 700 hPa rüzgârı.
-- Copernicus EFFIS FWI ve NRT yanmış alan WMS katmanları.
-- OpenStreetMap 400/154 kV sınıfı iletim hatları ve trafo merkezleri.
-- 5 km/6 saat FIRMS olay kümelemesi, 30 MW varsayılan FRP eşiği.
-- Mesafe, FRP, tespit yaşı, şebeke sınıfı/TM önemi ve mevcutsa rüzgâr doğrultusunu kullanan operasyonel öncelik skoru.
-- 10 m yüzey rüzgârı ve maksimum FRP ile 10–30 km adaptif aşağı-rüzgâr tarama koridoru.
+## Ülke kapsamı / Country coverage
 
-Risk skoru bir arıza olasılığı, güvenlik mesafesi veya resmî yangın tahmini değildir. FIRMS tespiti yangın perimetresi değildir; CAMS ve Open-Meteo çıktıları model verisidir.
+| Kod  | Türkçe   | English  | Kapsam / Coverage                                                                                          | Saat dilimi / Timezone |
+| ---- | -------- | -------- | ---------------------------------------------------------------------------------------------------------- | ---------------------- |
+| `TR` | Türkiye  | Türkiye  | Türkiye                                                                                                    | `Europe/Istanbul`      |
+| `ES` | İspanya  | Spain    | Ana kara ve Balear Adaları; Kanarya Adaları hariç / Mainland and Balearic Islands; Canary Islands excluded | `Europe/Madrid`        |
+| `FR` | Fransa   | France   | Metropolitan Fransa ve Korsika / Metropolitan France and Corsica                                           | `Europe/Paris`         |
+| `PT` | Portekiz | Portugal | Ana kara; Azorlar ve Madeira hariç / Mainland; Azores and Madeira excluded                                 | `Europe/Lisbon`        |
+| `IT` | İtalya   | Italy    | Ana kara, Sicilya ve Sardinya / Mainland, Sicily and Sardinia                                              | `Europe/Rome`          |
 
-## Şebeke sınıfları
+Dil sayı ve tarih biçimini (`tr-TR` veya `en-GB`), ülke ise saat dilimini belirler. Bu iki seçim birbirinden bağımsızdır.
 
-Beş ülke aynı görsel ve risk sınıflarını kullanır:
+## Veri kaynakları / Data sources
 
-| Gerçek gerilim | Runtime sınıfı | Harita stili |
-|---|---|---|
-| 300–550 kV (iki sınır dahil) | `gridClass: "400"` / `400 kV sınıfı` | `#d7191c`, 2.2 px |
-| 50–299.999 kV | `gridClass: "154"` / `154 kV sınıfı` | `#111111`, 1.5 px |
-| 50 kV altı veya 550 kV üstü | Runtime dışında | Manifestte sayılır |
+- **NASA FIRMS:** NOAA-21, NOAA-20 ve Suomi-NPP VIIRS NRT termal tespitleri; isteğe bağlı MODIS NRT. FIRMS noktası yangın perimetresi değildir.
+- **Copernicus EFFIS:** Fire Weather Index ve NRT yanmış alan/doğrulama WMS katmanları. Haritadaki algoritmik poligon resmî saha perimetresi değildir.
+- **CAMS Europe / Open-Meteo:** Yangın kaynaklı PM10 model tahmini. Model çıktısı ölçüm istasyonu gözlemi değildir.
+- **EUMETSAT MTG-I:** GeoColour WMS uydu kareleri; seçilen ve backfill ile gerçekten gösterilen UTC zamanı ayrı izlenir.
+- **OpenStreetMap:** 50–550 kV iletim hatları ve trafo merkezleri, © OpenStreetMap contributors, ODbL 1.0.
+- **Open-Meteo Weather:** 10 m, 850 hPa ve 700 hPa rüzgâr hız/yön model verisi.
 
-Gerçek kaynak gerilimi `actualVoltageKv` alanında korunur. Örneğin 225 kV bir hat `154 kV sınıfı` olarak analiz edilir, ancak tooltip'te ayrıca `Gerçek OSM gerilimi: 225 kV` gösterilir.
+## Şebeke sınıflandırması / Grid classification
 
-Trafo merkezleri tüm ülkelerde 7×7 px siyah dolgulu, 2 px mavi çerçeveli karelerdir ve görsel katman varsayılan olarak kapalıdır. TM risk hesabında kalır; yalnız yangına en fazla 5 km uzaklıktaki TM ek risk vurgusu alır. Öncelik tablosu ve ilk beş analiz kartı daima en yakın hattı gösterir, TM'ye görsel fallback yapmaz.
+Gerçek kaynak gerilimi `actualVoltageKv` alanında korunur. Beş ülke aynı iki analiz sınıfını kullanır:
 
-## Ham veri ve preprocessing
+| Gerçek OSM gerilimi / Actual OSM voltage | Runtime sınıfı / Class             | Harita stili / Map style                     |
+| ---------------------------------------- | ---------------------------------- | -------------------------------------------- |
+| 300–550 kV                               | `gridClass: "400"` — 400 kV sınıfı | Kırmızı / Red, 2.2 px                        |
+| 50–299.999 kV                            | `gridClass: "154"` — 154 kV sınıfı | Siyah / Black, 1.5 px                        |
+| <50 kV veya >550 kV                      | Runtime dışında / Excluded         | Manifestte raporlanır / Reported in manifest |
 
-Ham import girdileri runtime kaynağı değildir:
+Örneğin gerçek 225 kV bir hat analizde 154 kV sınıfındadır; tooltip ve export içinde `actualVoltageKv: 225` korunur. Trafo merkezi markerları varsayılan kapalıdır, ancak TM verisi risk hesabında görünürlükten bağımsız olarak kalır.
 
-- `spain_osm_power_grid_50kv_plus_full.geojson`
-- `france_osm_power_grid_50kv_plus_full.geojson`
-- `portugal_osm_power_grid_50kv_plus_full.geojson`
-- `italy_osm_power_grid_50kv_plus_full.geojson`
-- `raw/TR/*.geojson`
+## Kurulum / Installation
 
-Üretim komutu:
+Node.js 18+ ve Python 3 gerekir.
 
 ```powershell
-npm run build:grid
+git clone https://github.com/murathany90/gridrisk-atlas.git
+cd gridrisk-atlas
+npm start
 ```
 
-Bu komut ES/FR/PT/IT runtime dosyalarını yeniden üretir; mevcut TR paketi değişmeden kalır. Tek ülke için `--country TR|ES|FR|PT|IT`; grup olarak `ESFR`, `PTIT`, `EU` veya beş ülke için `ALL` kullanılabilir.
+Uygulama varsayılan olarak `http://localhost:8890` adresinde açılır. Yerel FIRMS erişimi için isteğe bağlı `FIRMS_MAP_KEY` ortam değişkeni kullanılabilir; Pages dağıtımında aynı değer GitHub Actions secret'ından enjekte edilir.
 
-Yalnız mevcut commitli çıktıları doğrulamak için:
+## Kullanım / Usage
+
+1. Header içinden ülkeyi ve `Türkçe`/`English` dilini seçin.
+2. Katman panelinden yangın, şebeke, hava/duman ve uydu katmanlarını yönetin. Mobilde katman kontrolleri **Ayarlar / Settings** görünümündedir.
+3. Haritaya veya bir varlığa tıklayın. Mobilde önce mini-card açılır; tam detay için **Detayı Aç / Open Details** kullanılır.
+4. **Etki Analizi / Impact Analysis** görünümünde öncelikli olayları inceleyin ve CSV/JSON/GeoJSON dışa aktarın.
+
+Dil değişimi mevcut ülkeyi, harita merkezini/zoomunu, timeline'ı ve katman seçimlerini korur; FIRMS/CAMS/rüzgâr/grid verisini yeniden indirmez.
+
+## Grid verisini üretme ve doğrulama
+
+Commitli beş ülke runtime paketini doğrulamak için:
 
 ```powershell
 npm run validate:grid
 ```
 
-`tools/build_country_grid.py`, ham OSM `voltage`/`voltageRaw` alanındaki bütün pozitif tokenları istisnasız 1000'e bölerek kV'ye dönüştürür. Yalnız ham alan yoksa adı açıkça kV belirten `actualVoltagesKv`, `voltagesKv`, `actualVoltageKv` veya `voltageMaxKv` alanları doğrudan kullanılabilir. `line`, `minor_line`, `cable` hat; `substation` TM kabul edilir. MultiLineString hatlar ülke sınırında kesilir; polygon TM geometrileri yüzeyin içinde kalan temsil noktasına dönüştürülür.
+ES/FR/PT/IT paketlerini ham kaynaklardan yeniden üretmek için:
 
-Üretilen yapı:
+```powershell
+npm run build:grid
+```
+
+Runtime dizini:
 
 ```text
 data/countries/{TR,ES,FR,PT,IT}/
@@ -87,60 +111,36 @@ data/countries/{TR,ES,FR,PT,IT}/
   manifest.json
 ```
 
-Runtime varlıkları ülke önekli benzersiz `assetId` taşır. Nested tags, ArcGIS `OBJECTID` ve yinelenen ham ID alanları yayın çıktısından çıkarılır; `name`, `ref`, `operator`, gerçek gerilimler, şebeke sınıfı, `displayLabel`, label kaynağı, OSM kimliği/zamanı ve kaynak provenance korunur.
+İndirme ve preprocessing araçları retry, pagination, resume, ülke MultiPolygon sınırı, gerilim normalizasyonu, geometri doğrulama ve deterministik deduplication uygular. Büyük ham GeoJSON dosyaları Pages artifact'ına alınmaz.
 
-ES/FR/PT/IT indirmeleri ortak, resumable altyapıyı kullanır. ArcGIS OSM Europe hat ve nokta katmanları küçük tile'larla, pagination/object-ID fallback ve hata halinde alt tile bölme ile çekilir. ArcGIS Structures polygon trafo merkezlerini kapsamadığı için yüksek gerilim TM alanları küçük ülke tile'larıyla Overpass üzerinden tamamlanır; bütün feature'lar uygulamanın gerçek MultiPolygon sınırıyla doğrulanır.
-
-```powershell
-python py_osm_download/fetch_spain_osm_full.py --country-boundary data/countries/ES/boundary.geojson --output py_osm_download/output/spain_osm_power_grid_50kv_plus_full.geojson --resume
-python py_osm_download/fetch_france_osm_full.py --country-boundary data/countries/FR/boundary.geojson --output py_osm_download/output/france_osm_power_grid_50kv_plus_full.geojson --resume
-python py_osm_download/fetch_portugal_osm_full.py --country-boundary data/countries/PT/boundary.geojson --output py_osm_download/output/portugal_osm_power_grid_50kv_plus_full.geojson --resume
-python py_osm_download/fetch_italy_osm_full.py --country-boundary data/countries/IT/boundary.geojson --output py_osm_download/output/italy_osm_power_grid_50kv_plus_full.geojson --resume
-```
-
-`py_osm_download/compare_grid_datasets.py`, mevcut ve yeni adayları feature sayısına göre değil; sınır, gerilim, geometri, tile şeffaflığı ve deterministik deduplication production kapılarına göre karşılaştırır. Makine ve insan okunur sonuçlar `reports/` altında tutulur.
-
-## Çalıştırma
-
-Node.js 18 veya üstü gerekir:
+## Testler / Tests
 
 ```powershell
-npm start
-```
-
-Uygulama varsayılan olarak `http://localhost:8890` adresinde açılır. Yerel FIRMS verisi için `FIRMS_MAP_KEY` ortam değişkeni kullanılabilir; GitHub Pages dağıtımında aynı değer Actions secret'ından `js/config.js` içine enjekte edilir.
-
-## Testler
-
-```powershell
-node tests.mjs
 npm test
 npm run validate:grid
 git diff --check
 ```
 
-Node regresyon paketi ülke registry/öncelik, sınır geometrisi, cache ve stale-response korumaları, saat dilimi, risk/UI sözleşmesi, ≤5 km TM marker kuralı ve Pages staging davranışını kapsar. Python paketi ham OSM voltage birimini, retry/pagination/resume akışını, ülke sınırını, geometry/asset bütünlüğünü, dataset seçim kapılarını ve runtime property temizliğini doğrular.
-
-## Cache, performans ve dağıtım
-
-Ülkeye bağlı cache anahtarları ülke kodu içerir (`grid:TR:400`, `firms:ES:...`, `weather:FR:...`). Ülke değişiminde devam eden grid/FIRMS/CAMS/Open-Meteo istekleri iptal edilir; sıra ve ülke kodu stale-response guard'ı olarak kontrol edilir. Eski katmanlar, spatial index, risk tablosu ve analiz kartları temizlenir. Yalnız aktif ülkenin üç runtime şebeke dosyası lazy-load edilir; düşük zoom TM görünümü dosya sırasına bağlı stride yerine deterministik viewport/piksel-hücresi culling kullanır ve hatlar Leaflet Canvas üzerinde çizilir.
-
-Pages workflow yalnız `index.html`, `css/`, `js/`, `.nojekyll` ve `data/countries/**` içeriklerini stage eder. Büyük ham root GeoJSON dosyaları artifact'a girmez; deploy sırasında preprocessing çalıştırılmaz.
+Test paketi iki dil sözlük eşliğini, URL/localStorage önceliğini, locale–timezone ayrımını, beş ülke veri bütünlüğünü, risk algoritması regresyonlarını, güvenli export sözleşmesini, responsive katman yerleşimini, varsayılan katmanları, ikonları ve eski marka/base-path kalıntılarını doğrular.
 
 ## Export
 
-CSV, JSON ve GeoJSON adları ülke kodunu taşır:
+Dosya adı ülke ve tarihi korur:
 
 ```text
-wildfire-grid-risk_TR_YYYY-MM-DD.csv
-wildfire-grid-risk_ES_YYYY-MM-DD.json
-wildfire-grid-risk_FR_YYYY-MM-DD.geojson
-wildfire-grid-risk_PT_YYYY-MM-DD.csv
-wildfire-grid-risk_IT_YYYY-MM-DD.json
+gridrisk-atlas_TR_YYYY-MM-DD.csv
+gridrisk-atlas_ES_YYYY-MM-DD.json
+gridrisk-atlas_FR_YYYY-MM-DD.geojson
 ```
 
-Metadata ve satırlar uygun yerlerde `countryCode`, `countryName`, `assetId`, `gridClass`, `actualVoltageKv` ve `displayLabel` alanlarını içerir.
+JSON/GeoJSON makine alanları (`countryCode`, `riskScore`, `actualVoltageKv`, `gridClass`, `displayLabel`) sabittir. Metadata `applicationName: "GridRisk Atlas"` ve aktif `language: "tr" | "en"` değerini içerir.
 
-## Kaynak ve lisans
+## Lisans ve atıf / Licence and attribution
 
-Şebeke verisi © OpenStreetMap contributors, **ODbL 1.0** kapsamında kullanılır. TR/ES/FR sınırları Natural Earth 1:10m Admin 0 verisidir (public domain). PT/IT sınırları European Commission Eurostat/GISCO Countries 2024 verisidir ve `© EuroGeographics for the administrative boundaries` bildirimiyle kullanılır. Diğer sağlayıcıların verileri kendi kullanım ve lisans koşullarına tabidir.
+Şebeke verisi **© OpenStreetMap contributors** tarafından sağlanır ve **ODbL 1.0** kapsamındadır. TR/ES/FR sınırları Natural Earth 1:10m Admin 0 (public domain), PT/IT sınırları European Commission Eurostat/GISCO Countries 2024 verisidir; ilgili `© EuroGeographics for the administrative boundaries` bildirimi korunur. NASA FIRMS, Copernicus/EFFIS, CAMS, EUMETSAT ve Open-Meteo verileri kendi lisans ve kullanım koşullarına tabidir.
+
+## Önemli uyarı / Important notice
+
+**GridRisk Atlas bağımsız bir karar destek aracıdır; resmî yangın durumu, acil durum sistemi, SCADA sistemi veya işletme talimatı değildir.** Yangın ve elektrik güvenliği kararlarında resmî kurum duyurularını ve yetkili işletmeci prosedürlerini izleyin.
+
+**GridRisk Atlas is an independent decision-support tool. It is not an official wildfire status, emergency system, SCADA system or operating instruction.** Follow official authorities and authorized grid-operator procedures for wildfire and electrical-safety decisions.
