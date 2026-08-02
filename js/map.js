@@ -300,8 +300,8 @@
       if(h.count>1)out.push(`Bölgedeki tespit: ${h.count}`);
       return out.join('<br>');
     }
-    substationIcon(){return L.divIcon({className:'substationIconWrap',html:'<span class="substationSquare"></span>',iconSize:[10,10],iconAnchor:[5,5]});}
-    riskSubstationIcon(){return L.divIcon({className:'substationIconWrap',html:'<span class="substationSquare substation-risk"></span>',iconSize:[10,10],iconAnchor:[5,5]});}
+    substationIcon(){return L.divIcon({className:'substationIconWrap',html:'<span class="substationSquare"></span>',iconSize:[7,7],iconAnchor:[3.5,3.5]});}
+    riskSubstationIcon(){return L.divIcon({className:'substationIconWrap',html:'<span class="substationSquare substation-risk"></span>',iconSize:[7,7],iconAnchor:[3.5,3.5]});}
     substationRenderData(data){
       const country=C.activeCountryCode,bounds=this.map.getBounds().pad(.12),candidates=(data.features||[]).filter(f=>{const c=f.geometry?.coordinates;return f.properties?.countryCode===country&&c&&Number.isFinite(c[0])&&Number.isFinite(c[1])&&U.insideRegion({lat:c[1],lon:c[0]})&&bounds.contains([c[1],c[0]]);});
       const limit=this.zoom()<7?1800:6000;if(candidates.length<=limit)return{...data,features:candidates};

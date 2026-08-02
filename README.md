@@ -48,7 +48,7 @@ Beş ülke aynı görsel ve risk sınıflarını kullanır:
 
 Gerçek kaynak gerilimi `actualVoltageKv` alanında korunur. Örneğin 225 kV bir hat `154 kV sınıfı` olarak analiz edilir, ancak tooltip'te ayrıca `Gerçek OSM gerilimi: 225 kV` gösterilir.
 
-Trafo merkezleri tüm ülkelerde 10×10 px siyah dolgulu, 2 px mavi çerçeveli karelerdir. TM risk hesabında kalır; yalnız yangına en fazla 5 km uzaklıktaki TM ek risk vurgusu alır. Öncelik tablosu ve ilk beş analiz kartı daima en yakın hattı gösterir, TM'ye görsel fallback yapmaz.
+Trafo merkezleri tüm ülkelerde 7×7 px siyah dolgulu, 2 px mavi çerçeveli karelerdir ve görsel katman varsayılan olarak kapalıdır. TM risk hesabında kalır; yalnız yangına en fazla 5 km uzaklıktaki TM ek risk vurgusu alır. Öncelik tablosu ve ilk beş analiz kartı daima en yakın hattı gösterir, TM'ye görsel fallback yapmaz.
 
 ## Ham veri ve preprocessing
 

@@ -799,7 +799,7 @@ test('v3.4.3 — substation squares uniform: same size, black fill, blue border,
   assert.equal(mapTxt.includes('width:${size}px'), false, 'no dynamic size template');
   assert.equal(mapTxt.includes('tmIcon'), false, 'legacy tmIcon class removed from map.js');
   assert.equal(cssTxt.includes('.tmIcon'), false, 'legacy tmIcon CSS removed');
-  assert.ok(cssTxt.includes('.substationSquare.substation-risk{width:10px;height:10px;background:#000;border:2px solid #2f80ff}'), 'uniform 10px black-fill blue-border risk square CSS');
+  assert.ok(cssTxt.includes('.substationSquare.substation-risk{width:7px;height:7px;background:#000;border:2px solid #2f80ff}'), 'uniform 7px black-fill blue-border risk square CSS');
   assert.equal(cssTxt.includes('.substation-risk-critical'), false, 'risk-critical CSS removed');
   assert.equal(cssTxt.includes('.substation-risk-low'), false, 'risk-low CSS removed');
 });
@@ -1186,20 +1186,22 @@ test('v3.6.2 — mobile header, production layers and wind arrow follow the hotf
   assert.ok(windVector.includes('Rüzgâr yönü:') && windVector.includes('Hız:') && windVector.includes('Model zamanı:'), 'wind tooltip has direction, speed and model time');
   assert.ok(htmlTxt.includes('data-grid="400" type="checkbox" checked'), '400 kV grid default on');
   assert.ok(htmlTxt.includes('data-grid="154" type="checkbox" checked'), '154 kV grid default on');
-  assert.ok(htmlTxt.includes('data-grid="substations" type="checkbox" checked'), 'TM default on');
+  assert.ok(htmlTxt.includes('data-grid="substations" type="checkbox"/>'), 'TM default off');
+  assert.equal(htmlTxt.includes('data-grid="substations" type="checkbox" checked'), false, 'TM cannot default on');
   assert.ok(htmlTxt.includes('id="layerFireGridImpact" type="checkbox" checked'), 'risk markers default on');
   assert.ok(htmlTxt.includes('id="layerThermalEnvelope" type="checkbox" checked'), 'thermal envelope default on');
   assert.ok(htmlTxt.includes('id="layerEffisBurntArea" type="checkbox" checked'), 'EFFIS default on');
 });
 
-test('v3.5.0 — all TM icons share the 10px black/blue square contract', () => {
+test('TM icons are 30% smaller and share the 7px black/blue square contract', () => {
   const icons = mapTxt.slice(mapTxt.indexOf('substationIcon(){'), mapTxt.indexOf('setGridGroup'));
   assert.ok(icons.includes('<span class="substationSquare"></span>'), 'grid-layer substation uses the base square');
   assert.equal(icons.includes('substationIcon(){return L.divIcon({className:\'substationIconWrap\',html:\'<span class="substationSquare substation-risk"></span>\''), false, 'grid icon no longer risk-styled');
   assert.ok(icons.includes('substationSquare substation-risk'), 'risk factory keeps blue-border square');
-  assert.ok(icons.includes('iconSize:[10,10],iconAnchor:[5,5]'), 'normal and risk factories use 10px geometry');
-  assert.ok(cssTxt.includes('.substationSquare{display:block;width:10px;height:10px;background:#000;border:2px solid #2f80ff;box-sizing:border-box}'), 'base square is 10px, black fill, 2px blue border');
-  assert.ok(cssTxt.includes('.substationSquare.substation-risk{width:10px;height:10px;background:#000;border:2px solid #2f80ff}'), 'risk square CSS kept');
+  assert.ok(icons.includes('iconSize:[7,7],iconAnchor:[3.5,3.5]'), 'normal and risk factories use 7px geometry');
+  assert.equal(icons.includes('iconSize:[10,10],iconAnchor:[5,5]'), false, 'old 10px geometry removed');
+  assert.ok(cssTxt.includes('.substationSquare{display:block;width:7px;height:7px;background:#000;border:2px solid #2f80ff;box-sizing:border-box}'), 'base square is 7px, black fill, 2px blue border');
+  assert.ok(cssTxt.includes('.substationSquare.substation-risk{width:7px;height:7px;background:#000;border:2px solid #2f80ff}'), 'risk square CSS kept at 7px');
   assert.equal(icons.includes('background:#0a2531'), false, 'sector icon no legacy dark fill');
   assert.equal(icons.includes('#7be6ff'), false, 'no inline hex colors in icon factories (CSS only)');
 });
