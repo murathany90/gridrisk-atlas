@@ -466,6 +466,49 @@ test("no old product or old Pages base path remains in production files", () => 
   }
 });
 
+test("mobile quick layer menu contract (FAB, 2x2 popover, checkbox sync)", () => {
+  const targets = ["layerMtg", "layerFrpHeat", "layerSmoke", "layerGridMaster"];
+  assert.ok(html.includes('id="quickLayersFab"'));
+  assert.ok(html.includes('id="quickLayersPopover"'));
+  assert.ok(html.includes('id="quickLayersAll"'));
+  const btns = [
+    ...html.matchAll(
+      /class="quickLayerBtn"[\s\S]*?data-quick-layer="([^"]+)"/g,
+    ),
+  ].map((m) => m[1]);
+  assert.deepEqual(btns, targets);
+  for (const id of targets) {
+    assert.ok(html.includes(`<input id="${id}"`), id + " checkbox");
+    assert.equal(
+      (html.match(new RegExp(`id="${id}"`, "g")) || []).length,
+      1,
+      id + " unique",
+    );
+  }
+  for (const key of [
+    "quickLayers.fabLabel",
+    "quickLayers.fabAria",
+    "quickLayers.satellite",
+    "quickLayers.heat",
+    "quickLayers.smoke",
+    "quickLayers.grid",
+    "quickLayers.all",
+  ])
+    assert.ok(key in A.LOCALES.tr && key in A.LOCALES.en, key);
+  assert.match(source.ui, /dispatchEvent\(new Event\("change", \{ bubbles: true \}\)/);
+  assert.match(source.ui, /aria-pressed/);
+  assert.match(source.ui, /closeQuickLayers\(\)/);
+  assert.match(source.ui, /popstate/);
+  assert.match(source.ui, /Escape/);
+  assert.match(source.ui, /pointerdown/);
+  assert.match(source.ui, /syncQuickLayers\(\)/);
+  assert.match(css, /\.quickLayersFab/);
+  assert.match(css, /max-width: 190px/);
+  assert.match(css, /min-height: 44px/);
+  assert.match(css, /min-width: 48px/);
+  assert.match(css, /max-width: 760px/);
+});
+
 test("all local production asset references resolve", () => {
   const refs = [
     ...html.matchAll(/(?:src|href)="((?!https?:|#)[^"?]+)(?:\?[^"#]*)?"/g),
