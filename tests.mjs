@@ -526,6 +526,89 @@ test("mobile quick layer menu contract (FAB, 2x2 popover, checkbox sync)", () =>
   assert.match(css, /max-width: 760px/);
 });
 
+test("nearby FIRMS contract (10 km radius, FRP >= 1 list filter)", () => {
+  assert.equal(A.CONFIG.NEARBY_FIRMS_RADIUS_KM, 10);
+  assert.match(source.app, /x\.distance <= C\.NEARBY_FIRMS_RADIUS_KM/);
+  assert.ok(!/x\.distance <= 100/.test(source.app));
+  assert.match(source.ui, /Number\(item\.fire\?\.frp\) >= 1/);
+  assert.equal(A.LOCALES.tr["detail.nearbyFirms"].includes("10 km"), true);
+  assert.equal(A.LOCALES.en["detail.nearbyFirms"].includes("10 km"), true);
+  assert.equal(A.LOCALES.tr["detail.nearbyFirms"].includes("100 km"), false);
+  assert.equal(A.LOCALES.en["detail.nearbyFirms"].includes("100 km"), false);
+  assert.equal(A.LOCALES.tr["detail.nearbyCount"], "10 km FIRMS");
+  assert.equal(A.LOCALES.en["detail.nearbyCount"], "10 km FIRMS");
+  assert.ok("detail.nearbyEmpty" in A.LOCALES.tr && "detail.nearbyEmpty" in A.LOCALES.en);
+});
+
+test("sparkline series selection (48h window, FRP >= 5, max 24, peak kept)", () => {
+  const end = Date.UTC(2026, 7, 3, 12, 0, 0);
+  const mk = (id, h, frp) => ({
+    id,
+    detectedAt: new Date(end - h * 3600e3).toISOString(),
+    frp,
+  });
+  const dets = [
+    mk("below", 47, 4.9),
+    mk("edge", 46, 5.0),
+    mk("old", 49, 50),
+    mk("future", -1, 30),
+    mk("e", 24, 20),
+    mk("f", 12, 40),
+    mk("g", 1, 25),
+  ];
+  const out = A.Utils.sparklinePoints(dets, { endMs: end });
+  assert.deepEqual(
+    out.map((x) => x.id),
+    ["edge", "e", "f", "g"],
+  );
+  const many = [];
+  for (let i = 0; i < 100; i++) many.push(mk(`d${i}`, i * 0.4, 5 + (i % 7)));
+  const maxP = many.reduce((best, x) => (Number(x.frp) > Number(best.frp) ? x : best), many[0]);
+  const down = A.Utils.sparklinePoints(many, { endMs: end });
+  assert.ok(down.length <= 24, "downsampled to <= 24");
+  assert.ok(down.length > 0);
+  assert.ok(down.some((x) => x.id === maxP.id), "global max point kept");
+  const ts = down.map((x) => Date.parse(x.detectedAt));
+  assert.deepEqual(ts, [...ts].sort((a, b) => a - b), "chronological order");
+  const zero = A.Utils.sparklinePoints([], { endMs: end });
+  assert.equal(zero.length, 0);
+});
+
+test("fire tooltip sparkline contract (inline SVG, cache, escape)", () => {
+  assert.match(source.map, /fireSparklineData\(ev, reference\)/);
+  assert.match(source.map, /_sparkCache/);
+  assert.match(source.map, /_sparkCache\.clear\(\)/);
+  assert.match(source.map, /NEARBY_FIRMS_RADIUS_KM/);
+  assert.match(source.map, /minFrp: 5/);
+  assert.match(source.map, /maxPoints: 24/);
+  assert.match(source.map, /width="\$\{W\}"/);
+  assert.match(source.map, /height="\$\{H\}"/);
+  assert.match(source.map, /aria-label="\$\{U\.escapeHtml\(T\("sparkline\.aria"\)\)\}/);
+  assert.match(source.map, /T\("sparkline\.peak"/);
+  assert.match(source.map, /T\("sparkline\.empty"\)/);
+  assert.match(source.map, /spark\.points\.length > 1/);
+  assert.match(source.map, /formatShortDateTime/);
+  assert.match(source.utils, /sparklinePoints\(detections,opts=\{}\)\{/);
+  for (const key of ["sparkline.title", "sparkline.peak", "sparkline.empty", "sparkline.from", "sparkline.now", "sparkline.aria"])
+    assert.ok(key in A.LOCALES.tr && key in A.LOCALES.en, key);
+  assert.equal(A.LOCALES.tr["sparkline.title"], "Son 48 saat FRP");
+  assert.equal(A.LOCALES.en["sparkline.title"], "FRP — last 48 hours");
+});
+
+test("mobile quick layer ARIA contract (controls, group label, warning labels)", () => {
+  assert.match(html, /aria-controls="quickLayersPopover"/);
+  assert.equal(html.includes('aria-haspopup="menu"'), false);
+  assert.match(html, /data-i18n-aria-label="quickLayers\.groupAria"/);
+  assert.match(html, /id="quickLayersPopover"[\s\S]*?role="group"/);
+  assert.match(source.ui, /const warningStates = new Set\(\["error", "warn", "stale", "partial"\]\)/);
+  assert.match(source.ui, /aria-label", aria/);
+  assert.match(source.ui, /T\("quickLayers\.loading"\)/);
+  assert.match(source.ui, /T\("quickLayers\.warning"\)/);
+  assert.ok("quickLayers.groupAria" in A.LOCALES.tr && "quickLayers.groupAria" in A.LOCALES.en);
+  assert.ok("quickLayers.loading" in A.LOCALES.tr && "quickLayers.loading" in A.LOCALES.en);
+  assert.ok("quickLayers.warning" in A.LOCALES.tr && "quickLayers.warning" in A.LOCALES.en);
+});
+
 test("all local production asset references resolve", () => {
   const refs = [
     ...html.matchAll(/(?:src|href)="((?!https?:|#)[^"?]+)(?:\?[^"#]*)?"/g),

@@ -756,7 +756,7 @@
                 { lat: f.lat, lon: f.lon },
               ),
             }))
-            .filter((x) => x.distance <= 100)
+            .filter((x) => x.distance <= C.NEARBY_FIRMS_RADIUS_KM)
             .sort((a, b) => a.distance - b.distance),
           nearest = this.grid.nearest({ lat: p.lat, lon: p.lon }, 50),
           ah = U.areaHistory(
