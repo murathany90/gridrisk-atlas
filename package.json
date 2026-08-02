@@ -2,7 +2,7 @@
   "name": "gridrisk-atlas",
   "version": "3.7.0",
   "description": "Satellite Wildfire & Grid Risk Intelligence for Türkiye, Spain, France, Portugal and Italy.",
-  "homepage": "https://murathany90.github.io/gridrisk-atlas/",
+  "homepage": "https://gridriskatlas.com/",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/murathany90/gridrisk-atlas.git"
