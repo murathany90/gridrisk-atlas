@@ -1,4 +1,4 @@
-# Geliştirme Kaydı — Wildfire Grid Risk Monitor
+# Geliştirme Kaydı — GridMoni
 
 # v3.5.0 — Türkiye, İspanya ve Fransa Çok Ülkeli Mimari
 

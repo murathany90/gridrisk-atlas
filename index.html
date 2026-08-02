@@ -4,18 +4,24 @@
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
   <meta name="color-scheme" content="dark" />
-  <meta name="description" content="Wildfire and electricity grid risk monitoring for Türkiye, Spain and France." />
-  <title>Wildfire Grid Risk Monitor</title>
+  <meta name="description" content="GridMoni provides wildfire intelligence and power grid risk monitoring for Türkiye, Spain, France, Portugal and Italy." />
+  <meta name="theme-color" content="#09151f" />
+  <title>GridMoni</title>
+  <link rel="icon" type="image/png" sizes="16x16" href="assets/icons/gridmoni-16.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="assets/icons/gridmoni-32.png" />
+  <link rel="icon" type="image/png" sizes="48x48" href="assets/icons/gridmoni-48.png" />
+  <link rel="apple-touch-icon" sizes="192x192" href="assets/icons/gridmoni-192.png" />
+  <link rel="manifest" href="manifest.webmanifest" />
   <link rel="preconnect" href="https://unpkg.com" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="css/styles.css?v=3.6.0&amp;r=ptit" />
+  <link rel="stylesheet" href="css/styles.css?v=3.6.1&amp;r=branding" />
 </head>
 <body>
 <div id="appShell">
   <header class="topbar">
-    <div class="brandBlock"><div class="brandIcon">🔥</div><div class="brandText"><h1>Wildfire Grid Risk Monitor</h1><div class="subtitle">Wildfire and Electricity Grid Risk Monitoring Platform</div></div></div>
+    <div class="brandBlock"><img class="brandIcon" src="assets/icons/gridmoni.png" width="38" height="38" alt="" aria-hidden="true" /><div class="brandText"><h1>GridMoni</h1><div class="subtitle">Wildfire Intelligence for Power Grids</div></div></div>
     <label class="countryControl" for="countrySelector"><span>Ülke:</span><select id="countrySelector" aria-label="Ülke seçin"><option value="TR">Türkiye</option><option value="ES">İspanya</option><option value="FR">Fransa</option><option value="PT">Portekiz</option><option value="IT">İtalya</option></select></label>
-    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span id="domainPill" class="domainPill">VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.6.0</span><span id="lastUpdated">Son güncelleme: —</span></div>
+    <div class="topMeta"><span class="livePill"><span class="liveDot"></span> GERÇEK VERİ</span><span id="domainPill" class="domainPill">VERİ: Türkiye</span><span id="runtimeMode" class="modePill">SUNUCU MODU</span><span class="buildPill">v3.6.1</span><span id="lastUpdated">Son güncelleme: —</span></div>
   </header>
 
   <nav class="mainNav">
@@ -147,7 +153,7 @@
           <div class="metric"><small>PM10</small><strong>Particulate Matter &lt;10 µm</strong><small>Çapı 10 mikrometreden küçük partikül madde. Yangın dumanının ana bileşenidir. Solunum yoluyla akciğerlere ulaşır. Yüksek konsantrasyonlar sağlık riski oluşturur.</small></div>
           <div class="metric"><small>Open-Meteo</small><strong>Açık kaynak hava durumu API'si</strong><small>CAMS ve ECMWF verilerine ücretsiz erişim sağlayan API. Bu uygulama CAMS wildfire PM10 ve Open-Meteo rüzgâr/meteoroloji verilerini bu servis üzerinden alır.</small></div>
           <div class="metric"><small>EFFIS / FWI</small><strong>European Forest Fire Information System / Fire Weather Index</strong><small>Copernicus Acil Durum Yönetimi Servisi tarafından sağlanan yangın hava durumu indeksi. Sıcaklık, nem, rüzgâr ve yağış verilerini birleştirerek yangın tehlikesini gösterir.</small></div>
-          <div class="metric"><small>OSM Power Grid</small><strong>OpenStreetMap İletim Şebekesi</strong><small>Türkiye, İspanya ve Fransa için 50–550 kV gerçek OSM gerilimleri iki ortak risk sınıfına normalize edilir. Kaynak ODbL 1.0 lisanslıdır.</small></div>
+          <div class="metric"><small>OSM Power Grid</small><strong>OpenStreetMap İletim Şebekesi</strong><small>Türkiye, İspanya, Fransa, Portekiz ve İtalya için 50–550 kV gerçek OSM gerilimleri iki ortak risk sınıfına normalize edilir. Kaynak ODbL 1.0 lisanslıdır.</small></div>
           <div class="metric"><small>TM</small><strong>Trafo Merkezi (Substation)</strong><small>Elektrik iletim sisteminde gerilim seviyelerinin değiştirildiği, anahtarlama ve dağıtım yapılan tesis. Yüksek gerilim hatlarının birleşim/ayrışım noktalarıdır. Şebeke açısından kritik öneme sahiptir.</small></div>
           <div class="metric"><small>Hotspot</small><strong>FIRMS Termal Anomali Tespiti</strong><small>Uydu görüntülerinde çevresine göre anormal derecede sıcak piksel. Yangın perimetresi değildir. Bulut örtüsü, yoğun duman veya gece geçişlerinde tespit edilemeyebilir.</small></div>
           <div class="metric"><small>Küme / Cluster</small><strong>5 km / 6 saat uzamsal-zamansal kümeleme</strong><small>Birden çok FIRMS tespitinin aynı yangın olayına ait olacak şekilde gruplanması. 5 km yarıçap ve 6 saatlik zaman penceresi kullanılır. FRP ağırlıklı merkez hesaplanır.</small></div>
@@ -179,7 +185,7 @@
           <div class="metric"><small>Open-Meteo Weather</small><strong>open-meteo.com</strong><small>ECMWF tabanlı hava tahmini. Rüzgâr (10m/850/700 hPa), sıcaklık, nem. Ücretsiz API.</small></div>
           <div class="metric"><small>Copernicus EFFIS</small><strong>effis.emergency.copernicus.eu</strong><small>Fire Weather Index WMS katmanı ve NRT yanmış alan poligonu. Avrupa çapında yangın tehlike haritası. Resmî WMS servisi.</small></div>
           <div class="metric"><small>OpenStreetMap</small><strong>openstreetmap.org</strong><small>Gönüllü haritalama topluluğu. Power grid verisi (power=line, power=substation). ODbL 1.0 lisansı.</small></div>
-          <div class="metric"><small>Katkıda Bulunanlar</small><strong>OpenStreetMap topluluğu</strong><small>Türkiye, İspanya ve Fransa şebeke verisinin haritalanmasına katkıda bulunan tüm OSM gönüllülerine teşekkürler.</small></div>
+          <div class="metric"><small>Katkıda Bulunanlar</small><strong>OpenStreetMap topluluğu</strong><small>Beş ülkenin şebeke verisinin haritalanmasına katkıda bulunan tüm OpenStreetMap gönüllülerine teşekkürler.</small></div>
         </div></article>
       </div>
     </section>
@@ -209,14 +215,14 @@
   });
 })();
 </script>
-<script src="js/config.js?v=3.6.0"></script>
-<script src="js/utils.js?v=3.6.0"></script>
-<script src="js/countries.js?v=3.6.0"></script>
-<script src="js/api.js?v=3.6.0"></script>
-<script src="js/grid.js?v=3.6.0"></script>
-<script src="js/map.js?v=3.6.0"></script>
-<script src="js/export.js?v=3.6.0"></script>
-<script src="js/ui.js?v=3.6.0"></script>
-<script src="js/app.js?v=3.6.0"></script>
+<script src="js/config.js?v=3.6.1"></script>
+<script src="js/utils.js?v=3.6.1"></script>
+<script src="js/countries.js?v=3.6.1"></script>
+<script src="js/api.js?v=3.6.1"></script>
+<script src="js/grid.js?v=3.6.1"></script>
+<script src="js/map.js?v=3.6.1"></script>
+<script src="js/export.js?v=3.6.1"></script>
+<script src="js/ui.js?v=3.6.1"></script>
+<script src="js/app.js?v=3.6.1"></script>
 </body>
 </html>

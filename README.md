@@ -1,8 +1,12 @@
-# Wildfire Grid Risk Monitor
+# GridMoni
 
-> Sürüm: **v3.6.0** · Canlı: <https://murathany90.github.io/tr_wildfire/> · Arayüz dili: **Türkçe**
+**Wildfire Intelligence for Power Grids**
 
-Wildfire Grid Risk Monitor; Türkiye, İspanya, Fransa, Portekiz ve İtalya için aktif orman yangınları ile elektrik iletim şebekesi yakınlığını aynı operasyonel ekranda inceleyen statik bir web uygulamasıdır. Genel uygulama adı İngilizcedir; kullanıcı arayüzü bu sürümde yalnız Türkçedir.
+> Sürüm: **v3.6.1** · Canlı: <https://murathany90.github.io/tr_wildfire/> · Arayüz dili: **Türkçe**
+
+GridMoni provides wildfire intelligence and power grid risk monitoring for Türkiye, Spain, France, Portugal and Italy.
+
+GridMoni; Türkiye, İspanya, Fransa, Portekiz ve İtalya için aktif orman yangınları ile elektrik iletim şebekesi yakınlığını aynı operasyonel ekranda inceleyen statik bir web uygulamasıdır. Kullanıcı arayüzü bu sürümde yalnız Türkçedir.
 
 ## Ülke kapsamı
 

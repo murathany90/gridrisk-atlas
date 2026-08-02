@@ -41,7 +41,7 @@ SOURCE_PROVIDER = "OpenStreetMap via ArcGIS OSM Europe"
 SOURCE_PROVIDER_SHORT = "ArcGIS OSM Europe"
 ATTRIBUTION = "© OpenStreetMap contributors"
 LICENSE = "ODbL 1.0"
-USER_AGENT = "Wildfire-Grid-Risk-Monitor/3.6.0 (+https://github.com/murathany90/tr_wildfire)"
+USER_AGENT = "GridMoni/3.6.1 (+https://github.com/murathany90/tr_wildfire)"
 OUT_FIELDS = (
     "OBJECTID,osm_id,osm_id2,osm_version,osm_timestamp,power,voltage,name,ref,"
     "operator,frequency,cables,wires,line,substation,location"
@@ -864,7 +864,7 @@ def run_download(args: argparse.Namespace, country: str, coverage: str) -> dict[
     collection = {
         "type": "FeatureCollection",
         "metadata": {
-            "app": "Wildfire Grid Risk Monitor",
+            "app": "GridMoni",
             "downloadedAt": downloaded_at,
             "exportedAt": downloaded_at,
             "source": SOURCE_PROVIDER,
