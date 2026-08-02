@@ -97,6 +97,13 @@
     "layers.riskHint":
       "Operational screening only; not an outage probability or smoke trajectory.",
     "layers.mobileTitle": "Layer Controls",
+    "quickLayers.fabLabel": "Katmanlar / Layers",
+    "quickLayers.fabAria": "Toggle quick layer menu",
+    "quickLayers.satellite": "Satellite",
+    "quickLayers.heat": "Heat",
+    "quickLayers.smoke": "Smoke",
+    "quickLayers.grid": "Grid",
+    "quickLayers.all": "All Layers",
     "timeline.playAria": "Play timeline",
     "timeline.pauseAria": "Pause timeline",
     "timeline.back": "−3 h",

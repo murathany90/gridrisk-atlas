@@ -97,6 +97,13 @@
     "layers.riskHint":
       "Operasyonel ön-elemedir; arıza olasılığı veya duman yörüngesi değildir.",
     "layers.mobileTitle": "Katman Kontrolleri",
+    "quickLayers.fabLabel": "Katmanlar / Layers",
+    "quickLayers.fabAria": "Hızlı katman menüsünü aç/kapat",
+    "quickLayers.satellite": "Uydu",
+    "quickLayers.heat": "Isı",
+    "quickLayers.smoke": "Duman",
+    "quickLayers.grid": "Şebeke",
+    "quickLayers.all": "Tüm Katmanlar",
     "timeline.playAria": "Zaman akışını oynat",
     "timeline.pauseAria": "Zaman akışını duraklat",
     "timeline.back": "−3 sa",

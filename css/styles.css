@@ -2283,3 +2283,110 @@ main {
     max-height: 48dvh;
   }
 }
+
+/* v3.7.0 mobile quick layer menu (FAB + popover) — desktop hidden */
+.quickLayersFab {
+  display: none;
+}
+@media (max-width: 760px), (max-height: 500px) and (orientation: landscape) {
+  .quickLayersFab {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    z-index: 700;
+    min-width: 48px;
+    min-height: 48px;
+    padding: 5px 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 9px;
+    line-height: 1.25;
+    color: var(--text);
+    background: #09151fdd;
+    border: 1px solid #2b4154;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .quickLayersFab:active {
+    background: #132536;
+  }
+  .quickLayersPopover {
+    position: absolute;
+    top: 68px;
+    right: 12px;
+    z-index: 700;
+    width: min(190px, calc(100vw - 24px));
+    max-width: 190px;
+    padding: 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    background: #0b1722f0;
+    backdrop-filter: blur(8px);
+    border: 1px solid #263b4d;
+    border-radius: 10px;
+    box-shadow: var(--shadow);
+  }
+  .quickLayersGrid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .quickLayerBtn {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 44px;
+    padding: 6px 8px;
+    font-size: 11px;
+    color: #b9c8d4;
+    background: #0d1924;
+    border: 1px solid #1f3244;
+    border-radius: 8px;
+    cursor: pointer;
+    text-align: left;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .quickLayerBtn.active {
+    color: #cfe7f7;
+    background: #122a3d;
+    border-color: #2f80ff;
+  }
+  .qlDot {
+    width: 10px;
+    height: 10px;
+    flex: none;
+    border-radius: 50%;
+    background: #3a4c5c;
+    border: 1px solid #4c6275;
+  }
+  .quickLayerBtn.active .qlDot {
+    background: #2f80ff;
+    border-color: #7fb3ff;
+    box-shadow: 0 0 6px #2f80ffaa;
+  }
+  .quickLayerBtn.loading .qlDot {
+    background: transparent;
+    border: 2px solid #2f80ff55;
+    border-top-color: #2f80ff;
+    animation: qlSpin 0.8s linear infinite;
+  }
+  @keyframes qlSpin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  #quickLayersAll {
+    display: block;
+    padding: 8px 6px;
+    text-align: center;
+    font-size: 10px;
+    color: #cfe7f7;
+    text-decoration: none;
+    border-top: 1px solid #1f3244;
+  }
+}

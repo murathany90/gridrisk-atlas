@@ -111,6 +111,7 @@
       document
         .getElementById("analysisClose")
         ?.addEventListener("click", () => this.setAnalysisOpen(false));
+      this.initQuickLayers();
       const requiredUniqueIds = [
         "analysisToggle",
         "analysisSummaryPanel",
@@ -122,7 +123,10 @@
         if (nodes.length !== 1)
           console.error(`DOM contract violation: #${id} count=${nodes.length}`);
       }
-      A.Events.on("service", (s) => this.updateService(s));
+      A.Events.on("service", (s) => {
+        this.updateService(s);
+        this.syncQuickLayers();
+      });
       A.Events.on("mtgFrame", (x) => this.updateMtgTimeBadge(x));
       A.Events.on("firesRendered", (x) => {
         document.getElementById("kpiFireEvents").textContent = I.formatNumber(
@@ -213,6 +217,7 @@
       this.renderServices();
     }
     showView(view) {
+      this.closeQuickLayers();
       document
         .querySelectorAll(".view")
         .forEach((v) => v.classList.toggle("active", v.id === `view-${view}`));
@@ -227,6 +232,84 @@
         "(max-width:760px), (max-height:500px) and (orientation:landscape)",
       ).matches;
     }
+    initQuickLayers() {
+      const fab = document.getElementById("quickLayersFab"),
+        pop = document.getElementById("quickLayersPopover");
+      if (!fab || !pop) return;
+      fab.addEventListener("click", () => this.toggleQuickLayers());
+      pop.querySelectorAll(".quickLayerBtn").forEach((btn) =>
+        btn.addEventListener("click", () =>
+          this.toggleQuickLayer(btn.dataset.quickLayer),
+        ),
+      );
+      document.getElementById("quickLayersAll")?.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.closeQuickLayers();
+        this.showView("settings");
+        setTimeout(
+          () =>
+            document
+              .getElementById("mobileLayerSettings")
+              ?.scrollIntoView({ behavior: "smooth", block: "start" }),
+          60,
+        );
+      });
+      document.addEventListener("pointerdown", (e) => {
+        if (pop.classList.contains("hidden")) return;
+        if (!pop.contains(e.target) && !fab.contains(e.target))
+          this.closeQuickLayers();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") this.closeQuickLayers();
+      });
+      window.addEventListener("popstate", () => this.closeQuickLayers());
+      document
+        .getElementById("countrySelector")
+        ?.addEventListener("change", () => this.closeQuickLayers());
+      document.addEventListener("change", (e) => {
+        if (
+          ["layerMtg", "layerFrpHeat", "layerSmoke", "layerGridMaster"].includes(
+            e.target.id,
+          )
+        )
+          this.syncQuickLayers();
+      });
+      this.syncQuickLayers();
+    }
+    toggleQuickLayers() {
+      const pop = document.getElementById("quickLayersPopover"),
+        open = pop?.classList.contains("hidden") ?? false;
+      pop.classList.toggle("hidden", !open);
+      document
+        .getElementById("quickLayersFab")
+        ?.setAttribute("aria-expanded", String(open));
+    }
+    closeQuickLayers() {
+      const pop = document.getElementById("quickLayersPopover");
+      if (!pop || pop.classList.contains("hidden")) return;
+      pop.classList.add("hidden");
+      document.getElementById("quickLayersFab")?.setAttribute("aria-expanded", "false");
+    }
+    toggleQuickLayer(id) {
+      const input = document.getElementById(id);
+      if (!input) return;
+      input.checked = !input.checked;
+      input.dispatchEvent(new Event("change", { bubbles: true }));
+    }
+    syncQuickLayers() {
+      const loading = {
+        layerMtg: this.services.mtg?.state === "loading",
+        layerSmoke: this.services.air?.state === "loading",
+      };
+      for (const btn of document.querySelectorAll(".quickLayerBtn")) {
+        const input = document.getElementById(btn.dataset.quickLayer);
+        if (!input) continue;
+        const active = input.checked;
+        btn.classList.toggle("active", active);
+        btn.setAttribute("aria-pressed", String(active));
+        btn.classList.toggle("loading", active && Boolean(loading[btn.dataset.quickLayer]));
+      }
+    }
     syncLayerPanelPlacement() {
       const panel = document.querySelector(".layerPanel"),
         body = document.getElementById("layerPanelBody"),
@@ -240,6 +323,7 @@
     }
     applyLanguage() {
       I.applyDocument();
+      this.syncQuickLayers();
       const country = A.activeCountry?.(),
         code = country?.code || C.activeCountryCode || "TR";
       for (const option of document.querySelectorAll("#countrySelector option"))
@@ -388,6 +472,7 @@
       } else windEl.textContent = "—";
     }
     openDetail(title, html) {
+      this.closeQuickLayers();
       this.pendingDetail = { title, html };
       document.getElementById("detailTitle").textContent = title;
       document.getElementById("detailContent").innerHTML = html;
@@ -404,6 +489,7 @@
       this.openFullDetail();
     }
     openFullDetail() {
+      this.closeQuickLayers();
       const panel = document.getElementById("detailPanel");
       document.getElementById("detailTitle").textContent =
         this.pendingDetail.title;
