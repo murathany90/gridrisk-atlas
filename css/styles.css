@@ -2284,11 +2284,46 @@ main {
   }
 }
 
-/* v3.7.0 mobile quick layer menu (FAB + popover) — desktop hidden */
-.fireSparkline {
-  display: block;
-  margin: 4px auto 2px;
+/* v3.7.0 fire event popup (48h FRP mini chart) */
+.fire-event-popup {
+  width: 250px;
+  max-width: calc(100vw - 28px);
+  max-height: 230px;
+  overflow-y: auto;
+  white-space: normal;
+  font-size: 12px;
+  line-height: 1.45;
 }
+.fire-frp-chart {
+  position: relative;
+  width: 100%;
+  height: 58px;
+  margin: 6px 0 8px;
+}
+.fire-frp-bars {
+  display: block;
+  width: 100%;
+  height: 40px;
+  margin-top: 18px;
+}
+.fire-frp-peak {
+  position: absolute;
+  top: 0;
+  right: 0;
+  font-size: 12px;
+  font-weight: 700;
+  color: #b33a12;
+}
+.fire-popup-metrics {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  margin-top: 4px;
+}
+.fire-popup-metrics .fire-popup-full {
+  grid-column: 1 / -1;
+}
+/* v3.7.0 mobile quick layer menu (FAB + popover) — desktop hidden */
 .quickLayersFab {
   display: none;
 }

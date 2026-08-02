@@ -100,7 +100,6 @@
       const maxPoints=Number.isFinite(Number(opts.maxPoints))?Math.max(1,Math.floor(Number(opts.maxPoints))):24;
       const windowMs=48*3600e3,start=endMs-windowMs;
       const pts=(detections||[]).filter(f=>f&&Number.isFinite(Date.parse(f.detectedAt))&&Number.isFinite(Number(f.frp))&&Number(f.frp)>=minFrp).map(f=>({f,t:Date.parse(f.detectedAt)})).filter(x=>x.t>=start&&x.t<=endMs).sort((a,b)=>a.t-b.t);
-      if(pts.length<=maxPoints)return pts.map(x=>x.f);
       const buckets=new Array(maxPoints).fill(null);
       for(const x of pts){
         const idx=Math.min(maxPoints-1,Math.floor(((x.t-start)/windowMs)*maxPoints));

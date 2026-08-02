@@ -488,8 +488,7 @@
         reference = U.timeReference(
           this.currentSelectedTime,
           slider ? Number(slider.value) : 0,
-        ),
-        radius = C.fireClustering.radiusKm;
+        );
       if (this.zoom() < 9) {
         for (const ev of this.fireEventsVisible) {
           const count = ev.count,
@@ -514,13 +513,15 @@
           m.bindTooltip(
             this.firesEventTooltip(
               ev,
-              U.areaHistory(this.fireAll, ev, radius),
+              U.areaHistory(this.fireAll, ev, C.NEARBY_FIRMS_RADIUS_KM),
               reference,
             ),
+            { className: "fire-event-popup" },
           );
           if (this.zoom() < 7 && count > 1)
             m.bindTooltip(
               m.getTooltip().getContent() + `<br><strong>● ${count}</strong>`,
+              { className: "fire-event-popup" },
             );
           m.on("click", (e) => {
             L.DomEvent.stopPropagation(e);
@@ -560,7 +561,7 @@
           m.bindTooltip(
             this.firesDetectionTooltip(
               f,
-              U.areaHistory(this.fireAll, f, radius),
+              U.areaHistory(this.fireAll, f, C.NEARBY_FIRMS_RADIUS_KM),
               reference,
             ),
           );
@@ -1304,44 +1305,34 @@
     }
     firesEventTooltip(ev, history, reference) {
       const out = [
-        `<strong>${T("map.eventCluster")}</strong>`,
-        T("summary.detections", { count: I.formatNumber(ev.count) }),
-        `${T("analysis.maxFrp")}: ${I.formatNumber(U.round(ev.maxFrp, 1))} MW`,
+        `<strong>${T("map.eventCluster")}</strong> — ${T("summary.detections", { count: I.formatNumber(ev.count) })}`,
+        T("sparkline.title"),
       ];
       const spark = this.fireSparklineData(ev, reference);
-      if (spark) {
-        out.push(T("sparkline.title"));
-        out.push(this.fireSparklineSvg(spark));
-        out.push(
-          T("sparkline.peak", {
-            value: I.formatNumber(U.round(spark.peakFrp, 1)),
-          }),
-        );
-        out.push(U.escapeHtml(spark.peakTime));
-      } else {
-        out.push(T("sparkline.title"));
-        out.push(T("sparkline.empty"));
-      }
+      if (spark) out.push(this.fireFrpChart(spark));
+      else out.push(T("sparkline.empty"));
       const h =
         history && history.records
           ? history
           : { count: 0, first: null, last: null, window48: false };
+      const rows = [];
+      if (spark)
+        rows.push(`<span>${T("map.peakTime")}</span><span>${U.escapeHtml(spark.peakTime)}</span>`);
       if (h.count === 1) {
-        out.push(T("map.singleDetection"));
+        rows.push(`<span class="fire-popup-full">${T("map.singleDetection")}</span>`);
       } else {
         const first = h.first
           ? U.formatTrShortDateTime(new Date(h.first))
           : null;
         const last = h.last ? U.formatTrShortDateTime(new Date(h.last)) : null;
         if (first)
-          out.push(
-            `${T(h.window48 ? "detail.first48" : "detail.first")}: ${first}`,
-          );
-        if (last) out.push(`${T("detail.last")}: ${last}`);
+          rows.push(`<span>${T(h.window48 ? "detail.first48" : "detail.first")}</span><span>${first}</span>`);
+        if (last) rows.push(`<span>${T("detail.last")}</span><span>${last}</span>`);
       }
       const age = U.formatAgeSince(h.last || ev.latestDetectedAt, reference);
-      if (age) out.push(T("map.lastAge", { age }));
-      if (h.count > 1) out.push(T("map.areaCount", { count: I.formatNumber(h.count) }));
+      if (age)
+        rows.push(`<span>${T("map.lastAgeLabel")}</span><span>${U.escapeHtml(age)}</span>`);
+      if (rows.length) out.push(`<div class="fire-popup-metrics">${rows.join("")}</div>`);
       return out.join("<br>");
     }
     fireSparklineData(ev, reference) {
@@ -1352,15 +1343,12 @@
         key = `${ev.id}|${endMs}`,
         cached = this._sparkCache.get(key);
       if (cached !== undefined) return cached;
-      const members = ev.members || [],
-        source = members.length
-          ? members
-          : this.fireAll.filter(
-              (f) =>
-                U.haversineKm({ lat: ev.lat, lon: ev.lon }, f) <=
-                C.NEARBY_FIRMS_RADIUS_KM,
-            ),
-        points = U.sparklinePoints(source, { endMs, minFrp: 5, maxPoints: 24 });
+      const near = this.fireAll.filter(
+        (f) =>
+          U.haversineKm({ lat: ev.lat, lon: ev.lon }, f) <=
+          C.NEARBY_FIRMS_RADIUS_KM,
+      );
+      const points = U.sparklinePoints(near, { endMs, minFrp: 5, maxPoints: 12 });
       let result = null;
       if (points.length) {
         const peak = points.reduce(
@@ -1378,36 +1366,41 @@
       this._sparkCache.set(key, result);
       return result;
     }
-    fireSparklineSvg(spark) {
-      const W = 160,
+    fireFrpChart(spark) {
+      const W = 190,
         H = 40,
-        padL = 8,
-        padR = 8,
-        padT = 4,
-        padB = 12,
-        plotW = W - padL - padR,
-        plotH = H - padT - padB,
-        windowMs = 48 * 3600e3,
-        start = spark.start,
-        endMs = spark.endMs,
+        barW = 8,
+        buckets = 12,
+        bucketMs = 4 * 3600e3,
+        plotT = 6,
+        plotB = 12,
+        plotH = H - plotT - plotB,
+        slot = W / buckets,
         maxFrp = Math.max(...spark.points.map((p) => Number(p.frp))),
-        x = (t) => padL + ((t - start) / windowMs) * plotW,
-        y = (frp) => padT + plotH - (frp / maxFrp) * plotH;
-      const pts = spark.points.map(
-        (p) => `${x(Date.parse(p.detectedAt)).toFixed(1)},${y(Number(p.frp)).toFixed(1)}`,
+        height = (frp) => Math.max(2, (frp / maxFrp) * plotH),
+        x = (idx) => slot * idx + (slot - barW) / 2,
+        y = (frp) => plotT + plotH - (frp / maxFrp) * plotH,
+        idxOf = (t) =>
+          Math.min(
+            buckets - 1,
+            Math.max(0, Math.floor((Date.parse(t) - spark.start) / bucketMs)),
+          );
+      let peakIdx = 0;
+      for (let i = 1; i < spark.points.length; i++) {
+        if (Number(spark.points[i].frp) > Number(spark.points[peakIdx].frp))
+          peakIdx = i;
+      }
+      const parts = spark.points.map((p, i) => {
+        const frp = Number(p.frp),
+          idx = idxOf(p.detectedAt);
+        return `<rect x="${x(idx).toFixed(1)}" y="${y(frp).toFixed(1)}" width="${barW}" height="${height(frp).toFixed(1)}" rx="1.5" fill="${i === peakIdx ? "#e25c1f" : "#f2a35c"}"/>`;
+      });
+      const pPeak = spark.points[peakIdx],
+        peakX = slot * idxOf(pPeak.detectedAt) + slot / 2;
+      parts.push(
+        `<circle cx="${peakX.toFixed(1)}" cy="${(y(Number(pPeak.frp)) - 3.5).toFixed(1)}" r="2.5" fill="#e25c1f"/>`,
       );
-      const peak = spark.points.reduce(
-        (best, p) => (Number(p.frp) > Number(best.frp) ? p : best),
-        spark.points[0],
-      );
-      const px = x(Date.parse(peak.detectedAt)),
-        py = y(Number(peak.frp));
-      const line =
-        spark.points.length > 1
-          ? `<polyline points="${pts.join(" ")}" fill="none" stroke="#ff9a4d" stroke-width="1.5"/>`
-          : "";
-      const peakDot = `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.5" fill="#ffd27a"/>`;
-      return `<svg class="fireSparkline" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${U.escapeHtml(T("sparkline.aria"))}">${line}${peakDot}<text x="${padL}" y="${H - 2}" font-size="8" fill="#9fb4c4">${U.escapeHtml(T("sparkline.from"))}</text><text x="${W - padR}" y="${H - 2}" font-size="8" fill="#9fb4c4" text-anchor="end">${U.escapeHtml(T("sparkline.now"))}</text></svg>`;
+      return `<div class="fire-frp-chart"><span class="fire-frp-peak">${T("sparkline.peak", { value: I.formatNumber(U.round(spark.peakFrp, 1)) })}</span><svg class="fire-frp-bars" width="100%" height="${H}" viewBox="0 0 ${W} ${H}" focusable="false" role="img" aria-label="${U.escapeHtml(T("sparkline.aria", { value: I.formatNumber(U.round(spark.peakFrp, 1)), time: spark.peakTime }))}"><g aria-hidden="true">${parts.join("")}<text x="0" y="${H - 2}" font-size="9" fill="#64788c">${U.escapeHtml(T("sparkline.from"))}</text><text x="${W}" y="${H - 2}" font-size="9" fill="#64788c" text-anchor="end">${U.escapeHtml(T("sparkline.now"))}</text></g></svg></div>`;
     }
     substationIcon() {
       return L.divIcon({
