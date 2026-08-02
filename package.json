@@ -1,6 +1,6 @@
 {
   "name": "wildfire-grid-risk-monitor",
-  "version": "3.6.1",
+  "version": "3.6.2",
   "description": "GridMoni provides wildfire intelligence and power grid risk monitoring for Türkiye, Spain, France, Portugal and Italy.",
   "private": true,
   "type": "module",

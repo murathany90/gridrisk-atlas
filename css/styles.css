@@ -62,9 +62,13 @@ main{height:calc(100% - 144px - env(safe-area-inset-top))}
 /* v3.3.7 grid hover tooltips: transparent panes must not block shared canvas hit-testing */
 .leaflet-pane{pointer-events:none}.leaflet-pane>canvas,.leaflet-pane>.leaflet-marker-icon,.leaflet-pane>.leaflet-marker-shadow{pointer-events:auto}.leaflet-pane>canvas.leaflet-smoke-canvas{pointer-events:none}.leaflet-pane>svg{pointer-events:none}.leaflet-pane>svg .leaflet-interactive{pointer-events:visiblePainted}
 
-/* v3.6.1 GridMoni branding, five-country selector and shared grid palette */
+/* v3.6.2 GridMoni mobile header and map UX cleanup */
 .s400{background:#d7191c}.s154{background:#111111;box-shadow:0 0 0 1px #cbd5e1}
 .topbar{gap:12px}.brandBlock{flex:1}.brandText{min-width:0;overflow:hidden}.countryControl{display:flex;align-items:center;gap:6px;font-size:10px;color:#bcd2e2;white-space:nowrap}.countryControl select{width:128px;min-height:40px;padding:7px 28px 7px 9px;background:#0d1e2a;color:var(--text);border:1px solid #31536b;border-radius:8px}.topMeta{flex:1;justify-content:flex-end}
 @media(max-width:900px){.topMeta .livePill,.topMeta .buildPill{display:none}.countryControl select{width:116px}}
 @media(max-width:760px){.topbar{gap:7px;padding-left:8px;padding-right:8px}.brandBlock{overflow:hidden}.brandIcon{width:32px;height:32px;border-radius:8px}.countryControl{flex:none}.countryControl span{display:none}.countryControl select{width:108px;min-height:40px;padding-left:7px}.topMeta{display:none}}
 @media(max-height:500px) and (orientation:landscape){.countryControl select{min-height:40px;height:40px}}
+
+.smokeLegendBands{display:flex;justify-content:space-between;gap:8px;color:var(--muted);text-align:center}.smokeLegendBands b{color:#d9e6ef;font-weight:700}.windDirectionArrowWrap{background:transparent!important;border:0!important}.windDirectionArrow{display:block;width:24px;height:24px;color:#6dd5fa;font-size:24px;line-height:24px;font-weight:900;text-align:center;text-shadow:0 1px 4px #001b2a;transform-origin:center}
+@media(max-width:760px){.topbar{overflow:hidden}.brandBlock{gap:7px;flex:1;min-width:0}.brandIcon{width:40px;height:40px;border-radius:9px}.brandText{flex:1;min-width:0}.topbar h1{font-size:15px}.subtitle{display:block;font-size:8px;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.layerPanel{display:none!important}}
+@media(max-height:500px) and (orientation:landscape){.topbar{overflow:hidden}.brandBlock{gap:7px;min-width:0}.brandIcon{width:34px;height:34px;border-radius:8px}.brandText{flex:1;min-width:0}.subtitle{display:block;font-size:8px;line-height:1.1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}.layerPanel{display:none!important}}

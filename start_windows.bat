@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
-title GridMoni v3.6.1
+title GridMoni v3.6.2
 cls
 echo ============================================================
-echo  GridMoni v3.6.1
+echo  GridMoni v3.6.2
 echo ============================================================
 echo.
 where node >nul 2>&1

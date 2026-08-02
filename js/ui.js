@@ -3,7 +3,7 @@
   class UIManager{
     constructor(){this.services={basemap:{name:'Harita Altlığı',state:'idle'},firms:{name:'NASA FIRMS',state:'idle'},air:{name:'CAMS Wildfire PM10',state:'idle'},weather:{name:'Open-Meteo Weather',state:'idle'},effis:{name:'Copernicus EFFIS FWI',state:'idle'},effisBurntArea:{name:'EFFIS Yanmış Alan',state:'idle'},mtg:{name:'EUMETSAT MTG GeoColour',state:'idle'},grid:{name:'OSM İletim Şebekesi',state:'idle'},geocode:{name:'Geocoding',state:'idle'}};this.chart=null;this.sortKey=null;this.sortDir=1;}
     init(){
-      document.querySelectorAll('.navBtn').forEach(b=>b.addEventListener('click',()=>this.showView(b.dataset.view)));document.querySelector('.collapseBtn')?.addEventListener('click',e=>{const body=document.getElementById('layerPanelBody');body.classList.toggle('hidden');e.currentTarget.textContent=body.classList.contains('hidden')?'+':'−';if(document.getElementById('view-map')?.classList.contains('active'))setTimeout(()=>A.app?.map?.map?.invalidateSize(),30);});
+      document.querySelectorAll('.navBtn').forEach(b=>b.addEventListener('click',()=>this.showView(b.dataset.view)));const layerPanel=document.querySelector('.layerPanel'),mobileMap=window.matchMedia('(max-width:760px), (max-height:500px) and (orientation:landscape)').matches;if(mobileMap){layerPanel?.setAttribute('aria-hidden','true');layerPanel?.setAttribute('inert','');}else document.querySelector('.collapseBtn')?.addEventListener('click',e=>{const body=document.getElementById('layerPanelBody');body.classList.toggle('hidden');e.currentTarget.textContent=body.classList.contains('hidden')?'+':'−';if(document.getElementById('view-map')?.classList.contains('active'))setTimeout(()=>A.app?.map?.map?.invalidateSize(),30);});
       const legendBtn=document.getElementById('legendToggleBtn'),legendStack=document.getElementById('legendStack'),analysisBtn=document.getElementById('analysisToggle'),analysisPanel=document.getElementById('analysisSummaryPanel');
       legendBtn?.addEventListener('click',()=>{
         const willOpen=legendStack.classList.contains('legendsHidden');
@@ -98,9 +98,7 @@
       }
       if(open)this.renderRiskSummary();
     }
-    holdLayerPanel(open){
-      if(window.innerWidth<=520){const lb=document.getElementById('layerPanelBody');if(open&&lb&&!lb.classList.contains('hidden')){lb.classList.add('hidden');const cb=document.querySelector('.collapseBtn');if(cb)cb.textContent='+';}}
-    }
+    holdLayerPanel(){/* Layer panel is not part of the mobile map interaction model. */}
     renderRiskSummary(){
       const panel=document.getElementById('analysisSummaryPanel'),body=document.getElementById('analysisSummaryBody');
       if(!panel||!body||panel.classList.contains('analysisHidden'))return;
