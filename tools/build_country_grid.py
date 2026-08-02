@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build compact, boundary-safe TR/ES/FR runtime grid datasets."""
+"""Build compact, boundary-safe runtime grid datasets for every supported country."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ from osm_grid_common import (  # noqa: E402
     ATTRIBUTION,
     LICENSE,
     LINE_TYPES,
+    OSM_COUNTRY_CODES,
     atomic_json_write,
     choose_preferred_feature,
     feature_key,
@@ -56,6 +57,16 @@ COUNTRIES = {
         "nameTr": "Fransa",
         "coverage": "Metropolitan Fransa ve Korsika; denizaşırı bölgeler kapsam dışıdır",
         "sources": [ROOT / "france_osm_power_grid_50kv_plus_full.geojson"],
+    },
+    "PT": {
+        "nameTr": "Portekiz",
+        "coverage": "Portekiz ana karası; Azorlar ve Madeira kapsam dışıdır",
+        "sources": [ROOT / "portugal_osm_power_grid_50kv_plus_full.geojson"],
+    },
+    "IT": {
+        "nameTr": "İtalya",
+        "coverage": "İtalya ana karası, Sicilya ve Sardinya",
+        "sources": [ROOT / "italy_osm_power_grid_50kv_plus_full.geojson"],
     },
 }
 
@@ -140,7 +151,7 @@ def _load_sources(country_code: str, config: dict[str, Any]) -> tuple[list[dict[
         if data.get("type") != "FeatureCollection" or not isinstance(data.get("features"), list):
             raise ValueError(f"Invalid FeatureCollection: {path.relative_to(ROOT)}")
         metadata = data.get("metadata") or {}
-        if country_code in {"ES", "FR"}:
+        if country_code in OSM_COUNTRY_CODES:
             actual = (metadata.get("filters") or {}).get("countryCode")
             if actual != country_code:
                 raise ValueError(f"{country_code}: raw metadata countryCode is {actual!r}")
@@ -434,9 +445,9 @@ def validate_runtime(country_code: str) -> dict[str, Any]:
         data = json.loads((country_dir / filename).read_text(encoding="utf-8"))
         counts[filename] = len(data["features"])
         for feature in data["features"]:
-            if country_code in {"ES", "FR"} and not valid_geometry(feature.get("geometry")):
+            if country_code in OSM_COUNTRY_CODES and not valid_geometry(feature.get("geometry")):
                 raise ValueError(f"{country_code}/{filename}: invalid runtime geometry")
-            if country_code in {"ES", "FR"} and not shape(feature["geometry"]).intersects(boundary):
+            if country_code in OSM_COUNTRY_CODES and not shape(feature["geometry"]).intersects(boundary):
                 raise ValueError(f"{country_code}/{filename}: geometry outside boundary")
             properties = feature.get("properties") or {}
             if properties.get("countryCode") != country_code:
@@ -451,7 +462,7 @@ def validate_runtime(country_code: str) -> dict[str, Any]:
                 actual = properties.get("actualVoltageKv")
                 if voltage_class(actual) != properties.get("gridClass"):
                     raise ValueError(f"{country_code}/{filename}: invalid voltage class")
-                if country_code in {"ES", "FR"} and (not properties.get("displayLabel") or not properties.get("labelSource")):
+                if country_code in OSM_COUNTRY_CODES and (not properties.get("displayLabel") or not properties.get("labelSource")):
                     raise ValueError(f"{country_code}/{filename}: missing display label")
     expected = {
         "grid_400.geojson": manifest["grid400Count"],
@@ -460,17 +471,35 @@ def validate_runtime(country_code: str) -> dict[str, Any]:
     }
     if counts != expected:
         raise ValueError(f"{country_code}: runtime counts do not match manifest: {counts} != {expected}")
-    if country_code in {"ES", "FR"} and (manifest["partial"] or manifest["failedRequests"]):
+    if country_code in OSM_COUNTRY_CODES and (
+        manifest["partial"]
+        or manifest["failedRequests"]
+        or manifest.get("failedTiles")
+        or manifest.get("outsideBoundaryCount")
+        or manifest.get("invalidGeometryCount")
+        or manifest.get("duplicateAssetCount")
+        or manifest.get("suspectedGapTileCount")
+    ):
         raise ValueError(f"{country_code}: production runtime cannot be partial")
     return manifest
 
 
 def main() -> int:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--country", choices=["TR", "ES", "FR", "ESFR", "ALL"], default="ESFR")
+    parser.add_argument(
+        "--country",
+        choices=["TR", "ES", "FR", "PT", "IT", "ESFR", "PTIT", "EU", "ALL"],
+        default="EU",
+    )
     parser.add_argument("--validate-runtime", action="store_true")
     args = parser.parse_args()
-    country_codes = list(COUNTRIES) if args.country == "ALL" else ["ES", "FR"] if args.country == "ESFR" else [args.country]
+    groups = {
+        "ESFR": ["ES", "FR"],
+        "PTIT": ["PT", "IT"],
+        "EU": ["ES", "FR", "PT", "IT"],
+        "ALL": ["TR", "ES", "FR", "PT", "IT"],
+    }
+    country_codes = groups.get(args.country, [args.country])
     manifests = [validate_runtime(code) for code in country_codes] if args.validate_runtime else [build_country(code) for code in country_codes]
     if not args.validate_runtime:
         manifests = [validate_runtime(code) for code in country_codes]

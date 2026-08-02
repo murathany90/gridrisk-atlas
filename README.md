@@ -1,8 +1,8 @@
 # Wildfire Grid Risk Monitor
 
-> Sürüm: **v3.5.1** · Canlı: <https://murathany90.github.io/tr_wildfire/> · Arayüz dili: **Türkçe**
+> Sürüm: **v3.6.0** · Canlı: <https://murathany90.github.io/tr_wildfire/> · Arayüz dili: **Türkçe**
 
-Wildfire Grid Risk Monitor; Türkiye, İspanya ve metropolitan Fransa/Korsika için aktif orman yangınları ile elektrik iletim şebekesi yakınlığını aynı operasyonel ekranda inceleyen statik bir web uygulamasıdır. Genel uygulama adı İngilizcedir; kullanıcı arayüzü bu sürümde yalnız Türkçedir.
+Wildfire Grid Risk Monitor; Türkiye, İspanya, Fransa, Portekiz ve İtalya için aktif orman yangınları ile elektrik iletim şebekesi yakınlığını aynı operasyonel ekranda inceleyen statik bir web uygulamasıdır. Genel uygulama adı İngilizcedir; kullanıcı arayüzü bu sürümde yalnız Türkçedir.
 
 ## Ülke kapsamı
 
@@ -11,10 +11,12 @@ Header içindeki `Ülke` seçicisi şu veri alanlarını değiştirir:
 - **Türkiye (TR):** Türkiye sınırı ve şebekesi, `Europe/Istanbul`.
 - **İspanya (ES):** ana kara ve Balear Adaları; Kanarya Adaları kapsam dışıdır, `Europe/Madrid`.
 - **Fransa (FR):** metropolitan Fransa ve Korsika; denizaşırı bölgeler kapsam dışıdır, `Europe/Paris`.
+- **Portekiz (PT):** Portekiz ana karası; Azorlar ve Madeira kapsam dışıdır, `Europe/Lisbon`.
+- **İtalya (IT):** İtalya ana karası, Sicilya ve Sardinya, `Europe/Rome`.
 
-Başlangıç ülkesi sırası geçerli `?country=TR|ES|FR` URL parametresi, `selectedCountry` localStorage değeri ve son olarak TR varsayılanıdır. Geçersiz URL kodu TR'ye döner. Seçim sayfa yenilenmeden uygulanır ve URL `history.replaceState` ile güncellenir.
+Başlangıç ülkesi sırası geçerli `?country=TR|ES|FR|PT|IT` URL parametresi, `selectedCountry` localStorage değeri ve son olarak TR varsayılanıdır. Geçersiz URL kodu TR'ye döner. Seçim sayfa yenilenmeden uygulanır ve URL `history.replaceState` ile güncellenir.
 
-Her ülke gerçek Natural Earth Polygon/MultiPolygon sınırıyla filtrelenir. FIRMS isteği önce sınır bbox'ını kullanır; dönen noktalar daha sonra gerçek ülke geometrisi ve polygon delikleriyle tekrar süzülür. Böylece sınır komşusu tespitleri yanlış ülkeye eklenmez.
+Her ülke gerçek Polygon/MultiPolygon sınırıyla filtrelenir. TR/ES/FR Natural Earth, PT/IT ise Eurostat/GISCO Countries 2024 sınırlarını kullanır. FIRMS isteği önce sınır bbox'ını kullanır; dönen noktalar daha sonra gerçek ülke geometrisi ve polygon delikleriyle tekrar süzülür. Böylece sınır komşusu tespitleri yanlış ülkeye eklenmez.
 
 ## Veri katmanları ve analiz
 
@@ -32,7 +34,7 @@ Risk skoru bir arıza olasılığı, güvenlik mesafesi veya resmî yangın tahm
 
 ## Şebeke sınıfları
 
-Üç ülke aynı görsel ve risk sınıflarını kullanır:
+Beş ülke aynı görsel ve risk sınıflarını kullanır:
 
 | Gerçek gerilim | Runtime sınıfı | Harita stili |
 |---|---|---|
@@ -50,6 +52,8 @@ Ham import girdileri runtime kaynağı değildir:
 
 - `spain_osm_power_grid_50kv_plus_full.geojson`
 - `france_osm_power_grid_50kv_plus_full.geojson`
+- `portugal_osm_power_grid_50kv_plus_full.geojson`
+- `italy_osm_power_grid_50kv_plus_full.geojson`
 - `raw/TR/*.geojson`
 
 Üretim komutu:
@@ -58,7 +62,7 @@ Ham import girdileri runtime kaynağı değildir:
 npm run build:grid
 ```
 
-Bu komut onarım kapsamındaki ES/FR runtime dosyalarını yeniden üretir; mevcut TR paketi değişmeden kalır. Tek ülke için `python tools/build_country_grid.py --country TR|ES|FR`, üç ülkenin tamamı için açıkça `--country ALL` kullanılabilir.
+Bu komut ES/FR/PT/IT runtime dosyalarını yeniden üretir; mevcut TR paketi değişmeden kalır. Tek ülke için `--country TR|ES|FR|PT|IT`; grup olarak `ESFR`, `PTIT`, `EU` veya beş ülke için `ALL` kullanılabilir.
 
 Yalnız mevcut commitli çıktıları doğrulamak için:
 
@@ -71,7 +75,7 @@ npm run validate:grid
 Üretilen yapı:
 
 ```text
-data/countries/{TR,ES,FR}/
+data/countries/{TR,ES,FR,PT,IT}/
   boundary.geojson
   grid_400.geojson
   grid_154.geojson
@@ -81,11 +85,13 @@ data/countries/{TR,ES,FR}/
 
 Runtime varlıkları ülke önekli benzersiz `assetId` taşır. Nested tags, ArcGIS `OBJECTID` ve yinelenen ham ID alanları yayın çıktısından çıkarılır; `name`, `ref`, `operator`, gerçek gerilimler, şebeke sınıfı, `displayLabel`, label kaynağı, OSM kimliği/zamanı ve kaynak provenance korunur.
 
-ES/FR onarım indirmeleri ortak, resumable altyapıyı kullanır. ArcGIS OSM Europe hat ve nokta katmanları küçük tile'larla, pagination/object-ID fallback ve hata halinde alt tile bölme ile çekilir. ArcGIS Structures polygon trafo merkezlerini kapsamadığı için yüksek gerilim TM alanları küçük ülke tile'larıyla Overpass üzerinden tamamlanır; bütün feature'lar uygulamanın gerçek MultiPolygon sınırıyla doğrulanır.
+ES/FR/PT/IT indirmeleri ortak, resumable altyapıyı kullanır. ArcGIS OSM Europe hat ve nokta katmanları küçük tile'larla, pagination/object-ID fallback ve hata halinde alt tile bölme ile çekilir. ArcGIS Structures polygon trafo merkezlerini kapsamadığı için yüksek gerilim TM alanları küçük ülke tile'larıyla Overpass üzerinden tamamlanır; bütün feature'lar uygulamanın gerçek MultiPolygon sınırıyla doğrulanır.
 
 ```powershell
 python py_osm_download/fetch_spain_osm_full.py --country-boundary data/countries/ES/boundary.geojson --output py_osm_download/output/spain_osm_power_grid_50kv_plus_full.geojson --resume
 python py_osm_download/fetch_france_osm_full.py --country-boundary data/countries/FR/boundary.geojson --output py_osm_download/output/france_osm_power_grid_50kv_plus_full.geojson --resume
+python py_osm_download/fetch_portugal_osm_full.py --country-boundary data/countries/PT/boundary.geojson --output py_osm_download/output/portugal_osm_power_grid_50kv_plus_full.geojson --resume
+python py_osm_download/fetch_italy_osm_full.py --country-boundary data/countries/IT/boundary.geojson --output py_osm_download/output/italy_osm_power_grid_50kv_plus_full.geojson --resume
 ```
 
 `py_osm_download/compare_grid_datasets.py`, mevcut ve yeni adayları feature sayısına göre değil; sınır, gerilim, geometri, tile şeffaflığı ve deterministik deduplication production kapılarına göre karşılaştırır. Makine ve insan okunur sonuçlar `reports/` altında tutulur.
@@ -125,10 +131,12 @@ CSV, JSON ve GeoJSON adları ülke kodunu taşır:
 wildfire-grid-risk_TR_YYYY-MM-DD.csv
 wildfire-grid-risk_ES_YYYY-MM-DD.json
 wildfire-grid-risk_FR_YYYY-MM-DD.geojson
+wildfire-grid-risk_PT_YYYY-MM-DD.csv
+wildfire-grid-risk_IT_YYYY-MM-DD.json
 ```
 
-Metadata ve satırlar uygun yerlerde `countryCode`, `countryName`, `assetId`, `gridClass` ve `actualVoltageKv` alanlarını içerir.
+Metadata ve satırlar uygun yerlerde `countryCode`, `countryName`, `assetId`, `gridClass`, `actualVoltageKv` ve `displayLabel` alanlarını içerir.
 
 ## Kaynak ve lisans
 
-Şebeke verisi © OpenStreetMap contributors, **ODbL 1.0** kapsamında kullanılır. Ülke sınırları Natural Earth 1:10m Admin 0 verisidir (public domain). Diğer sağlayıcıların verileri kendi kullanım ve lisans koşullarına tabidir.
+Şebeke verisi © OpenStreetMap contributors, **ODbL 1.0** kapsamında kullanılır. TR/ES/FR sınırları Natural Earth 1:10m Admin 0 verisidir (public domain). PT/IT sınırları European Commission Eurostat/GISCO Countries 2024 verisidir ve `© EuroGeographics for the administrative boundaries` bildirimiyle kullanılır. Diğer sağlayıcıların verileri kendi kullanım ve lisans koşullarına tabidir.

@@ -40,7 +40,7 @@
     async health(signal){const [lat,lon]=A.activeCountry().center;return this.detail({lat,lon},new Date(),signal);}
   };
 
-  A.Geocoder={async search(name,signal){const country=A.activeCountry(),params=new URLSearchParams({name,count:'8',language:'tr',countryCode:country.code});try{const {data,meta}=await U.fetchJson(`${C.openMeteoGeocode}?${params}`,{signal,cacheKey:`geo:${country.code}:${name.toLowerCase()}`,ttl:C.cacheTtl.geocode});const results=(data.results||[]).filter(r=>U.insideRegion({lat:Number(r.latitude),lon:Number(r.longitude)}));report('geocode',{state:'ok',latency:meta.cached?0:meta.latency,count:results.length,note:`${country.nameTr} ile sınırlandı`});return results;}catch(e){if(e.kind!=='ABORTED')report('geocode',{state:'error',note:e.kind||e.message});throw e;}}};
+  A.Geocoder={async search(name,signal){const country=A.activeCountry(),params=new URLSearchParams({name,count:'8',language:'tr',countryCode:country.geocodeCountryCode||country.code.toLowerCase()});try{const {data,meta}=await U.fetchJson(`${C.openMeteoGeocode}?${params}`,{signal,cacheKey:`geo:${country.code}:${name.toLowerCase()}`,ttl:C.cacheTtl.geocode});const results=(data.results||[]).filter(r=>U.insideRegion({lat:Number(r.latitude),lon:Number(r.longitude)}));report('geocode',{state:'ok',latency:meta.cached?0:meta.latency,count:results.length,note:`${country.nameTr} ile sınırlandı`});return results;}catch(e){if(e.kind!=='ABORTED')report('geocode',{state:'error',note:e.kind||e.message});throw e;}}};
 
   function parseFirmsRow(r, source, key, bbox) {
     const lat = Number(r.latitude), lon = Number(r.longitude);

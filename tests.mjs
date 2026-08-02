@@ -810,7 +810,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.5.1'"), 'config appVersion 3.5.1');
+  assert.ok(cfgTxt2.includes("appVersion: '3.6.0'"), 'config appVersion 3.6.0');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1078,12 +1078,12 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.5.1 version bump in all runtime files', () => {
-  assert.ok(htmlTxt.includes('v3.5.1'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.5.1'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.5.1'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.5.1'"), 'server.mjs APP_VERSION');
-  assert.equal(JSON.parse(pkgTxt).version, '3.5.1', 'package.json version');
+test('v3.6.0 version bump in all runtime files', () => {
+  assert.ok(htmlTxt.includes('v3.6.0'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.6.0'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.6.0'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.6.0'"), 'server.mjs APP_VERSION');
+  assert.equal(JSON.parse(pkgTxt).version, '3.6.0', 'package.json version');
   assert.equal(htmlTxt.includes('3.4.7'), false, 'no stale 3.4.7 in index.html');
   assert.equal(htmlTxt.includes('3.4.6'), false, 'no stale 3.4.6 in index.html');
   assert.equal(htmlTxt.includes('3.4.5'), false, 'no stale 3.4.5 in index.html');
@@ -1810,12 +1810,16 @@ test('v3.4.13 — risk score formula untouched (windScore 8/4/3), ordering stabl
 // ============================================================
 console.log('\nv3.5.0 — country registry, isolation, boundaries and exports');
 
-test('v3.5.0 — country registry exposes exactly TR, ES and FR', () => {
-  assert.deepEqual(Object.keys(AtmoApp.COUNTRIES), ['TR', 'ES', 'FR']);
+test('v3.6.0 — country registry exposes TR, ES, FR, PT and IT', () => {
+  assert.deepEqual(Object.keys(AtmoApp.COUNTRIES), ['TR', 'ES', 'FR', 'PT', 'IT']);
   assert.equal(AtmoApp.COUNTRIES.TR.timezone, 'Europe/Istanbul');
   assert.equal(AtmoApp.COUNTRIES.ES.timezone, 'Europe/Madrid');
   assert.equal(AtmoApp.COUNTRIES.FR.timezone, 'Europe/Paris');
-  for (const code of ['TR', 'ES', 'FR']) {
+  assert.equal(AtmoApp.COUNTRIES.PT.timezone, 'Europe/Lisbon');
+  assert.equal(AtmoApp.COUNTRIES.IT.timezone, 'Europe/Rome');
+  assert.equal(AtmoApp.COUNTRIES.PT.geocodeCountryCode, 'pt');
+  assert.equal(AtmoApp.COUNTRIES.IT.geocodeCountryCode, 'it');
+  for (const code of ['TR', 'ES', 'FR', 'PT', 'IT']) {
     const country = AtmoApp.COUNTRIES[code];
     assert.equal(country.code, code);
     assert.ok(country.boundaryUrl.includes(`/countries/${code}/boundary.geojson`));
@@ -1827,10 +1831,14 @@ test('v3.5.0 — initial country priority is URL, storage, then TR; invalid URL 
   const storedFr = { getItem: key => key === 'selectedCountry' ? 'FR' : null };
   const empty = { getItem: () => null };
   assert.equal(AtmoApp.CountryManager.resolveInitial('?country=ES', storedFr), 'ES');
+  assert.equal(AtmoApp.CountryManager.resolveInitial('?country=PT', storedFr), 'PT');
+  assert.equal(AtmoApp.CountryManager.resolveInitial('?country=IT', storedFr), 'IT');
   assert.equal(AtmoApp.CountryManager.resolveInitial('?country=xx', storedFr), 'TR');
   assert.equal(AtmoApp.CountryManager.resolveInitial('', storedFr), 'FR');
   assert.equal(AtmoApp.CountryManager.resolveInitial('', empty), 'TR');
   assert.equal(AtmoApp.CountryManager.normalize('fr'), 'FR');
+  assert.equal(AtmoApp.CountryManager.normalize('pt'), 'PT');
+  assert.equal(AtmoApp.CountryManager.normalize('it'), 'IT');
   assert.equal(AtmoApp.CountryManager.normalize('xx'), 'TR');
 });
 
@@ -1839,8 +1847,10 @@ test('v3.5.0 — UI selector is Turkish, accessible and keeps a 40px touch targe
   assert.ok(htmlTxt.includes('<option value="TR">Türkiye</option>'));
   assert.ok(htmlTxt.includes('<option value="ES">İspanya</option>'));
   assert.ok(htmlTxt.includes('<option value="FR">Fransa</option>'));
+  assert.ok(htmlTxt.includes('<option value="PT">Portekiz</option>'));
+  assert.ok(htmlTxt.includes('<option value="IT">İtalya</option>'));
   assert.ok(htmlTxt.includes('aria-label="Ülke seçin"'));
-  assert.ok(htmlTxt.includes('css/styles.css?v=3.5.1&amp;r=osmrepair'), 'responsive CSS revision is cache-safe');
+  assert.ok(htmlTxt.includes('css/styles.css?v=3.6.0&amp;r=ptit'), 'responsive CSS revision is cache-safe');
   assert.ok(cssTxt.includes('.countryControl select{width:128px;min-height:40px'));
   assert.equal(/countryControl select\{min-height:(?:3[0-9]|[0-9])px/.test(cssTxt), false, 'landscape override cannot shrink below 40px');
 });
@@ -1856,6 +1866,17 @@ test('v3.5.0 — real country geometries exclude out-of-scope territories', () =
   apply('TR');
   assert.equal(U.insideRegion({ lat: 39.93, lon: 32.86 }), true, 'Ankara inside TR');
   assert.equal(U.insideRegion({ lat: 37.98, lon: 23.72 }), false, 'Athens outside TR');
+  apply('PT');
+  assert.equal(U.insideRegion({ lat: 38.72, lon: -9.14 }), true, 'Lisbon inside PT');
+  assert.equal(U.insideRegion({ lat: 37.74, lon: -25.67 }), false, 'Azores excluded');
+  assert.equal(U.insideRegion({ lat: 32.65, lon: -16.92 }), false, 'Madeira excluded');
+  apply('IT');
+  assert.equal(U.insideRegion({ lat: 37.5, lon: 14.0 }), true, 'Sicily inside IT');
+  assert.equal(U.insideRegion({ lat: 40.0, lon: 9.0 }), true, 'Sardinia inside IT');
+  assert.equal(U.insideRegion({ lat: 42.15, lon: 9.1 }), false, 'Corsica excluded from IT');
+  assert.equal(U.insideRegion({ lat: 43.9424, lon: 12.4578 }), false, 'San Marino excluded from IT');
+  assert.equal(U.insideRegion({ lat: 41.9029, lon: 12.4534 }), false, 'Vatican excluded from IT');
+  apply('TR');
 });
 
 test('v3.5.0 — country timezone is dynamic and no GMT+3 literal remains', () => {
@@ -1869,8 +1890,8 @@ test('v3.5.0 — country timezone is dynamic and no GMT+3 literal remains', () =
   AtmoApp.applyCountryConfig('TR', JSON.parse(readFileSync('data/countries/TR/boundary.geojson', 'utf8')));
 });
 
-test('v3.5.1 — manifests match runtime counts and ES/FR are complete', () => {
-  for (const code of ['TR', 'ES', 'FR']) {
+test('v3.6.0 — manifests match runtime counts and all OSM countries are complete', () => {
+  for (const code of ['TR', 'ES', 'FR', 'PT', 'IT']) {
     const manifest = JSON.parse(readFileSync(`data/countries/${code}/manifest.json`, 'utf8'));
     const files = {
       grid400Count: 'grid_400.geojson',
@@ -1946,21 +1967,59 @@ test('v3.5.0 — a late TR response cannot overwrite a newer FR switch', async (
   }
 });
 
-test('v3.5.0 — FIRMS bbox follows each real boundary and map path uses fitBounds', () => {
+test('v3.6.0 — a late IT response cannot overwrite a newer PT switch', async () => {
+  const originalFetchJson = U.fetchJson;
+  const originalHistory = global.history;
+  const pending = new Map();
+  U.fetchJson = url => new Promise(resolve => pending.set(url.split('?')[0], resolve));
+  global.history = { replaceState() {} };
+  const ready = [];
+  const applied = [];
+  const state = { countryCode: 'TR', countrySeq: 0, countryAbortController: null, countryManifest: null };
+  const app = {
+    state,
+    abortCountryRequests() {},
+    resetCountryState() {},
+    map: { setCountryBoundary(boundary, country) { applied.push(country.code); } },
+    grid: { setCountry(code) { this.code = code; }, async loadCore() {} },
+    ui: { setCountryLoading() {}, setCountry() {}, toast() {} },
+    async onCountryReady({ code }) { ready.push(code); }
+  };
+  try {
+    const manager = new AtmoApp.CountryManager(app);
+    const itPromise = manager.switchCountry('IT', { initial: true });
+    const ptPromise = manager.switchCountry('PT');
+    pending.get('data/countries/PT/boundary.geojson')({ data: JSON.parse(readFileSync('data/countries/PT/boundary.geojson', 'utf8')) });
+    pending.get('data/countries/PT/manifest.json')({ data: JSON.parse(readFileSync('data/countries/PT/manifest.json', 'utf8')) });
+    await ptPromise;
+    pending.get('data/countries/IT/boundary.geojson')({ data: JSON.parse(readFileSync('data/countries/IT/boundary.geojson', 'utf8')) });
+    pending.get('data/countries/IT/manifest.json')({ data: JSON.parse(readFileSync('data/countries/IT/manifest.json', 'utf8')) });
+    await itPromise;
+    assert.deepEqual(ready, ['PT']);
+    assert.deepEqual(applied, ['PT']);
+    assert.equal(state.countryCode, 'PT');
+  } finally {
+    U.fetchJson = originalFetchJson;
+    global.history = originalHistory;
+    AtmoApp.applyCountryConfig('TR', JSON.parse(readFileSync('data/countries/TR/boundary.geojson', 'utf8')));
+  }
+});
+
+test('v3.6.0 — FIRMS bbox follows each real boundary and map path uses fitBounds', () => {
   const boxes = {};
-  for (const code of ['TR', 'ES', 'FR']) {
+  for (const code of ['TR', 'ES', 'FR', 'PT', 'IT']) {
     const boundary = JSON.parse(readFileSync(`data/countries/${code}/boundary.geojson`, 'utf8'));
     AtmoApp.applyCountryConfig(code, boundary);
     boxes[code] = U.regionBboxString();
     assert.ok(boxes[code].split(',').every(value => Number.isFinite(Number(value))));
   }
-  assert.equal(new Set(Object.values(boxes)).size, 3);
+  assert.equal(new Set(Object.values(boxes)).size, 5);
   assert.ok(mapTxt.includes('this.map.fitBounds(bounds'));
   AtmoApp.applyCountryConfig('TR', JSON.parse(readFileSync('data/countries/TR/boundary.geojson', 'utf8')));
 });
 
-test('v3.5.0 — identical risk rules work for all countries without asset leakage', () => {
-  for (const code of ['TR', 'ES', 'FR']) {
+test('v3.6.0 — identical risk rules work for all countries without asset leakage', () => {
+  for (const code of ['TR', 'ES', 'FR', 'PT', 'IT']) {
     const boundary = JSON.parse(readFileSync(`data/countries/${code}/boundary.geojson`, 'utf8'));
     AtmoApp.applyCountryConfig(code, boundary);
     const [lat, lon] = AtmoApp.COUNTRIES[code].center;
@@ -1991,8 +2050,24 @@ test('v3.5.0 — event, asset and export identities are country-prefixed', () =>
   assert.ok(event.id.startsWith('ES-fire-'));
   const exportTxt = readFileSync('js/export.js', 'utf8');
   assert.ok(exportTxt.includes('wildfire-grid-risk_${code}_'));
-  for (const field of ['countryCode', 'countryName', 'assetId', 'gridClass', 'actualVoltageKv']) assert.ok(exportTxt.includes(field), `${field} exported`);
+  for (const field of ['countryCode', 'countryName', 'assetId', 'gridClass', 'actualVoltageKv', 'displayLabel']) assert.ok(exportTxt.includes(field), `${field} exported`);
   AtmoApp.applyCountryConfig('TR', JSON.parse(readFileSync('data/countries/TR/boundary.geojson', 'utf8')));
+});
+
+test('v3.6.0 — PT/IT geocoding, exports and shared integrations are country-aware', () => {
+  const apiTxt = readFileSync('js/api.js', 'utf8');
+  const exportTxt = readFileSync('js/export.js', 'utf8');
+  const appTxt2 = readFileSync('js/app.js', 'utf8');
+  assert.ok(apiTxt.includes("country.geocodeCountryCode||country.code.toLowerCase()"));
+  assert.ok(exportTxt.includes('wildfire-grid-risk_${code}_'));
+  assert.ok(exportTxt.includes("'displayLabel'"));
+  for (const integration of ['loadFirms()', 'loadSmokeGrid()', 'loadWindGrid(true)', 'toggleFwi', 'toggleEffisBurntArea', 'toggleMtg']) {
+    assert.ok(appTxt2.includes(integration), `${integration} is in country-ready flow`);
+  }
+  for (const code of ['PT', 'IT']) {
+    assert.ok(exportTxt.includes('country.code'));
+    assert.equal(AtmoApp.CountryManager.normalize(code), code);
+  }
 });
 
 test('v3.5.0 — line colors, weights and substation square remain canonical', () => {
@@ -2010,13 +2085,15 @@ test('v3.5.0 — Pages stages only generated country runtime data', () => {
   assert.ok(pages.includes('data/countries'));
   assert.equal(/cp[^\n]*spain_osm_power_grid/.test(pages), false);
   assert.equal(/cp[^\n]*france_osm_power_grid/.test(pages), false);
+  assert.equal(/cp[^\n]*portugal_osm_power_grid/.test(pages), false);
+  assert.equal(/cp[^\n]*italy_osm_power_grid/.test(pages), false);
 });
 
 // ── Run ──
-console.log('\nv3.5.1 — OSM completeness, labels and substation risk markers');
+console.log('\nv3.6.0 — five-country OSM completeness, labels and substation risk markers');
 
-test('v3.5.1 — ES and FR runtime layers contain visible substations', () => {
-  for (const code of ['ES', 'FR']) {
+test('v3.6.0 — ES, FR, PT and IT runtime layers contain visible substations', () => {
+  for (const code of ['ES', 'FR', 'PT', 'IT']) {
     const data = JSON.parse(readFileSync(`data/countries/${code}/substations.geojson`, 'utf8'));
     assert.ok(data.features.length > 0, `${code} substation marker source > 0`);
     assert.ok(data.features.every(feature => feature.geometry?.type === 'Point'), `${code} runtime substations are points`);

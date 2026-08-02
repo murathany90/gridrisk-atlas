@@ -2,7 +2,7 @@
 (function(A){
   A.CONFIG = {
     appName: 'Wildfire Grid Risk Monitor',
-    appVersion: '3.5.1',
+    appVersion: '3.6.0',
     activeCountryCode: 'TR',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
@@ -140,6 +140,14 @@
     FR: {
       code:'FR',nameTr:'Fransa',timezone:'Europe/Paris',locale:'tr-TR',center:[46.5,2.2],zoom:6,
       coverageNote:'Metropolitan Fransa ve Korsika; denizaşırı bölgeler kapsam dışıdır',boundaryUrl:'data/countries/FR/boundary.geojson',grid400Url:'data/countries/FR/grid_400.geojson',grid154Url:'data/countries/FR/grid_154.geojson',substationsUrl:'data/countries/FR/substations.geojson',manifestUrl:'data/countries/FR/manifest.json'
+    },
+    PT: {
+      code:'PT',nameTr:'Portekiz',timezone:'Europe/Lisbon',locale:'tr-TR',geocodeCountryCode:'pt',center:[39.6,-8.0],zoom:6,
+      coverageNote:'Portekiz ana karası; Azorlar ve Madeira kapsam dışıdır',boundaryUrl:'data/countries/PT/boundary.geojson',grid400Url:'data/countries/PT/grid_400.geojson',grid154Url:'data/countries/PT/grid_154.geojson',substationsUrl:'data/countries/PT/substations.geojson',manifestUrl:'data/countries/PT/manifest.json'
+    },
+    IT: {
+      code:'IT',nameTr:'İtalya',timezone:'Europe/Rome',locale:'tr-TR',geocodeCountryCode:'it',center:[42.5,12.5],zoom:6,
+      coverageNote:'İtalya ana karası, Sicilya ve Sardinya',boundaryUrl:'data/countries/IT/boundary.geojson',grid400Url:'data/countries/IT/grid_400.geojson',grid154Url:'data/countries/IT/grid_154.geojson',substationsUrl:'data/countries/IT/substations.geojson',manifestUrl:'data/countries/IT/manifest.json'
     }
   };
   A.activeCountry=()=>A.COUNTRIES[A.CONFIG.activeCountryCode]||A.COUNTRIES.TR;
