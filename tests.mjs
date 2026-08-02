@@ -540,7 +540,7 @@ test("nearby FIRMS contract (10 km radius, FRP >= 1 list filter)", () => {
   assert.ok("detail.nearbyEmpty" in A.LOCALES.tr && "detail.nearbyEmpty" in A.LOCALES.en);
 });
 
-test("sparkline series selection (48h window, FRP >= 5, max 24, peak kept)", () => {
+test("sparkline series selection (48h window, FRP >= 5, 12x4h buckets, peak kept)", () => {
   const end = Date.UTC(2026, 7, 3, 12, 0, 0);
   const mk = (id, h, frp) => ({
     id,
@@ -552,6 +552,7 @@ test("sparkline series selection (48h window, FRP >= 5, max 24, peak kept)", () 
     mk("edge", 46, 5.0),
     mk("old", 49, 50),
     mk("future", -1, 30),
+    mk("b48", 48, 60),
     mk("e", 24, 20),
     mk("f", 12, 40),
     mk("g", 1, 25),
@@ -559,13 +560,26 @@ test("sparkline series selection (48h window, FRP >= 5, max 24, peak kept)", () 
   const out = A.Utils.sparklinePoints(dets, { endMs: end });
   assert.deepEqual(
     out.map((x) => x.id),
-    ["edge", "e", "f", "g"],
+    ["b48", "edge", "e", "f", "g"],
   );
+  const twelve = [];
+  for (let i = 0; i < 12; i++) twelve.push(mk(`b${i}`, 0.5 + i * 4, 10 + i));
+  const b12 = A.Utils.sparklinePoints(twelve, { endMs: end, maxPoints: 12 });
+  assert.equal(b12.length, 12, "one detection per 4h bucket fills all 12");
+  const same = A.Utils.sparklinePoints([mk("s1", 1, 10), mk("s2", 1.5, 20)], {
+    endMs: end,
+    maxPoints: 12,
+  });
+  assert.equal(same.length, 1, "same-bucket detections collapse");
+  assert.equal(same[0].frp, 20, "bucket keeps max FRP");
   const many = [];
   for (let i = 0; i < 100; i++) many.push(mk(`d${i}`, i * 0.4, 5 + (i % 7)));
-  const maxP = many.reduce((best, x) => (Number(x.frp) > Number(best.frp) ? x : best), many[0]);
-  const down = A.Utils.sparklinePoints(many, { endMs: end });
-  assert.ok(down.length <= 24, "downsampled to <= 24");
+  const maxP = many.reduce(
+    (best, x) => (Number(x.frp) > Number(best.frp) ? x : best),
+    many[0],
+  );
+  const down = A.Utils.sparklinePoints(many, { endMs: end, maxPoints: 12 });
+  assert.ok(down.length <= 12, "downsampled to <= 12 buckets");
   assert.ok(down.length > 0);
   assert.ok(down.some((x) => x.id === maxP.id), "global max point kept");
   const ts = down.map((x) => Date.parse(x.detectedAt));
@@ -574,25 +588,93 @@ test("sparkline series selection (48h window, FRP >= 5, max 24, peak kept)", () 
   assert.equal(zero.length, 0);
 });
 
-test("fire tooltip sparkline contract (inline SVG, cache, escape)", () => {
-  assert.match(source.map, /fireSparklineData\(ev, reference\)/);
-  assert.match(source.map, /_sparkCache/);
-  assert.match(source.map, /_sparkCache\.clear\(\)/);
-  assert.match(source.map, /NEARBY_FIRMS_RADIUS_KM/);
-  assert.match(source.map, /minFrp: 5/);
-  assert.match(source.map, /maxPoints: 24/);
-  assert.match(source.map, /width="\$\{W\}"/);
-  assert.match(source.map, /height="\$\{H\}"/);
-  assert.match(source.map, /aria-label="\$\{U\.escapeHtml\(T\("sparkline\.aria"\)\)\}/);
-  assert.match(source.map, /T\("sparkline\.peak"/);
-  assert.match(source.map, /T\("sparkline\.empty"\)/);
-  assert.match(source.map, /spark\.points\.length > 1/);
-  assert.match(source.map, /formatShortDateTime/);
+test("fire event popup 48h chart contract (fireAll+10km, 12x4h, mini chart, popup layout)", () => {
+  const tooltip = source.map
+    .split("firesEventTooltip(ev, history, reference) {")[1]
+    .split("fireSparklineData(ev, reference) {")[0];
+  assert.match(tooltip, /summary\.detections/);
+  assert.match(tooltip, /sparkline\.title/);
+  assert.match(tooltip, /sparkline\.empty/);
+  assert.match(tooltip, /"fire-popup-metrics"/);
+  assert.match(tooltip, /map\.peakTime/);
+  assert.match(tooltip, /map\.lastAgeLabel/);
+  assert.ok(!tooltip.includes("analysis.maxFrp"), "no duplicated Max FRP line");
+  assert.ok(!tooltip.includes("map.areaCount"), "no Bölgedeki tespit line");
+  const src = source.map
+    .split("fireSparklineData(ev, reference) {")[1]
+    .split("fireFrpChart(spark) {")[0];
+  assert.match(src, /this\.fireAll\.filter/);
+  assert.ok(!src.includes("ev.members"), "chart source is fireAll, not ev.members");
+  assert.match(src, /NEARBY_FIRMS_RADIUS_KM/);
+  assert.match(src, /minFrp: 5/);
+  assert.match(src, /maxPoints: 12/);
+  assert.match(src, /_sparkCache/);
+  assert.match(src, /formatShortDateTime/);
+  const chart = source.map
+    .split("fireFrpChart(spark) {")[1]
+    .split("substationIcon() {")[0];
+  assert.match(chart, /buckets = 12/);
+  assert.match(chart, /bucketMs = 4 \* 3600e3/);
+  assert.match(chart, /viewBox="0 0 \$\{W\} \$\{H\}"/);
+  assert.match(chart, /role="img"/);
+  assert.match(chart, /aria-hidden="true"/);
+  assert.match(chart, /fire-frp-bars/);
+  assert.match(chart, /fire-frp-peak/);
+  assert.match(chart, /aria-label="\$\{U\.escapeHtml\(T\("sparkline\.aria",/);
+  assert.match(chart, /T\("sparkline\.peak",/);
+  assert.match(chart, /T\("sparkline\.from"\)/);
+  assert.match(chart, /T\("sparkline\.now"\)/);
+  assert.ok(!source.map.includes("fireSparklineSvg"), "old sparkline svg removed");
+  assert.ok(
+    !source.map.includes("const members = ev.members || []"),
+    "ev.members fallback removed from chart source",
+  );
+  assert.match(
+    source.map,
+    /U\.areaHistory\(this\.fireAll, ev, C\.NEARBY_FIRMS_RADIUS_KM\)/,
+  );
+  assert.match(
+    source.map,
+    /U\.areaHistory\(this\.fireAll, f, C\.NEARBY_FIRMS_RADIUS_KM\)/,
+  );
+  assert.match(source.map, /className: "fire-event-popup"/);
   assert.match(source.utils, /sparklinePoints\(detections,opts=\{}\)\{/);
-  for (const key of ["sparkline.title", "sparkline.peak", "sparkline.empty", "sparkline.from", "sparkline.now", "sparkline.aria"])
+  for (const key of [
+    "sparkline.title",
+    "sparkline.peak",
+    "sparkline.empty",
+    "sparkline.from",
+    "sparkline.now",
+    "sparkline.aria",
+    "map.peakTime",
+    "map.lastAgeLabel",
+  ])
     assert.ok(key in A.LOCALES.tr && key in A.LOCALES.en, key);
   assert.equal(A.LOCALES.tr["sparkline.title"], "Son 48 saat FRP");
   assert.equal(A.LOCALES.en["sparkline.title"], "FRP — last 48 hours");
+  assert.equal(A.LOCALES.tr["sparkline.peak"], "Tepe {value} MW");
+  assert.equal(A.LOCALES.en["sparkline.peak"], "Peak {value} MW");
+  assert.equal(A.LOCALES.tr["sparkline.empty"], "Son 48 saatte FRP ≥ 5 MW tespiti yok.");
+  assert.equal(A.LOCALES.en["sparkline.empty"], "No detections with FRP ≥ 5 MW in the last 48 hours.");
+  assert.equal(A.LOCALES.tr["sparkline.from"], "−48 sa");
+  assert.equal(A.LOCALES.en["sparkline.from"], "−48 h");
+  assert.equal(A.LOCALES.tr["sparkline.aria"], "Son 48 saatte en yüksek FRP {value} MW, {time}");
+  assert.equal(A.LOCALES.en["sparkline.aria"], "Peak FRP over the last 48 hours: {value} MW at {time}");
+  assert.equal(A.LOCALES.tr["map.peakTime"], "Tepe zamanı");
+  assert.equal(A.LOCALES.en["map.peakTime"], "Peak time");
+  assert.equal(A.LOCALES.tr["map.lastAgeLabel"], "Son tespit yaşı");
+  assert.equal(A.LOCALES.en["map.lastAgeLabel"], "Latest detection age");
+  assert.equal(A.LOCALES.tr["sparkline.from"].includes("48s"), false);
+});
+
+test("fire event popup CSS (width, mini chart, metrics grid)", () => {
+  assert.match(css, /\.fire-event-popup \{\s*width: 250px;\s*max-width: calc\(100vw - 28px\);/);
+  assert.match(css, /\.fire-event-popup \{\s*[^}]*white-space: normal;/);
+  assert.match(css, /\.fire-frp-chart \{\s*position: relative;\s*width: 100%;\s*height: 58px;/);
+  assert.match(css, /\.fire-popup-metrics \{\s*display: grid;\s*grid-template-columns: auto 1fr;/);
+  assert.match(css, /\.fire-frp-peak/);
+  assert.match(css, /\.fire-frp-bars/);
+  assert.ok(!css.includes(".fireSparkline"), "old .fireSparkline rule removed");
 });
 
 test("mobile quick layer ARIA contract (controls, group label, warning labels)", () => {
