@@ -185,6 +185,7 @@
         state: "loading",
         note: T("ui.gridLoading", { country: I.countryName(country.code) }),
       });
+      this.syncQuickLayers();
     }
     setCountry(country, manifest) {
       const name = I.countryName(country.code),
@@ -274,40 +275,59 @@
         )
           this.syncQuickLayers();
       });
+      window.addEventListener("resize", () => this.closeQuickLayers());
+      window.addEventListener("orientationchange", () =>
+        this.closeQuickLayers(),
+      );
       this.syncQuickLayers();
     }
     toggleQuickLayers() {
       const pop = document.getElementById("quickLayersPopover"),
-        open = pop?.classList.contains("hidden") ?? false;
-      pop.classList.toggle("hidden", !open);
-      document
-        .getElementById("quickLayersFab")
-        ?.setAttribute("aria-expanded", String(open));
+        fab = document.getElementById("quickLayersFab");
+      if (!pop) return;
+      if (!pop.classList.contains("hidden")) {
+        this.closeQuickLayers();
+        return;
+      }
+      pop.classList.remove("hidden");
+      fab?.setAttribute("aria-expanded", "true");
     }
     closeQuickLayers() {
-      const pop = document.getElementById("quickLayersPopover");
+      const pop = document.getElementById("quickLayersPopover"),
+        fab = document.getElementById("quickLayersFab");
       if (!pop || pop.classList.contains("hidden")) return;
+      if (pop.contains(document.activeElement))
+        fab?.focus({ preventScroll: true });
       pop.classList.add("hidden");
-      document.getElementById("quickLayersFab")?.setAttribute("aria-expanded", "false");
+      fab?.setAttribute("aria-expanded", "false");
     }
     toggleQuickLayer(id) {
       const input = document.getElementById(id);
-      if (!input) return;
-      input.checked = !input.checked;
-      input.dispatchEvent(new Event("change", { bubbles: true }));
+      if (!input || input.disabled) return;
+      input.click();
     }
     syncQuickLayers() {
       const loading = {
         layerMtg: this.services.mtg?.state === "loading",
         layerSmoke: this.services.air?.state === "loading",
+        layerGridMaster:
+          this.services.grid?.state === "loading" ||
+          Boolean(A.app?.grid?.loading?.size),
+      };
+      const error = {
+        layerMtg: this.services.mtg?.state === "error",
+        layerSmoke: this.services.air?.state === "error",
+        layerGridMaster: this.services.grid?.state === "error",
       };
       for (const btn of document.querySelectorAll(".quickLayerBtn")) {
         const input = document.getElementById(btn.dataset.quickLayer);
         if (!input) continue;
-        const active = input.checked;
+        const active = input.checked,
+          key = btn.dataset.quickLayer;
         btn.classList.toggle("active", active);
+        btn.classList.toggle("loading", active && Boolean(loading[key]));
+        btn.classList.toggle("warn", Boolean(error[key]) && !loading[key]);
         btn.setAttribute("aria-pressed", String(active));
-        btn.classList.toggle("loading", active && Boolean(loading[btn.dataset.quickLayer]));
       }
     }
     syncLayerPanelPlacement() {
