@@ -1,14 +1,179 @@
-(function(A){
-  const U=A.Utils,C=A.CONFIG;
-  function baseName(state){const code=state.countryCode||C.activeCountryCode||'TR';return `wildfire-grid-risk_${code}_${new Date().toISOString().slice(0,10)}`;}
-  function metadata(state){const country=A.COUNTRIES[state.countryCode||C.activeCountryCode]||A.COUNTRIES.TR;return{app:C.appName,version:C.appVersion,exportedAt:new Date().toISOString(),countryCode:country.code,countryName:country.nameTr,coverage:country.coverageNote,timezone:country.timezone,domain:C.regionBounds,selectedTime:state.selectedTime?.toISOString?.()||null,fireSource:'NASA FIRMS',smokeSource:'CAMS European Air Quality via Open-Meteo',weatherSource:'Open-Meteo',gridSource:'OpenStreetMap',gridAttribution:'© OpenStreetMap contributors / ODbL 1.0',gridManifest:state.countryManifest||null,clustering:C.fireClustering,warning:'Fire-event clusters, distance bands, downwind sectors and risk scores are operational screening aids, not official safety distances, fire perimeters, smoke trajectories or outage probabilities.'};}
-  A.ExportManager={
-    csv(state){
-      const country=A.COUNTRIES[state.countryCode||C.activeCountryCode]||A.COUNTRIES.TR,rows=[['countryCode','countryName','eventId','latestDetectedAt','lat','lon','hotspotCount','maxFrp_MW','riskScore','riskLevel','nearestGridKm','assetId','gridClass','actualVoltageKv','displayLabel','nearestAsset','downwindAlignment','corridorDistanceKm','corridorWindSpeedKmh','corridorWindSource','corridorConfidence','affectedLines10km','affectedSubstations10km']];
-      for(const a of state.fireImpacts||[]){if(a.event?.countryCode!==country.code)continue;const obj=a.nearestLine||a.nearest?.line,props=obj?.feature?.props||{};rows.push([country.code,country.nameTr,a.event.id,a.event.latestDetectedAt,a.event.lat,a.event.lon,a.event.count,U.round(a.event.maxFrp,2),a.riskScore,a.riskBand?.label||'',obj?U.round(obj.distanceKm,3):'',props.assetId||'',props.gridClass||'',props.actualVoltageKv??'',props.displayLabel||'',obj?'line':'',a.downwindAlignment?'yes':'no',a.corridorDistanceKm??'',a.corridorWindSpeedKmh??'',a.corridorWindSource||'',a.corridorConfidence||'',a.affectedLines?.length||0,a.affectedSubstations?.length||0]);}
-      const text=rows.map(row=>row.map(U.csvEscape).join(',')).join('\r\n');U.download(`${baseName(state)}.csv`,'text/csv;charset=utf-8','\ufeff'+text);
+(function (A) {
+  const U = A.Utils,
+    C = A.CONFIG,
+    I = A.I18n;
+  function baseName(state) {
+    const code = state.countryCode || C.activeCountryCode || "TR";
+    return `gridrisk-atlas_${code}_${new Date().toISOString().slice(0, 10)}`;
+  }
+  function metadata(state) {
+    const country =
+      A.COUNTRIES[state.countryCode || C.activeCountryCode] || A.COUNTRIES.TR;
+    return {
+      applicationName: C.appName,
+      app: C.appName,
+      version: C.appVersion,
+      language: I.locale,
+      exportedAt: new Date().toISOString(),
+      countryCode: country.code,
+      countryName: I.countryName(country.code),
+      coverage: I.countryCoverage(country.code),
+      timezone: country.timezone,
+      domain: C.regionBounds,
+      selectedTime: state.selectedTime?.toISOString?.() || null,
+      fireSource: "NASA FIRMS",
+      smokeSource: "CAMS European Air Quality via Open-Meteo",
+      weatherSource: "Open-Meteo",
+      gridSource: "OpenStreetMap",
+      gridAttribution: "© OpenStreetMap contributors / ODbL 1.0",
+      gridManifest: state.countryManifest || null,
+      clustering: C.fireClustering,
+      warning:
+        "Fire-event clusters, distance bands, downwind sectors and risk scores are operational screening aids, not official safety distances, fire perimeters, smoke trajectories or outage probabilities.",
+    };
+  }
+  A.ExportManager = {
+    csv(state) {
+      const country =
+          A.COUNTRIES[state.countryCode || C.activeCountryCode] ||
+          A.COUNTRIES.TR,
+        rows = [
+          [
+            "countryCode",
+            "countryName",
+            "eventId",
+            "latestDetectedAt",
+            "lat",
+            "lon",
+            "hotspotCount",
+            "maxFrp_MW",
+            "riskScore",
+            "riskLevel",
+            "nearestGridKm",
+            "assetId",
+            "gridClass",
+            "actualVoltageKv",
+            "displayLabel",
+            "nearestAsset",
+            "downwindAlignment",
+            "corridorDistanceKm",
+            "corridorWindSpeedKmh",
+            "corridorWindSource",
+            "corridorConfidence",
+            "affectedLines10km",
+            "affectedSubstations10km",
+          ],
+        ];
+      for (const a of state.fireImpacts || []) {
+        if (a.event?.countryCode !== country.code) continue;
+        const obj = a.nearestLine || a.nearest?.line,
+          props = obj?.feature?.props || {},
+          level = a.riskBand?.level || "watch";
+        rows.push([
+          country.code,
+          I.countryName(country.code),
+          a.event.id,
+          a.event.latestDetectedAt,
+          a.event.lat,
+          a.event.lon,
+          a.event.count,
+          U.round(a.event.maxFrp, 2),
+          a.riskScore,
+          I.t(`risk.${level}`),
+          obj ? U.round(obj.distanceKm, 3) : "",
+          props.assetId || "",
+          props.gridClass || "",
+          props.actualVoltageKv ?? "",
+          props.displayLabel || "",
+          obj ? "line" : "",
+          a.downwindAlignment ? "yes" : "no",
+          a.corridorDistanceKm ?? "",
+          a.corridorWindSpeedKmh ?? "",
+          a.corridorWindSource || "",
+          a.corridorConfidence || "",
+          a.affectedLines?.length || 0,
+          a.affectedSubstations?.length || 0,
+        ]);
+      }
+      const text = rows
+        .map((row) => row.map(U.csvEscape).join(","))
+        .join("\r\n");
+      U.download(
+        `${baseName(state)}.csv`,
+        "text/csv;charset=utf-8",
+        "\ufeff" + text,
+      );
     },
-    json(state){U.download(`${baseName(state)}.json`,'application/json',JSON.stringify({metadata:metadata(state),fires:state.fireData||[],fireEvents:state.fireEvents||[],fireGridImpacts:state.fireImpacts||[],smokeLayer:{variable:state.smokeVariable,data:state.smokeData||[]},wildfirePm10Summary:state.wildfireSummaryData||[],wind:{level:state.windLevel,data:state.windData||[],surfaceWindData:state.surfaceWindData||[]},selectedPoint:state.selectedPoint||null},null,2));},
-    geojson(state){const features=[];for(const event of state.fireEvents||[])if(event.countryCode===(state.countryCode||C.activeCountryCode))features.push({type:'Feature',geometry:{type:'Point',coordinates:[event.lon,event.lat]},properties:{kind:'FIRMS_fire_event_cluster',countryCode:event.countryCode,eventId:event.id,hotspotCount:event.count,maxFrp:event.maxFrp,sumFrp:event.sumFrp,latestDetectedAt:event.latestDetectedAt,earliestDetectedAt:event.earliestDetectedAt}});for(const point of state.smokeData||[])if(Number.isFinite(point.value))features.push({type:'Feature',geometry:{type:'Point',coordinates:[point.lon,point.lat]},properties:{kind:'model_sample',countryCode:state.countryCode||C.activeCountryCode,variable:point.variable,value:point.value,unit:point.unit,validAt:point.validAt,source:point.source,resolutionKm:point.resolutionKm}});U.download(`${baseName(state)}.geojson`,'application/geo+json',JSON.stringify({type:'FeatureCollection',metadata:metadata(state),features},null,2));}
+    json(state) {
+      U.download(
+        `${baseName(state)}.json`,
+        "application/json",
+        JSON.stringify(
+          {
+            metadata: metadata(state),
+            fires: state.fireData || [],
+            fireEvents: state.fireEvents || [],
+            fireGridImpacts: state.fireImpacts || [],
+            smokeLayer: {
+              variable: state.smokeVariable,
+              data: state.smokeData || [],
+            },
+            wildfirePm10Summary: state.wildfireSummaryData || [],
+            wind: {
+              level: state.windLevel,
+              data: state.windData || [],
+              surfaceWindData: state.surfaceWindData || [],
+            },
+            selectedPoint: state.selectedPoint || null,
+          },
+          null,
+          2,
+        ),
+      );
+    },
+    geojson(state) {
+      const features = [];
+      for (const event of state.fireEvents || [])
+        if (event.countryCode === (state.countryCode || C.activeCountryCode))
+          features.push({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [event.lon, event.lat] },
+            properties: {
+              kind: "FIRMS_fire_event_cluster",
+              countryCode: event.countryCode,
+              eventId: event.id,
+              hotspotCount: event.count,
+              maxFrp: event.maxFrp,
+              sumFrp: event.sumFrp,
+              latestDetectedAt: event.latestDetectedAt,
+              earliestDetectedAt: event.earliestDetectedAt,
+            },
+          });
+      for (const point of state.smokeData || [])
+        if (Number.isFinite(point.value))
+          features.push({
+            type: "Feature",
+            geometry: { type: "Point", coordinates: [point.lon, point.lat] },
+            properties: {
+              kind: "model_sample",
+              countryCode: state.countryCode || C.activeCountryCode,
+              variable: point.variable,
+              value: point.value,
+              unit: point.unit,
+              validAt: point.validAt,
+              source: point.source,
+              resolutionKm: point.resolutionKm,
+            },
+          });
+      U.download(
+        `${baseName(state)}.geojson`,
+        "application/geo+json",
+        JSON.stringify(
+          { type: "FeatureCollection", metadata: metadata(state), features },
+          null,
+          2,
+        ),
+      );
+    },
   };
 })(window.AtmoApp);

@@ -1,4 +1,4 @@
-# Geliştirme Kaydı — GridMoni
+# Geliştirme Kaydı — GridRisk Atlas
 
 # v3.5.0 — Türkiye, İspanya ve Fransa Çok Ülkeli Mimari
 

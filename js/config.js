@@ -1,8 +1,8 @@
 ﻿window.AtmoApp = window.AtmoApp || {};
 (function(A){
   A.CONFIG = {
-    appName: 'GridMoni',
-    appVersion: '3.6.3',
+    appName: 'GridRisk Atlas',
+    appVersion: '3.7.0',
     activeCountryCode: 'TR',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
@@ -51,7 +51,7 @@
       maxBackfillSlots: 12,
       frameSettleMs: 3000,
       probeBbox: '35,26,43,46',
-      source: 'EUMETSAT MTG-I FCI · gerçek uydu görüntüsü'
+      source: 'EUMETSAT MTG-I FCI'
     },
     baseMaps: {
       satellite: {
@@ -86,17 +86,17 @@
       }
     },
     gridSources: {
-      '400': {label:'400 kV sınıfı',file:'data/countries/TR/grid_400.geojson',color:'#d7191c',weight:2.2,description:'OSM 300–550 kV'},
-      '154': {label:'154 kV sınıfı',file:'data/countries/TR/grid_154.geojson',color:'#111111',weight:1.5,description:'OSM 50–299.999 kV'},
-      'substations': {label:'Trafo merkezleri',file:'data/countries/TR/substations.geojson',color:'#111111',weight:1.0,description:'OSM power=substation merkez noktaları'}
+      '400': {labelKey:'layers.grid400',label:'400 kV',file:'data/countries/TR/grid_400.geojson',color:'#d7191c',weight:2.2,description:'OSM 300–550 kV'},
+      '154': {labelKey:'layers.grid154',label:'154 kV',file:'data/countries/TR/grid_154.geojson',color:'#111111',weight:1.5,description:'OSM 50–299.999 kV'},
+      'substations': {labelKey:'layers.substations',label:'Substations',file:'data/countries/TR/substations.geojson',color:'#111111',weight:1.0,description:'OSM power=substation points'}
     },
     smokeVariables: {
-      pm10_wildfires: { label:'Duman Yayılımı — CAMS Modeli',unit:'µg/m³',source:'CAMS European Air Quality via Open-Meteo',resolution:'~11 km',type:'TAHMİN',surface:true,fireSpecific:true }
+      pm10_wildfires: { labelKey:'layers.smoke',unit:'µg/m³',source:'CAMS European Air Quality via Open-Meteo',resolution:'~11 km',type:'forecast',surface:true,fireSpecific:true }
     },
     windLevels: {
-      '10m': {label:'10 m yüzey rüzgârı',speed:'wind_speed_10m',direction:'wind_direction_10m'},
-      '850hPa': {label:'850 hPa rüzgârı',speed:'wind_speed_850hPa',direction:'wind_direction_850hPa'},
-      '700hPa': {label:'700 hPa rüzgârı',speed:'wind_speed_700hPa',direction:'wind_direction_700hPa'}
+      '10m': {labelKey:'layers.wind10',label:'10 m',speed:'wind_speed_10m',direction:'wind_direction_10m'},
+      '850hPa': {labelKey:'layers.wind850',label:'850 hPa',speed:'wind_speed_850hPa',direction:'wind_direction_850hPa'},
+      '700hPa': {labelKey:'layers.wind700',label:'700 hPa',speed:'wind_speed_700hPa',direction:'wind_direction_700hPa'}
     },
     fireClustering: { radiusKm: 5, timeHours: 6 },
     frpThreshold: 30,
@@ -115,45 +115,45 @@
     },
     substationRiskDisplayDistanceKm: 5,
     impactBands: [
-      {maxKm:0.5,label:'Kritik yakınlık',level:'critical'},
-      {maxKm:1.5,label:'Yüksek yakınlık',level:'high'},
-      {maxKm:3,label:'Orta yakınlık',level:'medium'},
-      {maxKm:5,label:'İzleme alanı',level:'watch'}
+      {maxKm:0.5,labelKey:'proximity.critical',level:'critical'},
+      {maxKm:1.5,labelKey:'proximity.high',level:'high'},
+      {maxKm:3,labelKey:'proximity.medium',level:'medium'},
+      {maxKm:5,labelKey:'proximity.watch',level:'watch'}
     ],
     riskScoreBands: [
-      {min:75,label:'Kritik',level:'critical'},
-      {min:55,label:'Yüksek',level:'high'},
-      {min:35,label:'Orta',level:'medium'},
-      {min:0,label:'İzleme',level:'watch'}
+      {min:75,labelKey:'risk.critical',level:'critical'},
+      {min:55,labelKey:'risk.high',level:'high'},
+      {min:35,labelKey:'risk.medium',level:'medium'},
+      {min:0,labelKey:'risk.watch',level:'watch'}
     ]
   };
   A.COUNTRIES = {
     TR: {
-      code:'TR',nameTr:'Türkiye',timezone:'Europe/Istanbul',locale:'tr-TR',center:[39.0,35.2],zoom:6,
-      coverageNote:'Türkiye',boundaryUrl:'data/countries/TR/boundary.geojson',grid400Url:'data/countries/TR/grid_400.geojson',grid154Url:'data/countries/TR/grid_154.geojson',substationsUrl:'data/countries/TR/substations.geojson',manifestUrl:'data/countries/TR/manifest.json'
+      code:'TR',name:{tr:'Türkiye',en:'Türkiye'},nameTr:'Türkiye',timezone:'Europe/Istanbul',center:[39.0,35.2],zoom:6,
+      coverageNote:{tr:'Türkiye',en:'Türkiye'},boundaryUrl:'data/countries/TR/boundary.geojson',grid400Url:'data/countries/TR/grid_400.geojson',grid154Url:'data/countries/TR/grid_154.geojson',substationsUrl:'data/countries/TR/substations.geojson',manifestUrl:'data/countries/TR/manifest.json'
     },
     ES: {
-      code:'ES',nameTr:'İspanya',timezone:'Europe/Madrid',locale:'tr-TR',center:[40.2,-3.7],zoom:6,
-      coverageNote:'İspanya ana karası ve Balear Adaları; Kanarya Adaları kapsam dışıdır',boundaryUrl:'data/countries/ES/boundary.geojson',grid400Url:'data/countries/ES/grid_400.geojson',grid154Url:'data/countries/ES/grid_154.geojson',substationsUrl:'data/countries/ES/substations.geojson',manifestUrl:'data/countries/ES/manifest.json'
+      code:'ES',name:{tr:'İspanya',en:'Spain'},nameTr:'İspanya',timezone:'Europe/Madrid',center:[40.2,-3.7],zoom:6,
+      coverageNote:{tr:'İspanya ana karası ve Balear Adaları; Kanarya Adaları kapsam dışıdır',en:'Mainland Spain and the Balearic Islands; the Canary Islands are outside coverage'},boundaryUrl:'data/countries/ES/boundary.geojson',grid400Url:'data/countries/ES/grid_400.geojson',grid154Url:'data/countries/ES/grid_154.geojson',substationsUrl:'data/countries/ES/substations.geojson',manifestUrl:'data/countries/ES/manifest.json'
     },
     FR: {
-      code:'FR',nameTr:'Fransa',timezone:'Europe/Paris',locale:'tr-TR',center:[46.5,2.2],zoom:6,
-      coverageNote:'Metropolitan Fransa ve Korsika; denizaşırı bölgeler kapsam dışıdır',boundaryUrl:'data/countries/FR/boundary.geojson',grid400Url:'data/countries/FR/grid_400.geojson',grid154Url:'data/countries/FR/grid_154.geojson',substationsUrl:'data/countries/FR/substations.geojson',manifestUrl:'data/countries/FR/manifest.json'
+      code:'FR',name:{tr:'Fransa',en:'France'},nameTr:'Fransa',timezone:'Europe/Paris',center:[46.5,2.2],zoom:6,
+      coverageNote:{tr:'Metropolitan Fransa ve Korsika; denizaşırı bölgeler kapsam dışıdır',en:'Metropolitan France and Corsica; overseas regions are outside coverage'},boundaryUrl:'data/countries/FR/boundary.geojson',grid400Url:'data/countries/FR/grid_400.geojson',grid154Url:'data/countries/FR/grid_154.geojson',substationsUrl:'data/countries/FR/substations.geojson',manifestUrl:'data/countries/FR/manifest.json'
     },
     PT: {
-      code:'PT',nameTr:'Portekiz',timezone:'Europe/Lisbon',locale:'tr-TR',geocodeCountryCode:'pt',center:[39.6,-8.0],zoom:6,
-      coverageNote:'Portekiz ana karası; Azorlar ve Madeira kapsam dışıdır',boundaryUrl:'data/countries/PT/boundary.geojson',grid400Url:'data/countries/PT/grid_400.geojson',grid154Url:'data/countries/PT/grid_154.geojson',substationsUrl:'data/countries/PT/substations.geojson',manifestUrl:'data/countries/PT/manifest.json'
+      code:'PT',name:{tr:'Portekiz',en:'Portugal'},nameTr:'Portekiz',timezone:'Europe/Lisbon',geocodeCountryCode:'pt',center:[39.6,-8.0],zoom:6,
+      coverageNote:{tr:'Portekiz ana karası; Azorlar ve Madeira kapsam dışıdır',en:'Mainland Portugal; the Azores and Madeira are outside coverage'},boundaryUrl:'data/countries/PT/boundary.geojson',grid400Url:'data/countries/PT/grid_400.geojson',grid154Url:'data/countries/PT/grid_154.geojson',substationsUrl:'data/countries/PT/substations.geojson',manifestUrl:'data/countries/PT/manifest.json'
     },
     IT: {
-      code:'IT',nameTr:'İtalya',timezone:'Europe/Rome',locale:'tr-TR',geocodeCountryCode:'it',center:[42.5,12.5],zoom:6,
-      coverageNote:'İtalya ana karası, Sicilya ve Sardinya',boundaryUrl:'data/countries/IT/boundary.geojson',grid400Url:'data/countries/IT/grid_400.geojson',grid154Url:'data/countries/IT/grid_154.geojson',substationsUrl:'data/countries/IT/substations.geojson',manifestUrl:'data/countries/IT/manifest.json'
+      code:'IT',name:{tr:'İtalya',en:'Italy'},nameTr:'İtalya',timezone:'Europe/Rome',geocodeCountryCode:'it',center:[42.5,12.5],zoom:6,
+      coverageNote:{tr:'İtalya ana karası, Sicilya ve Sardinya',en:'Mainland Italy, Sicily and Sardinia'},boundaryUrl:'data/countries/IT/boundary.geojson',grid400Url:'data/countries/IT/grid_400.geojson',grid154Url:'data/countries/IT/grid_154.geojson',substationsUrl:'data/countries/IT/substations.geojson',manifestUrl:'data/countries/IT/manifest.json'
     }
   };
   A.activeCountry=()=>A.COUNTRIES[A.CONFIG.activeCountryCode]||A.COUNTRIES.TR;
   A.applyCountryConfig=(code,boundary)=>{
     const country=A.COUNTRIES[code]||A.COUNTRIES.TR,feature=boundary?.features?.[0],geometry=feature?.geometry||null;
     const positions=[];const walk=v=>{if(Array.isArray(v)&&v.length>=2&&Number.isFinite(Number(v[0]))&&Number.isFinite(Number(v[1])))positions.push([Number(v[0]),Number(v[1])]);else if(Array.isArray(v))v.forEach(walk);};walk(geometry?.coordinates);
-    A.CONFIG.activeCountryCode=country.code;A.CONFIG.defaultCenter=country.center;A.CONFIG.defaultZoom=country.zoom;A.CONFIG.regionLabel=`${country.nameTr} veri alanı`;A.CONFIG.regionGeometry=geometry;
+    A.CONFIG.activeCountryCode=country.code;A.CONFIG.defaultCenter=country.center;A.CONFIG.defaultZoom=country.zoom;A.CONFIG.regionLabel=A.I18n?.countryName(country.code)||country.nameTr;A.CONFIG.regionGeometry=geometry;
     if(positions.length){const xs=positions.map(p=>p[0]),ys=positions.map(p=>p[1]);A.CONFIG.regionBounds={west:Math.min(...xs),south:Math.min(...ys),east:Math.max(...xs),north:Math.max(...ys)};}
     A.CONFIG.gridSources['400'].file=country.grid400Url;A.CONFIG.gridSources['154'].file=country.grid154Url;A.CONFIG.gridSources.substations.file=country.substationsUrl;
     A.CONFIG.mtgGeoColourWms.probeBbox=[A.CONFIG.regionBounds.south,A.CONFIG.regionBounds.west,A.CONFIG.regionBounds.north,A.CONFIG.regionBounds.east].join(',');

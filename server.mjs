@@ -6,11 +6,11 @@ import { gzipSync } from 'node:zlib';
 import { spawn } from 'node:child_process';
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
-const APP_VERSION='3.6.3';
+const APP_VERSION='3.7.0';
 const PREFERRED_PORT=Number(process.env.PORT||8890);
 let ACTIVE_PORT=PREFERRED_PORT;
 const FIRMS_MAP_KEY=process.env.FIRMS_MAP_KEY||'';
-const COUNTRY_BOUNDS={TR:{west:25.6,south:35.75,east:44.9,north:42.2},ES:{west:-9.3,south:36,east:4.35,north:43.8},FR:{west:-5.14,south:41.36,east:9.57,north:51.1}};
+const COUNTRY_BOUNDS={TR:{west:25.6,south:35.75,east:44.9,north:42.2},ES:{west:-9.3,south:36,east:4.35,north:43.8},FR:{west:-5.14,south:41.36,east:9.57,north:51.1},PT:{west:-9.52,south:36.96,east:-6.18,north:42.16},IT:{west:6.62,south:35.49,east:18.52,north:47.1}};
 const cache=new Map();
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.webmanifest':'application/manifest+json; charset=utf-8','.geojson':'application/geo+json; charset=utf-8','.md':'text/markdown; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg'};
 const allowedSources=new Set(['VIIRS_NOAA21_NRT','VIIRS_NOAA20_NRT','VIIRS_SNPP_NRT','MODIS_NRT']);
@@ -41,7 +41,7 @@ async function firmsProxy(req,res,url){
   for(let attempt=0;attempt<=2;attempt++){
     const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort('timeout'),18000);
     try{
-      const r=await fetch(target,{signal:ctrl.signal,headers:{Accept:'text/csv','User-Agent':'GridMoni/3.6.3'}});
+      const r=await fetch(target,{signal:ctrl.signal,headers:{Accept:'text/csv','User-Agent':'GridRisk-Atlas/3.7.0'}});
       if(r.status===429){const retryAfter=Number(r.headers.get('retry-after')||30);clearTimeout(timer);if(attempt<2&&retryAfter<60){await new Promise(r=>setTimeout(r,Math.min(retryAfter*1000,5000)+Math.random()*500));continue;}return send(res,429,JSON.stringify({error:'FIRMS rate limited',retryAfter}),'application/json; charset=utf-8');}
       if(!r.ok&&attempt<2&&r.status>=500){clearTimeout(timer);await new Promise(r=>setTimeout(r,750*(attempt+1)+Math.random()*500));continue;}
       const text=await r.text();if(!r.ok)return send(res,r.status,text||`FIRMS HTTP ${r.status}`);cache.set(key,{text,expires:Date.now()+7*60*1000});return send(res,200,text,'text/csv; charset=utf-8');
@@ -53,7 +53,7 @@ async function firmsProxy(req,res,url){
   }
 }
 async function staticFile(req,res,url){let rel=decodeURIComponent(url.pathname);if(rel==='/')rel='/index.html';const target=path.normalize(path.join(__dirname,rel));if(!target.startsWith(__dirname))return send(res,403,'Forbidden');try{const data=await fs.readFile(target),ext=path.extname(target),type=mime[ext]||'application/octet-stream',cacheControl='no-store';if((ext==='.geojson'||ext==='.js'||ext==='.css')&&String(req.headers['accept-encoding']||'').includes('gzip')&&data.length>4096){const gz=gzipSync(data);res.writeHead(200,{'Content-Type':type,'Content-Encoding':'gzip','Cache-Control':cacheControl,'Vary':'Accept-Encoding'});return res.end(gz);}res.writeHead(200,{'Content-Type':type,'Cache-Control':cacheControl});res.end(data);}catch(e){send(res,e.code==='ENOENT'?404:500,e.code==='ENOENT'?'Not found':'Server error');}}
-const server=http.createServer(async(req,res)=>{const url=new URL(req.url,`http://${req.headers.host||'localhost'}`);if(url.pathname==='/api/health')return send(res,200,JSON.stringify({ok:true,app:'GridMoni',version:APP_VERSION,port:ACTIVE_PORT,firmsProxy:!!FIRMS_MAP_KEY}),'application/json; charset=utf-8');if(url.pathname==='/api/firms')return firmsProxy(req,res,url);if(url.pathname.startsWith('/api/tiles/'))return tileProxy(req,res,url);return staticFile(req,res,url);});
+const server=http.createServer(async(req,res)=>{const url=new URL(req.url,`http://${req.headers.host||'localhost'}`);if(url.pathname==='/api/health')return send(res,200,JSON.stringify({ok:true,app:'GridRisk Atlas',version:APP_VERSION,port:ACTIVE_PORT,firmsProxy:!!FIRMS_MAP_KEY}),'application/json; charset=utf-8');if(url.pathname==='/api/firms')return firmsProxy(req,res,url);if(url.pathname.startsWith('/api/tiles/'))return tileProxy(req,res,url);return staticFile(req,res,url);});
 function openBrowser(url){if(process.env.AUTO_OPEN!=='1')return;try{if(process.platform==='win32'){const c=spawn('cmd',['/c','start','',url],{detached:true,stdio:'ignore'});c.unref();}else if(process.platform==='darwin'){const c=spawn('open',[url],{detached:true,stdio:'ignore'});c.unref();}else{const c=spawn('xdg-open',[url],{detached:true,stdio:'ignore'});c.unref();}}catch(e){console.warn('Tarayıcı otomatik açılamadı:',e.message);}}
 function listen(port,attempt=0){
   ACTIVE_PORT=port;
@@ -62,7 +62,7 @@ function listen(port,attempt=0){
     const actual=server.address()?.port||port;ACTIVE_PORT=Number(actual);
     const url=`http://127.0.0.1:${ACTIVE_PORT}/?build=${encodeURIComponent(APP_VERSION)}`;
     try{await fs.writeFile(path.join(__dirname,'.server-port'),String(ACTIVE_PORT),'utf8');}catch{}
-    console.log('');console.log(`GridMoni v${APP_VERSION}`);console.log(`Site: ${url}`);console.log(`FIRMS proxy: ${FIRMS_MAP_KEY?'enabled':'disabled (MAP_KEY not set)'}`);if(ACTIVE_PORT!==PREFERRED_PORT)console.log(`Not: ${PREFERRED_PORT} kullanımdaydı; eski sunucuya karışmamak için ${ACTIVE_PORT} seçildi.`);console.log('Kapatmak için Ctrl+C.');console.log('');openBrowser(url);
+    console.log('');console.log(`GridRisk Atlas v${APP_VERSION}`);console.log(`Site: ${url}`);console.log(`FIRMS proxy: ${FIRMS_MAP_KEY?'enabled':'disabled (MAP_KEY not set)'}`);if(ACTIVE_PORT!==PREFERRED_PORT)console.log(`Not: ${PREFERRED_PORT} kullanımdaydı; eski sunucuya karışmamak için ${ACTIVE_PORT} seçildi.`);console.log('Kapatmak için Ctrl+C.');console.log('');openBrowser(url);
   };
   const onError=err=>{
     server.off('listening',onListening);
