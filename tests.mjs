@@ -1928,7 +1928,8 @@ test('v3.5.0 — UI selector is Turkish, accessible and keeps a 40px touch targe
   assert.ok(htmlTxt.includes('<option value="PT">Portekiz</option>'));
   assert.ok(htmlTxt.includes('<option value="IT">İtalya</option>'));
   assert.ok(htmlTxt.includes('aria-label="Ülke seçin"'));
-  assert.ok(htmlTxt.includes('css/styles.css?v=3.6.2&amp;r=mobile-ux'), 'responsive CSS revision is cache-safe');
+  assert.ok(htmlTxt.includes('css/styles.css?v=3.6.2&amp;r=tm-7px'), 'responsive CSS revision is cache-safe');
+  assert.ok(htmlTxt.includes('js/map.js?v=3.6.2&amp;r=tm-7px'), 'TM marker geometry revision is cache-safe');
   assert.ok(cssTxt.includes('.countryControl select{width:128px;min-height:40px'));
   assert.equal(/countryControl select\{min-height:(?:3[0-9]|[0-9])px/.test(cssTxt), false, 'landscape override cannot shrink below 40px');
 });
