@@ -41,13 +41,14 @@ SOURCE_PROVIDER = "OpenStreetMap via ArcGIS OSM Europe"
 SOURCE_PROVIDER_SHORT = "ArcGIS OSM Europe"
 ATTRIBUTION = "© OpenStreetMap contributors"
 LICENSE = "ODbL 1.0"
-USER_AGENT = "Wildfire-Grid-Risk-Monitor-OSM-Repair/3.5.1 (+https://github.com/murathany90/tr_wildfire)"
+USER_AGENT = "Wildfire-Grid-Risk-Monitor/3.6.0 (+https://github.com/murathany90/tr_wildfire)"
 OUT_FIELDS = (
     "OBJECTID,osm_id,osm_id2,osm_version,osm_timestamp,power,voltage,name,ref,"
     "operator,frequency,cables,wires,line,substation,location"
 )
 LINE_TYPES = {"line", "minor_line", "cable"}
 POWER_TYPES = LINE_TYPES | {"substation"}
+OSM_COUNTRY_CODES = frozenset({"ES", "FR", "PT", "IT"})
 RETRY_STATUSES = {429, 500, 502, 503, 504}
 
 

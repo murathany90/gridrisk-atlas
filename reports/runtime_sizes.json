@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-01T23:41:14.140Z",
+  "generatedAt": "2026-08-02T00:59:40.917Z",
   "countries": {
     "ES": {
       "files": {
@@ -67,6 +67,74 @@
         "bytes": 43689687,
         "gzipBytes": 6376535,
         "brotliBytes": 6299858
+      }
+    },
+    "PT": {
+      "files": {
+        "boundary.geojson": {
+          "bytes": 89433,
+          "gzipBytes": 31768,
+          "brotliBytes": 31908
+        },
+        "grid_400.geojson": {
+          "bytes": 484215,
+          "gzipBytes": 85698,
+          "brotliBytes": 82440
+        },
+        "grid_154.geojson": {
+          "bytes": 3818948,
+          "gzipBytes": 579452,
+          "brotliBytes": 558228
+        },
+        "substations.geojson": {
+          "bytes": 728780,
+          "gzipBytes": 53204,
+          "brotliBytes": 48625
+        },
+        "manifest.json": {
+          "bytes": 1137,
+          "gzipBytes": 628,
+          "brotliBytes": 588
+        }
+      },
+      "totals": {
+        "bytes": 5122513,
+        "gzipBytes": 750750,
+        "brotliBytes": 721789
+      }
+    },
+    "IT": {
+      "files": {
+        "boundary.geojson": {
+          "bytes": 309220,
+          "gzipBytes": 109024,
+          "brotliBytes": 109828
+        },
+        "grid_400.geojson": {
+          "bytes": 2091621,
+          "gzipBytes": 366259,
+          "brotliBytes": 354404
+        },
+        "grid_154.geojson": {
+          "bytes": 15101301,
+          "gzipBytes": 2855850,
+          "brotliBytes": 2814835
+        },
+        "substations.geojson": {
+          "bytes": 3423793,
+          "gzipBytes": 242573,
+          "brotliBytes": 211719
+        },
+        "manifest.json": {
+          "bytes": 1126,
+          "gzipBytes": 617,
+          "brotliBytes": 582
+        }
+      },
+      "totals": {
+        "bytes": 20927061,
+        "gzipBytes": 3574323,
+        "brotliBytes": 3491368
       }
     }
   }

@@ -1,0 +1,213 @@
+{
+  "country": "IT",
+  "generatedAt": "2026-08-02T01:09:56.835970Z",
+  "comparisonMode": "source-validation",
+  "existing": {
+    "path": "C:\\yazilim_projeler\\zormanyangini\\turkey_wildfire_grid_risk_monitor_v3_2\\py_osm_download\\output\\italy_osm_power_grid_50kv_plus_full.geojson#ArcGIS",
+    "fileSizeBytes": 14669629,
+    "sourceTimestamp": "2026-08-02T00:50:48.877329Z",
+    "sourceProviders": [
+      "ArcGIS OSM Europe"
+    ],
+    "partial": false,
+    "failedRequests": 0,
+    "downloadTransparency": true,
+    "rawFeatureCount": 15105,
+    "validLineCount": 15101,
+    "validSubstationCount": 4,
+    "grid400LineCount": 1874,
+    "grid154LineCount": 13227,
+    "outsideBoundaryCount": 0,
+    "invalidGeometryCount": 0,
+    "duplicateCount": 0,
+    "voltageParseFailureCount": 0,
+    "voltageFieldMismatchCount": 0,
+    "nameLineCount": 5125,
+    "refLineCount": 5508,
+    "operatorLineCount": 1295,
+    "nameLineRatio": 0.339381,
+    "refLineRatio": 0.364744,
+    "operatorLineRatio": 0.085756,
+    "voltageParseSuccessRatio": 1.0,
+    "osmTimestampCoverageRatio": 1.0,
+    "suspectedGapTileCount": 0,
+    "exceededTransferLimitTileCount": 6,
+    "danglingEndpointCount": 13870,
+    "danglingEndpointRatio": 0.454784,
+    "productionGatesPassed": true
+  },
+  "fresh": {
+    "path": "C:\\yazilim_projeler\\zormanyangini\\turkey_wildfire_grid_risk_monitor_v3_2\\py_osm_download\\output\\italy_osm_power_grid_50kv_plus_full.geojson",
+    "fileSizeBytes": 18055992,
+    "sourceTimestamp": "2026-08-02T00:50:48.877329Z",
+    "sourceProviders": [
+      "ArcGIS OSM Europe",
+      "OpenStreetMap Overpass API"
+    ],
+    "partial": false,
+    "failedRequests": 0,
+    "downloadTransparency": true,
+    "rawFeatureCount": 19588,
+    "validLineCount": 15101,
+    "validSubstationCount": 4487,
+    "grid400LineCount": 1874,
+    "grid154LineCount": 13227,
+    "outsideBoundaryCount": 0,
+    "invalidGeometryCount": 0,
+    "duplicateCount": 0,
+    "voltageParseFailureCount": 0,
+    "voltageFieldMismatchCount": 0,
+    "nameLineCount": 5125,
+    "refLineCount": 5508,
+    "operatorLineCount": 1295,
+    "nameLineRatio": 0.339381,
+    "refLineRatio": 0.364744,
+    "operatorLineRatio": 0.085756,
+    "voltageParseSuccessRatio": 1.0,
+    "osmTimestampCoverageRatio": 1.0,
+    "suspectedGapTileCount": 0,
+    "exceededTransferLimitTileCount": 6,
+    "danglingEndpointCount": 13870,
+    "danglingEndpointRatio": 0.454784,
+    "productionGatesPassed": true
+  },
+  "sourceCandidates": {
+    "arcgisFresh": {
+      "path": "C:\\yazilim_projeler\\zormanyangini\\turkey_wildfire_grid_risk_monitor_v3_2\\py_osm_download\\output\\italy_osm_power_grid_50kv_plus_full.geojson#ArcGIS",
+      "fileSizeBytes": 14669629,
+      "sourceTimestamp": "2026-08-02T00:50:48.877329Z",
+      "sourceProviders": [
+        "ArcGIS OSM Europe"
+      ],
+      "partial": false,
+      "failedRequests": 0,
+      "downloadTransparency": true,
+      "rawFeatureCount": 15105,
+      "validLineCount": 15101,
+      "validSubstationCount": 4,
+      "grid400LineCount": 1874,
+      "grid154LineCount": 13227,
+      "outsideBoundaryCount": 0,
+      "invalidGeometryCount": 0,
+      "duplicateCount": 0,
+      "voltageParseFailureCount": 0,
+      "voltageFieldMismatchCount": 0,
+      "nameLineCount": 5125,
+      "refLineCount": 5508,
+      "operatorLineCount": 1295,
+      "nameLineRatio": 0.339381,
+      "refLineRatio": 0.364744,
+      "operatorLineRatio": 0.085756,
+      "voltageParseSuccessRatio": 1.0,
+      "osmTimestampCoverageRatio": 1.0,
+      "suspectedGapTileCount": 0,
+      "exceededTransferLimitTileCount": 6,
+      "danglingEndpointCount": 13870,
+      "danglingEndpointRatio": 0.454784,
+      "productionGatesPassed": true
+    },
+    "overpassCompletion": {
+      "path": "C:\\yazilim_projeler\\zormanyangini\\turkey_wildfire_grid_risk_monitor_v3_2\\py_osm_download\\output\\italy_osm_power_grid_50kv_plus_full.geojson#Overpass",
+      "fileSizeBytes": 3386905,
+      "sourceTimestamp": "2026-08-02T00:50:48.877329Z",
+      "sourceProviders": [
+        "OpenStreetMap Overpass API"
+      ],
+      "partial": false,
+      "failedRequests": 0,
+      "downloadTransparency": true,
+      "rawFeatureCount": 4483,
+      "validLineCount": 0,
+      "validSubstationCount": 4483,
+      "grid400LineCount": 0,
+      "grid154LineCount": 0,
+      "outsideBoundaryCount": 0,
+      "invalidGeometryCount": 0,
+      "duplicateCount": 0,
+      "voltageParseFailureCount": 0,
+      "voltageFieldMismatchCount": 0,
+      "nameLineCount": 0,
+      "refLineCount": 0,
+      "operatorLineCount": 0,
+      "nameLineRatio": 0,
+      "refLineRatio": 0,
+      "operatorLineRatio": 0,
+      "voltageParseSuccessRatio": 1.0,
+      "osmTimestampCoverageRatio": 1.0,
+      "suspectedGapTileCount": 0,
+      "exceededTransferLimitTileCount": 0,
+      "danglingEndpointCount": 0,
+      "danglingEndpointRatio": 0,
+      "productionGatesPassed": true
+    }
+  },
+  "selection": {
+    "selected": "validated-union",
+    "reason": "ArcGIS hat/nokta verisi ile küçük tile'lı Overpass polygon/way TM tamamlamasının OSM kimliği ve türü üzerinden tekilleştirilmiş birleşimi bütün production kapılarını geçti."
+  },
+  "validatedUnion": {
+    "used": true,
+    "sharedFeatureCount": 0,
+    "arcgisOnlyFeatureCount": 15105,
+    "overpassOnlyFeatureCount": 4483,
+    "unionFeatureCount": 19588,
+    "reason": "ArcGIS hat/nokta verisi ile küçük tile'lı Overpass polygon/way TM tamamlamasının OSM kimliği ve türü üzerinden tekilleştirilmiş birleşimi bütün production kapılarını geçti."
+  },
+  "alternativeCandidate": null,
+  "gapAnalysis": {
+    "tileSizeDegrees": 1,
+    "method": "ArcGIS accepted line representative points compared with validated union",
+    "candidateTiles": []
+  },
+  "coverageChecks": [
+    {
+      "name": "Kuzey İtalya",
+      "bbox": [
+        6.6,
+        44.0,
+        13.8,
+        47.2
+      ],
+      "lineCount": 6950,
+      "substationCount": 2189
+    },
+    {
+      "name": "Orta ve Güney İtalya",
+      "bbox": [
+        10.0,
+        36.5,
+        18.6,
+        44.0
+      ],
+      "lineCount": 7654,
+      "substationCount": 2122
+    },
+    {
+      "name": "Sicilya",
+      "bbox": [
+        12.3,
+        36.5,
+        15.8,
+        38.6
+      ],
+      "lineCount": 1286,
+      "substationCount": 346
+    },
+    {
+      "name": "Sardinya",
+      "bbox": [
+        8.0,
+        38.8,
+        9.9,
+        41.4
+      ],
+      "lineCount": 445,
+      "substationCount": 153
+    }
+  ],
+  "runtimeSize": {
+    "bytes": 20927061,
+    "gzipBytes": 3574323,
+    "brotliBytes": 3491368
+  }
+}

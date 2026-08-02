@@ -79,6 +79,8 @@ class BoundaryTests(unittest.TestCase):
     def setUpClass(cls):
         cls.es = common.load_boundary(ROOT / "data/countries/ES/boundary.geojson")
         cls.fr = common.load_boundary(ROOT / "data/countries/FR/boundary.geojson")
+        cls.pt = common.load_boundary(ROOT / "data/countries/PT/boundary.geojson")
+        cls.it = common.load_boundary(ROOT / "data/countries/IT/boundary.geojson")
 
     def accepted(self, country, boundary, point):
         feature = raw_feature("substation", "225000", Point(*point))
@@ -104,6 +106,24 @@ class BoundaryTests(unittest.TestCase):
         feature = raw_feature("substation", "400000;225000", polygon)
         normalized, _ = common.normalize_downloaded_feature("ES", feature, self.es)
         self.assertEqual(normalized["properties"]["actualVoltagesKv"], [225, 400])
+
+    def test_portugal_mainland_scope(self):
+        self.assertTrue(self.accepted("PT", self.pt, (-9.14, 38.72)))
+        self.assertTrue(self.accepted("PT", self.pt, (-8.61, 41.15)))
+        self.assertFalse(self.accepted("PT", self.pt, (-3.70, 40.42)))
+        self.assertFalse(self.accepted("PT", self.pt, (-25.67, 37.74)))
+        self.assertFalse(self.accepted("PT", self.pt, (-16.92, 32.65)))
+
+    def test_italy_scope_and_independent_states(self):
+        self.assertTrue(self.accepted("IT", self.it, (14.0, 37.5)))
+        self.assertTrue(self.accepted("IT", self.it, (9.0, 40.0)))
+        self.assertFalse(self.accepted("IT", self.it, (9.1, 42.15)))
+        self.assertFalse(self.accepted("IT", self.it, (12.4578, 43.9424)))
+        self.assertFalse(self.accepted("IT", self.it, (12.4534, 41.9029)))
+
+    def test_pt_it_cross_border_features_are_rejected(self):
+        self.assertFalse(self.accepted("PT", self.pt, (12.5, 42.5)))
+        self.assertFalse(self.accepted("IT", self.it, (-8.0, 39.6)))
 
 
 class FakeResponse:
@@ -134,6 +154,14 @@ class FakeSession:
 
 
 class DownloadTests(unittest.TestCase):
+    def test_osm_country_registry_and_new_wrappers(self):
+        self.assertEqual(common.OSM_COUNTRY_CODES, frozenset({"ES", "FR", "PT", "IT"}))
+        for filename, code in (("fetch_portugal_osm_full.py", '"PT"'), ("fetch_italy_osm_full.py", '"IT"')):
+            text = (ROOT / "py_osm_download" / filename).read_text(encoding="utf-8")
+            self.assertIn("build_cli_parser", text)
+            self.assertIn("run_download", text)
+            self.assertIn(code, text)
+
     def _retry_case(self, first):
         client = common.ArcGISClient(timeout=1, max_retries=2, backoff=0)
         client.session = FakeSession([first, FakeResponse(200, {"ok": True})])
@@ -271,6 +299,34 @@ class ComparisonTests(unittest.TestCase):
         )
         self.assertEqual(set(combined), {fresh_key, legacy_key})
         self.assertEqual(combined[legacy_key]["properties"]["sourceFallback"], "legacy-validated")
+
+    def test_new_country_source_validation_selects_complete_union(self):
+        boundary = {"type": "Feature", "properties": {}, "geometry": mapping(Polygon([(0, 0), (2, 0), (2, 2), (0, 2)]))}
+        line = raw_feature("line", "225000", LineString([(0.1, 0.1), (1, 1)]), osm_id="1", sourceProvider="ArcGIS OSM Europe")
+        sub = raw_feature("substation", "400000", Point(0.5, 0.5), osm_id="2", sourceProvider="OpenStreetMap Overpass API")
+        diagnostics = {
+            "partial": False,
+            "failedRequests": 0,
+            "failedTiles": [],
+            "suspectedGapTileCount": 0,
+            "overpassFallback": {"partial": False, "failedRequests": 0, "failedTiles": [], "suspectedGapTileCount": 0},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            boundary_path = root / "boundary.geojson"
+            fresh_path = root / "fresh.geojson"
+            boundary_path.write_text(json.dumps(boundary), encoding="utf-8")
+            fresh_path.write_text(json.dumps({
+                "type": "FeatureCollection",
+                "metadata": {"downloadDiagnostics": diagnostics},
+                "features": [line, sub],
+            }), encoding="utf-8")
+            report, selected = compare.compare_source_validation(fresh_path, boundary_path, "PT")
+            self.assertEqual(report["selection"]["selected"], "validated-union")
+            self.assertTrue(report["validatedUnion"]["used"])
+            self.assertEqual(report["sourceCandidates"]["arcgisFresh"]["validLineCount"], 1)
+            self.assertEqual(report["sourceCandidates"]["overpassCompletion"]["validSubstationCount"], 1)
+            self.assertEqual(len(selected["features"]), 2)
 
 
 if __name__ == "__main__":

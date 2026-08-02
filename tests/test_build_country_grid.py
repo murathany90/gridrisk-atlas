@@ -58,13 +58,13 @@ class VoltageNormalizationTests(unittest.TestCase):
 
 class RuntimeValidationTests(unittest.TestCase):
     def test_committed_runtime_outputs_are_complete(self):
-        for country_code in ("TR", "ES", "FR"):
+        for country_code in ("TR", "ES", "FR", "PT", "IT"):
             with self.subTest(country_code=country_code):
                 manifest = MODULE.validate_runtime(country_code)
                 self.assertEqual(manifest["countryCode"], country_code)
                 self.assertEqual(manifest["invalidGeometryCount"], 0)
                 self.assertEqual(manifest["duplicateAssetCount"], 0)
-                if country_code in {"ES", "FR"}:
+                if country_code in MODULE.OSM_COUNTRY_CODES:
                     self.assertIn("sourceContribution", manifest)
                     self.assertIn("coverage", manifest)
                     self.assertFalse(manifest["partial"])
@@ -79,7 +79,7 @@ class RuntimeValidationTests(unittest.TestCase):
             "circuits", "cables", "frequency", "location", "sourceProvider", "sourceFallback",
             "sourceLicense", "osmTimestamp",
         }
-        for country_code in ("ES", "FR"):
+        for country_code in ("ES", "FR", "PT", "IT"):
             with self.subTest(country_code=country_code):
                 country_dir = MODULE.OUTPUT_ROOT / country_code
                 manifest = json.loads((country_dir / "manifest.json").read_text(encoding="utf-8"))

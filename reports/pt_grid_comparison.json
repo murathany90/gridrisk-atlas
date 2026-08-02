@@ -1,0 +1,202 @@
+{
+  "country": "PT",
+  "generatedAt": "2026-08-02T01:09:42.754690Z",
+  "comparisonMode": "source-validation",
+  "existing": {
+    "path": "C:\\yazilim_projeler\\zormanyangini\\turkey_wildfire_grid_risk_monitor_v3_2\\py_osm_download\\output\\portugal_osm_power_grid_50kv_plus_full.geojson#ArcGIS",
+    "fileSizeBytes": 3650576,
+    "sourceTimestamp": "2026-08-02T00:25:31.017717Z",
+    "sourceProviders": [
+      "ArcGIS OSM Europe"
+    ],
+    "partial": false,
+    "failedRequests": 0,
+    "downloadTransparency": true,
+    "rawFeatureCount": 4126,
+    "validLineCount": 4126,
+    "validSubstationCount": 0,
+    "grid400LineCount": 415,
+    "grid154LineCount": 3711,
+    "outsideBoundaryCount": 0,
+    "invalidGeometryCount": 0,
+    "duplicateCount": 0,
+    "voltageParseFailureCount": 0,
+    "voltageFieldMismatchCount": 0,
+    "nameLineCount": 1354,
+    "refLineCount": 785,
+    "operatorLineCount": 3758,
+    "nameLineRatio": 0.328163,
+    "refLineRatio": 0.190257,
+    "operatorLineRatio": 0.91081,
+    "voltageParseSuccessRatio": 1.0,
+    "osmTimestampCoverageRatio": 1.0,
+    "suspectedGapTileCount": 0,
+    "exceededTransferLimitTileCount": 1,
+    "danglingEndpointCount": 2972,
+    "danglingEndpointRatio": 0.360155,
+    "productionGatesPassed": true
+  },
+  "fresh": {
+    "path": "C:\\yazilim_projeler\\zormanyangini\\turkey_wildfire_grid_risk_monitor_v3_2\\py_osm_download\\output\\portugal_osm_power_grid_50kv_plus_full.geojson",
+    "fileSizeBytes": 4418863,
+    "sourceTimestamp": "2026-08-02T00:25:31.017717Z",
+    "sourceProviders": [
+      "ArcGIS OSM Europe",
+      "OpenStreetMap Overpass API"
+    ],
+    "partial": false,
+    "failedRequests": 0,
+    "downloadTransparency": true,
+    "rawFeatureCount": 5033,
+    "validLineCount": 4126,
+    "validSubstationCount": 907,
+    "grid400LineCount": 415,
+    "grid154LineCount": 3711,
+    "outsideBoundaryCount": 0,
+    "invalidGeometryCount": 0,
+    "duplicateCount": 0,
+    "voltageParseFailureCount": 0,
+    "voltageFieldMismatchCount": 0,
+    "nameLineCount": 1354,
+    "refLineCount": 785,
+    "operatorLineCount": 3758,
+    "nameLineRatio": 0.328163,
+    "refLineRatio": 0.190257,
+    "operatorLineRatio": 0.91081,
+    "voltageParseSuccessRatio": 1.0,
+    "osmTimestampCoverageRatio": 1.0,
+    "suspectedGapTileCount": 0,
+    "exceededTransferLimitTileCount": 1,
+    "danglingEndpointCount": 2972,
+    "danglingEndpointRatio": 0.360155,
+    "productionGatesPassed": true
+  },
+  "sourceCandidates": {
+    "arcgisFresh": {
+      "path": "C:\\yazilim_projeler\\zormanyangini\\turkey_wildfire_grid_risk_monitor_v3_2\\py_osm_download\\output\\portugal_osm_power_grid_50kv_plus_full.geojson#ArcGIS",
+      "fileSizeBytes": 3650576,
+      "sourceTimestamp": "2026-08-02T00:25:31.017717Z",
+      "sourceProviders": [
+        "ArcGIS OSM Europe"
+      ],
+      "partial": false,
+      "failedRequests": 0,
+      "downloadTransparency": true,
+      "rawFeatureCount": 4126,
+      "validLineCount": 4126,
+      "validSubstationCount": 0,
+      "grid400LineCount": 415,
+      "grid154LineCount": 3711,
+      "outsideBoundaryCount": 0,
+      "invalidGeometryCount": 0,
+      "duplicateCount": 0,
+      "voltageParseFailureCount": 0,
+      "voltageFieldMismatchCount": 0,
+      "nameLineCount": 1354,
+      "refLineCount": 785,
+      "operatorLineCount": 3758,
+      "nameLineRatio": 0.328163,
+      "refLineRatio": 0.190257,
+      "operatorLineRatio": 0.91081,
+      "voltageParseSuccessRatio": 1.0,
+      "osmTimestampCoverageRatio": 1.0,
+      "suspectedGapTileCount": 0,
+      "exceededTransferLimitTileCount": 1,
+      "danglingEndpointCount": 2972,
+      "danglingEndpointRatio": 0.360155,
+      "productionGatesPassed": true
+    },
+    "overpassCompletion": {
+      "path": "C:\\yazilim_projeler\\zormanyangini\\turkey_wildfire_grid_risk_monitor_v3_2\\py_osm_download\\output\\portugal_osm_power_grid_50kv_plus_full.geojson#Overpass",
+      "fileSizeBytes": 768839,
+      "sourceTimestamp": "2026-08-02T00:25:31.017717Z",
+      "sourceProviders": [
+        "OpenStreetMap Overpass API"
+      ],
+      "partial": false,
+      "failedRequests": 0,
+      "downloadTransparency": true,
+      "rawFeatureCount": 907,
+      "validLineCount": 0,
+      "validSubstationCount": 907,
+      "grid400LineCount": 0,
+      "grid154LineCount": 0,
+      "outsideBoundaryCount": 0,
+      "invalidGeometryCount": 0,
+      "duplicateCount": 0,
+      "voltageParseFailureCount": 0,
+      "voltageFieldMismatchCount": 0,
+      "nameLineCount": 0,
+      "refLineCount": 0,
+      "operatorLineCount": 0,
+      "nameLineRatio": 0,
+      "refLineRatio": 0,
+      "operatorLineRatio": 0,
+      "voltageParseSuccessRatio": 1.0,
+      "osmTimestampCoverageRatio": 1.0,
+      "suspectedGapTileCount": 0,
+      "exceededTransferLimitTileCount": 0,
+      "danglingEndpointCount": 0,
+      "danglingEndpointRatio": 0,
+      "productionGatesPassed": true
+    }
+  },
+  "selection": {
+    "selected": "validated-union",
+    "reason": "ArcGIS hat/nokta verisi ile küçük tile'lı Overpass polygon/way TM tamamlamasının OSM kimliği ve türü üzerinden tekilleştirilmiş birleşimi bütün production kapılarını geçti."
+  },
+  "validatedUnion": {
+    "used": true,
+    "sharedFeatureCount": 0,
+    "arcgisOnlyFeatureCount": 4126,
+    "overpassOnlyFeatureCount": 907,
+    "unionFeatureCount": 5033,
+    "reason": "ArcGIS hat/nokta verisi ile küçük tile'lı Overpass polygon/way TM tamamlamasının OSM kimliği ve türü üzerinden tekilleştirilmiş birleşimi bütün production kapılarını geçti."
+  },
+  "alternativeCandidate": null,
+  "gapAnalysis": {
+    "tileSizeDegrees": 1,
+    "method": "ArcGIS accepted line representative points compared with validated union",
+    "candidateTiles": []
+  },
+  "coverageChecks": [
+    {
+      "name": "Kuzey iletim koridoru",
+      "bbox": [
+        -9.5,
+        40.5,
+        -7.0,
+        42.2
+      ],
+      "lineCount": 1716,
+      "substationCount": 341
+    },
+    {
+      "name": "Porto çevresi",
+      "bbox": [
+        -8.9,
+        40.8,
+        -8.1,
+        41.6
+      ],
+      "lineCount": 950,
+      "substationCount": 136
+    },
+    {
+      "name": "Lizbon çevresi",
+      "bbox": [
+        -9.5,
+        38.3,
+        -8.5,
+        39.2
+      ],
+      "lineCount": 888,
+      "substationCount": 195
+    }
+  ],
+  "runtimeSize": {
+    "bytes": 5122513,
+    "gzipBytes": 750750,
+    "brotliBytes": 721789
+  }
+}

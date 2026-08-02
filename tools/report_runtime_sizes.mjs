@@ -2,7 +2,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 
-const countries = ['ES', 'FR'];
+const countries = ['ES', 'FR', 'PT', 'IT'];
 const filenames = ['boundary.geojson', 'grid_400.geojson', 'grid_154.geojson', 'substations.geojson', 'manifest.json'];
 const report = { generatedAt: new Date().toISOString(), countries: {} };
 
@@ -30,7 +30,7 @@ for (const country of countries) {
 mkdirSync('reports', { recursive: true });
 writeFileSync('reports/runtime_sizes.json', `${JSON.stringify(report, null, 2)}\n`, 'utf8');
 const lines = [
-  '# ES/FR runtime dağıtım boyutları',
+  '# Avrupa OSM runtime dağıtım boyutları',
   '',
   `Oluşturulma: \`${report.generatedAt}\``,
   '',
