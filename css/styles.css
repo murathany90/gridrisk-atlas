@@ -2285,6 +2285,10 @@ main {
 }
 
 /* v3.7.0 mobile quick layer menu (FAB + popover) — desktop hidden */
+.fireSparkline {
+  display: block;
+  margin: 4px auto 2px;
+}
 .quickLayersFab {
   display: none;
 }

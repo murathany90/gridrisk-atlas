@@ -99,6 +99,7 @@
       '700hPa': {labelKey:'layers.wind700',label:'700 hPa',speed:'wind_speed_700hPa',direction:'wind_direction_700hPa'}
     },
     fireClustering: { radiusKm: 5, timeHours: 6 },
+    NEARBY_FIRMS_RADIUS_KM: 10,
     frpThreshold: 30,
     downwind: {
       minDistanceKm: 10,

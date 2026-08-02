@@ -307,6 +307,7 @@
       input.click();
     }
     syncQuickLayers() {
+      const warningStates = new Set(["error", "warn", "stale", "partial"]);
       const loading = {
         layerMtg: this.services.mtg?.state === "loading",
         layerSmoke: this.services.air?.state === "loading",
@@ -314,20 +315,27 @@
           this.services.grid?.state === "loading" ||
           Boolean(A.app?.grid?.loading?.size),
       };
-      const error = {
-        layerMtg: this.services.mtg?.state === "error",
-        layerSmoke: this.services.air?.state === "error",
-        layerGridMaster: this.services.grid?.state === "error",
+      const warn = {
+        layerMtg: warningStates.has(this.services.mtg?.state),
+        layerSmoke: warningStates.has(this.services.air?.state),
+        layerFrpHeat: warningStates.has(this.services.firms?.state),
+        layerGridMaster: warningStates.has(this.services.grid?.state),
       };
       for (const btn of document.querySelectorAll(".quickLayerBtn")) {
         const input = document.getElementById(btn.dataset.quickLayer);
         if (!input) continue;
         const active = input.checked,
-          key = btn.dataset.quickLayer;
+          key = btn.dataset.quickLayer,
+          isWarn = Boolean(warn[key]);
         btn.classList.toggle("active", active);
         btn.classList.toggle("loading", active && Boolean(loading[key]));
-        btn.classList.toggle("warn", Boolean(error[key]) && !loading[key]);
+        btn.classList.toggle("warn", isWarn && !loading[key]);
         btn.setAttribute("aria-pressed", String(active));
+        const label = btn.querySelector(".qlLabel")?.textContent?.trim() || "";
+        let aria = label;
+        if (active && loading[key]) aria = `${label} — ${T("quickLayers.loading")}`;
+        else if (isWarn) aria = `${label} — ${T("quickLayers.warning")}`;
+        btn.setAttribute("aria-label", aria);
       }
     }
     syncLayerPanelPlacement() {
@@ -592,16 +600,21 @@
       const proximity = `<div class="detailSection"><h3>${T("detail.proximity")}</h3><div class="metricGrid"><div class="metric"><small>${T("detail.nearestLine")}</small><strong>${nearestLine ? this.val(nearestLine.distanceKm, 2, " km") : T("detail.none50")}</strong></div><div class="metric"><small>${T("detail.lineClass")}</small><strong>${nearestLine ? U.escapeHtml(nearestLine.feature.props?.displayClass || T("common.unknown")) : "—"}</strong></div><div class="metric"><small>${T("detail.actualVoltage")}</small><strong>${nearestLine ? U.escapeHtml(U.formatVoltage(nearestLine.feature.props?.actualVoltageKv) || T("common.unknown")) : "—"}</strong></div><div class="metric"><small>${T("detail.nearestSubstation")}</small><strong>${nearestSub ? this.val(nearestSub.distanceKm, 2, " km") : T("detail.none50")}</strong></div><div class="metric"><small>${T("detail.distanceBand")}</small><strong class="riskText ${band?.level || "low"}">${band?.label || T("proximity.low")}</strong></div><div class="metric"><small>${T("detail.nearSegment")}</small><strong>${nearestLine ? this.val(U.haversineKm(nearestLine.feature.a, nearestLine.feature.b), 2, " km") : "—"}</strong></div></div><div class="sourceNote">${T("detail.proximityNote")}</div></div>`;
       const smokeBlock = `<div class="detailSection"><h3>${T("detail.smoke", { time: air?.validAt ? U.formatLocal(new Date(air.validAt)) : "—" })}</h3><div class="metricGrid"><div class="metric"><small>${T("detail.wildfirePm10")}</small><strong>${this.val(v.pm10_wildfires, 1, " µg/m³")}</strong></div><div class="metric"><small>${T("detail.resolution")}</small><strong>~11 km</strong></div><div class="metric"><small>${T("detail.dataType")}</small><strong>${T("detail.forecast")}</strong></div></div><div class="sourceNote">${T("detail.smokeNote")}</div></div>`;
       const weatherBlock = `<div class="detailSection"><h3>${T("detail.weather", { time: weather?.validAt ? U.formatLocal(new Date(weather.validAt)) : "—" })}</h3><div class="metricGrid"><div class="metric"><small>10 m</small><strong>${this.val(w.wind_speed_10m, 1, " km/h")} · ${w.wind_direction_10m != null ? Math.round(w.wind_direction_10m) + "° " + U.cardinal(w.wind_direction_10m) : "—"}</strong></div><div class="metric"><small>850 hPa</small><strong>${this.val(w.wind_speed_850hPa, 1, " km/h")} · ${w.wind_direction_850hPa != null ? Math.round(w.wind_direction_850hPa) + "°" : "—"}</strong></div><div class="metric"><small>700 hPa</small><strong>${this.val(w.wind_speed_700hPa, 1, " km/h")} · ${w.wind_direction_700hPa != null ? Math.round(w.wind_direction_700hPa) + "°" : "—"}</strong></div><div class="metric"><small>${T("detail.gustHumidity")}</small><strong>${this.val(w.wind_gusts_10m, 1, " km/h")} / ${this.val(w.relative_humidity_2m, 0, "%")}</strong></div></div><div class="sourceNote">${T("detail.windNote")}</div></div>`;
+      const visibleDetections = nearbyFires.filter(
+        (item) =>
+          Number.isFinite(Number(item.fire?.frp)) &&
+          Number(item.fire?.frp) >= 1,
+      );
       const fireList = `<div class="detailSection"><h3>${T("detail.nearbyFirms")}</h3>${
-        nearbyFires.length
-          ? nearbyFires
+        visibleDetections.length
+          ? visibleDetections
               .slice(0, 12)
               .map(
                 (n) =>
                   `<div class="fireRow"><span>${this.val(n.distance, 1, " km")} · ${this.val(n.fire.frp, 1, " MW")}</span><span>${U.formatLocal(new Date(n.fire.detectedAt))}</span></div>`,
               )
               .join("")
-          : `<div class="emptyState">${T("detail.noFirms")}</div>`
+          : `<div class="emptyState">${T("detail.nearbyEmpty")}</div>`
       }</div>`;
       const badge = T(
         fire || fireEvent
@@ -618,7 +631,7 @@
         point,
         air,
         weather,
-        nearbyFires,
+        visibleDetections,
         gridFeature,
         nearest,
       );

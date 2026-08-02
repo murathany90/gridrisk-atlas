@@ -93,6 +93,22 @@
     formatLocal(date){return new Intl.DateTimeFormat(A.I18n?.intlLocale?.()||'tr-TR',{timeZone:A.activeCountry?.().timezone||'Europe/Istanbul',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false,timeZoneName:'short'}).format(date);},
     formatUtc(date){return new Intl.DateTimeFormat(A.I18n?.intlLocale?.()||'tr-TR',{timeZone:'UTC',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false,timeZoneName:'short'}).format(date);},
     formatTrShortDateTime(date){const d=new Date(date);if(Number.isNaN(d.getTime()))return null;return new Intl.DateTimeFormat(A.I18n?.intlLocale?.()||'tr-TR',{timeZone:A.activeCountry?.().timezone||'Europe/Istanbul',day:'numeric',month:'long',hour:'2-digit',minute:'2-digit',hour12:false,hourCycle:'h23'}).format(d);},
+    formatShortDateTime(date){const d=new Date(date);if(Number.isNaN(d.getTime()))return null;const locale=A.I18n?.intlLocale?.()||'tr-TR',tz=A.activeCountry?.().timezone||'Europe/Istanbul';const dtf=new Intl.DateTimeFormat(locale,{timeZone:tz,day:'2-digit',month:'short'}),ttf=new Intl.DateTimeFormat(locale,{timeZone:tz,hour:'2-digit',minute:'2-digit',hour12:false,hourCycle:'h23'});return `${dtf.format(d)}, ${ttf.format(d)}`;},
+    sparklinePoints(detections,opts={}){
+      const endMs=Number.isFinite(Number(opts.endMs))?Number(opts.endMs):Date.now();
+      const minFrp=Number.isFinite(Number(opts.minFrp))?Number(opts.minFrp):5;
+      const maxPoints=Number.isFinite(Number(opts.maxPoints))?Math.max(1,Math.floor(Number(opts.maxPoints))):24;
+      const windowMs=48*3600e3,start=endMs-windowMs;
+      const pts=(detections||[]).filter(f=>f&&Number.isFinite(Date.parse(f.detectedAt))&&Number.isFinite(Number(f.frp))&&Number(f.frp)>=minFrp).map(f=>({f,t:Date.parse(f.detectedAt)})).filter(x=>x.t>=start&&x.t<=endMs).sort((a,b)=>a.t-b.t);
+      if(pts.length<=maxPoints)return pts.map(x=>x.f);
+      const buckets=new Array(maxPoints).fill(null);
+      for(const x of pts){
+        const idx=Math.min(maxPoints-1,Math.floor(((x.t-start)/windowMs)*maxPoints));
+        const cur=buckets[idx];
+        if(!cur||Number(x.f.frp)>Number(cur.f.frp))buckets[idx]=x;
+      }
+      return buckets.filter(Boolean).map(x=>x.f);
+    },
     formatAgeSince(iso,reference=new Date()){const a=Date.parse(iso),b=new Date(reference).getTime(),t=(key,params)=>A.I18n?.t(key,params)||'';if(!Number.isFinite(a)||!Number.isFinite(b))return null;const min=Math.max(0,Math.floor((b-a)/60000));if(min<1)return t('duration.lessMinute');const days=Math.floor(min/1440),hours=Math.floor((min%1440)/60),mins=min%60;if(days>0)return `${t('duration.day',{count:days})}${hours>0?` ${t('duration.hour',{count:hours})}`:''}`;if(hours>0)return `${t('duration.hour',{count:hours})}${mins>0?` ${t('duration.minute',{count:mins})}`:''}`;return t('duration.minute',{count:mins});},
     timeReference(selectedTime,sliderValue=0){const sel=new Date(selectedTime).getTime(),now=Date.now();if(!Number.isFinite(sel))return new Date(now);if(Number(sliderValue)===0)return new Date(now);return new Date(Math.min(sel,now+15*60e3));},
     areaHistory(fires,center,radiusKm){

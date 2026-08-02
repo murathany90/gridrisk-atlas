@@ -254,6 +254,7 @@
       this.footprintLayer = null;
       this.thermalEnvelopeLayer = null;
       this.evolutionLayer = null;
+      this._sparkCache = new Map();
     }
     init(onPointClick) {
       this.onPointClick = onPointClick;
@@ -464,6 +465,7 @@
     }
     renderFires(selectedTime) {
       this.currentSelectedTime = new Date(selectedTime);
+      this._sparkCache.clear();
       this.fireLayer.clearLayers();
       if (this.frpHeat) {
         this.map.removeLayer(this.frpHeat);
@@ -1306,6 +1308,20 @@
         T("summary.detections", { count: I.formatNumber(ev.count) }),
         `${T("analysis.maxFrp")}: ${I.formatNumber(U.round(ev.maxFrp, 1))} MW`,
       ];
+      const spark = this.fireSparklineData(ev, reference);
+      if (spark) {
+        out.push(T("sparkline.title"));
+        out.push(this.fireSparklineSvg(spark));
+        out.push(
+          T("sparkline.peak", {
+            value: I.formatNumber(U.round(spark.peakFrp, 1)),
+          }),
+        );
+        out.push(U.escapeHtml(spark.peakTime));
+      } else {
+        out.push(T("sparkline.title"));
+        out.push(T("sparkline.empty"));
+      }
       const h =
         history && history.records
           ? history
@@ -1327,6 +1343,71 @@
       if (age) out.push(T("map.lastAge", { age }));
       if (h.count > 1) out.push(T("map.areaCount", { count: I.formatNumber(h.count) }));
       return out.join("<br>");
+    }
+    fireSparklineData(ev, reference) {
+      const endMs = Math.min(
+          new Date(reference).getTime(),
+          Date.now() + 15 * 60e3,
+        ),
+        key = `${ev.id}|${endMs}`,
+        cached = this._sparkCache.get(key);
+      if (cached !== undefined) return cached;
+      const members = ev.members || [],
+        source = members.length
+          ? members
+          : this.fireAll.filter(
+              (f) =>
+                U.haversineKm({ lat: ev.lat, lon: ev.lon }, f) <=
+                C.NEARBY_FIRMS_RADIUS_KM,
+            ),
+        points = U.sparklinePoints(source, { endMs, minFrp: 5, maxPoints: 24 });
+      let result = null;
+      if (points.length) {
+        const peak = points.reduce(
+          (best, p) => (Number(p.frp) > Number(best.frp) ? p : best),
+          points[0],
+        );
+        result = {
+          points,
+          endMs,
+          start: endMs - 48 * 3600e3,
+          peakFrp: Number(peak.frp),
+          peakTime: U.formatShortDateTime(new Date(Date.parse(peak.detectedAt))),
+        };
+      }
+      this._sparkCache.set(key, result);
+      return result;
+    }
+    fireSparklineSvg(spark) {
+      const W = 160,
+        H = 40,
+        padL = 8,
+        padR = 8,
+        padT = 4,
+        padB = 12,
+        plotW = W - padL - padR,
+        plotH = H - padT - padB,
+        windowMs = 48 * 3600e3,
+        start = spark.start,
+        endMs = spark.endMs,
+        maxFrp = Math.max(...spark.points.map((p) => Number(p.frp))),
+        x = (t) => padL + ((t - start) / windowMs) * plotW,
+        y = (frp) => padT + plotH - (frp / maxFrp) * plotH;
+      const pts = spark.points.map(
+        (p) => `${x(Date.parse(p.detectedAt)).toFixed(1)},${y(Number(p.frp)).toFixed(1)}`,
+      );
+      const peak = spark.points.reduce(
+        (best, p) => (Number(p.frp) > Number(best.frp) ? p : best),
+        spark.points[0],
+      );
+      const px = x(Date.parse(peak.detectedAt)),
+        py = y(Number(peak.frp));
+      const line =
+        spark.points.length > 1
+          ? `<polyline points="${pts.join(" ")}" fill="none" stroke="#ff9a4d" stroke-width="1.5"/>`
+          : "";
+      const peakDot = `<circle cx="${px.toFixed(1)}" cy="${py.toFixed(1)}" r="2.5" fill="#ffd27a"/>`;
+      return `<svg class="fireSparkline" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" role="img" aria-label="${U.escapeHtml(T("sparkline.aria"))}">${line}${peakDot}<text x="${padL}" y="${H - 2}" font-size="8" fill="#9fb4c4">${U.escapeHtml(T("sparkline.from"))}</text><text x="${W - padR}" y="${H - 2}" font-size="8" fill="#9fb4c4" text-anchor="end">${U.escapeHtml(T("sparkline.now"))}</text></svg>`;
     }
     substationIcon() {
       return L.divIcon({
