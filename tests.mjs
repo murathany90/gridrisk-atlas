@@ -1121,7 +1121,7 @@ test('v3.6.1 — GridMoni branding, icons and five-country copy are complete', (
   assert.equal(htmlTxt.includes(oldSubtitle), false, 'old subtitle absent from UI');
   assert.equal(htmlTxt.includes('Türkiye, İspanya ve Fransa için 50–550 kV'), false, 'old three-country info absent');
   assert.equal(htmlTxt.includes('Türkiye, İspanya ve Fransa şebeke verisinin'), false, 'old contributor copy absent');
-  assert.ok(readmeTxt.startsWith('# GridMoni\n'));
+  assert.match(readmeTxt, /^# GridMoni\r?\n/);
   assert.ok(readmeTxt.includes('Wildfire Intelligence for Power Grids'));
   assert.ok(readmeTxt.includes(description));
   assert.equal(readmeTxt.includes(oldBrand), false);
