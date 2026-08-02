@@ -810,7 +810,7 @@ test('v3.4.0 — config: no firePolygonRange/firePolygons, no API keys for remov
   assert.equal(cfgTxt2.includes('gfwApiKey'), false, 'GFW key config removed');
   assert.equal(cfgTxt2.includes('atmoHubPortal'), false, 'AtmoHub portal config removed');
   assert.equal(cfgTxt2.includes('eumetsatConsumerKey'), false, 'EUMETSAT consumer key removed');
-  assert.ok(cfgTxt2.includes("appVersion: '3.6.0'"), 'config appVersion 3.6.0');
+  assert.ok(cfgTxt2.includes("appVersion: '3.6.1'"), 'config appVersion 3.6.1');
 });
 
 test('v3.4.0 — map.js: createMtgLayer uses WMS params (1.3.0, EPSG:4326, PNG, TIME)', () => {
@@ -1078,12 +1078,12 @@ test('v3.3.5 CSS: safe-area-inset-top on mobile topbar + main calc', () => {
   assert.ok(/main\{height:calc\(100% - 177px - env\(safe-area-inset-top\)\)\}/.test(cssTxt), 'mobile main calc subtracts safe-area top');
 });
 
-test('v3.6.0 version bump in all runtime files', () => {
-  assert.ok(htmlTxt.includes('v3.6.0'), 'index.html buildPill');
-  assert.ok(htmlTxt.includes('v=3.6.0'), 'index.html cache-busting');
-  assert.ok(cfgTxt.includes("appVersion: '3.6.0'"), 'config.js appVersion');
-  assert.ok(srvTxt.includes("APP_VERSION='3.6.0'"), 'server.mjs APP_VERSION');
-  assert.equal(JSON.parse(pkgTxt).version, '3.6.0', 'package.json version');
+test('v3.6.1 version bump in all runtime files', () => {
+  assert.ok(htmlTxt.includes('v3.6.1'), 'index.html buildPill');
+  assert.ok(htmlTxt.includes('v=3.6.1'), 'index.html cache-busting');
+  assert.ok(cfgTxt.includes("appVersion: '3.6.1'"), 'config.js appVersion');
+  assert.ok(srvTxt.includes("APP_VERSION='3.6.1'"), 'server.mjs APP_VERSION');
+  assert.equal(JSON.parse(pkgTxt).version, '3.6.1', 'package.json version');
   assert.equal(htmlTxt.includes('3.4.7'), false, 'no stale 3.4.7 in index.html');
   assert.equal(htmlTxt.includes('3.4.6'), false, 'no stale 3.4.6 in index.html');
   assert.equal(htmlTxt.includes('3.4.5'), false, 'no stale 3.4.5 in index.html');
@@ -1092,6 +1092,55 @@ test('v3.6.0 version bump in all runtime files', () => {
   assert.equal(htmlTxt.includes('3.4.2'), false, 'no stale 3.4.2 in index.html');
   assert.equal(/3\.4\.1[^0-9]/.test(htmlTxt), false, 'no stale 3.4.1 in index.html (3.4.10 excluded via digit anchor)');
   assert.equal(htmlTxt.includes('3.4.0'), false, 'no stale 3.4.0 in index.html');
+});
+
+test('v3.6.1 — GridMoni branding, icons and five-country copy are complete', () => {
+  const description = 'GridMoni provides wildfire intelligence and power grid risk monitoring for Türkiye, Spain, France, Portugal and Italy.';
+  const fiveCountryInfo = 'Türkiye, İspanya, Fransa, Portekiz ve İtalya için 50–550 kV gerçek OSM gerilimleri iki ortak risk sınıfına normalize edilir.';
+  const contributorText = 'Beş ülkenin şebeke verisinin haritalanmasına katkıda bulunan tüm OpenStreetMap gönüllülerine teşekkürler.';
+  const oldBrand = 'Wildfire Grid Risk Monitor';
+  const oldSubtitle = 'Wildfire and Electricity Grid Risk Monitoring Platform';
+  const readmeTxt = readFileSync('README.md', 'utf8');
+  const manifest = JSON.parse(readFileSync('manifest.webmanifest', 'utf8'));
+  const pagesTxt = readFileSync('.github/workflows/pages.yml', 'utf8');
+  const exportTxt = readFileSync('js/export.js', 'utf8');
+  const pngSize = path => {
+    const png = readFileSync(path);
+    assert.equal(png.subarray(1, 4).toString('ascii'), 'PNG', `${path} is PNG`);
+    return [png.readUInt32BE(16), png.readUInt32BE(20)];
+  };
+
+  assert.equal(C().appName, 'GridMoni');
+  assert.ok(htmlTxt.includes('<title>GridMoni</title>'));
+  assert.ok(htmlTxt.includes('<h1>GridMoni</h1>'));
+  assert.ok(htmlTxt.includes('<div class="subtitle">Wildfire Intelligence for Power Grids</div>'));
+  assert.ok(htmlTxt.includes(`name="description" content="${description}"`));
+  assert.ok(htmlTxt.includes(fiveCountryInfo));
+  assert.ok(htmlTxt.includes(contributorText));
+  assert.equal(htmlTxt.includes(oldBrand), false, 'old brand absent from UI');
+  assert.equal(htmlTxt.includes(oldSubtitle), false, 'old subtitle absent from UI');
+  assert.equal(htmlTxt.includes('Türkiye, İspanya ve Fransa için 50–550 kV'), false, 'old three-country info absent');
+  assert.equal(htmlTxt.includes('Türkiye, İspanya ve Fransa şebeke verisinin'), false, 'old contributor copy absent');
+  assert.ok(readmeTxt.startsWith('# GridMoni\n'));
+  assert.ok(readmeTxt.includes('Wildfire Intelligence for Power Grids'));
+  assert.ok(readmeTxt.includes(description));
+  assert.equal(readmeTxt.includes(oldBrand), false);
+  assert.ok(exportTxt.includes('app:C.appName'));
+  assert.equal(manifest.name, 'GridMoni');
+  assert.equal(manifest.short_name, 'GridMoni');
+  assert.equal(manifest.description, description);
+  assert.deepEqual(manifest.icons.map(icon => icon.sizes), ['192x192', '512x512']);
+  assert.ok(htmlTxt.includes('href="assets/icons/gridmoni-16.png"'));
+  assert.ok(htmlTxt.includes('href="assets/icons/gridmoni-32.png"'));
+  assert.ok(htmlTxt.includes('href="assets/icons/gridmoni-48.png"'));
+  assert.ok(htmlTxt.includes('rel="apple-touch-icon" sizes="192x192" href="assets/icons/gridmoni-192.png"'));
+  assert.ok(htmlTxt.includes('rel="manifest" href="manifest.webmanifest"'));
+  for (const size of [16, 32, 48, 192, 512]) assert.deepEqual(pngSize(`assets/icons/gridmoni-${size}.png`), [size, size]);
+  assert.deepEqual(pngSize('assets/icons/gridmoni.png'), [1254, 1254]);
+  assert.ok(cssTxt.includes('.brandIcon{display:block;width:38px;height:38px;object-fit:contain'));
+  assert.ok(cssTxt.includes('.brandIcon{width:32px;height:32px;border-radius:8px}'));
+  assert.ok(pagesTxt.includes('cp manifest.webmanifest deploy/'));
+  assert.ok(pagesTxt.includes('cp -r assets deploy/'));
 });
 
 // ── v3.4.3 — default layers + FRP default 30 + uniform substation squares ──
@@ -1850,7 +1899,7 @@ test('v3.5.0 — UI selector is Turkish, accessible and keeps a 40px touch targe
   assert.ok(htmlTxt.includes('<option value="PT">Portekiz</option>'));
   assert.ok(htmlTxt.includes('<option value="IT">İtalya</option>'));
   assert.ok(htmlTxt.includes('aria-label="Ülke seçin"'));
-  assert.ok(htmlTxt.includes('css/styles.css?v=3.6.0&amp;r=ptit'), 'responsive CSS revision is cache-safe');
+  assert.ok(htmlTxt.includes('css/styles.css?v=3.6.1&amp;r=branding'), 'responsive CSS revision is cache-safe');
   assert.ok(cssTxt.includes('.countryControl select{width:128px;min-height:40px'));
   assert.equal(/countryControl select\{min-height:(?:3[0-9]|[0-9])px/.test(cssTxt), false, 'landscape override cannot shrink below 40px');
 });

@@ -34,6 +34,8 @@ jobs:
         run: |
           mkdir -p deploy/data
           cp index.html deploy/
+          cp manifest.webmanifest deploy/
+          cp -r assets deploy/
           cp -r css js deploy/
           cp -r data/countries deploy/data/
           cp .nojekyll deploy/

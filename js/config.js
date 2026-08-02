@@ -1,8 +1,8 @@
 ﻿window.AtmoApp = window.AtmoApp || {};
 (function(A){
   A.CONFIG = {
-    appName: 'Wildfire Grid Risk Monitor',
-    appVersion: '3.6.0',
+    appName: 'GridMoni',
+    appVersion: '3.6.1',
     activeCountryCode: 'TR',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
