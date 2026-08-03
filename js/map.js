@@ -212,6 +212,13 @@
   }
 
   class MapManager {
+    static eligibleMultiSensor(events) {
+      return (events || []).filter(
+        (ev) =>
+          (ev.independentSensorCount || 0) >= 2 &&
+          U.insideRegion({ lat: ev.lat, lon: ev.lon }),
+      );
+    }
     constructor() {
       this.map = null;
       this.renderer = null;
@@ -726,11 +733,7 @@
       else if (!this.mtgFrpVisible) this.map.removeLayer(this.mtgFrpLayer);
     }
     setMultiSensor(events, selectedTime) {
-      this.multiSensorEvents = (events || []).filter(
-        (ev) =>
-          (ev.independentSensorCount || 0) >= 2 &&
-          U.insideRegion({ lat: ev.lat, lon: ev.lon }),
-      );
+      this.multiSensorEvents = this.constructor.eligibleMultiSensor(events);
       this.multiSensorLayer.clearLayers();
       for (const ev of this.multiSensorEvents) {
         const level = ev.confirmationLevel || 1,

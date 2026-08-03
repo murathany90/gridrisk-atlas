@@ -1315,6 +1315,260 @@ test("icon variants have the required PNG dimensions", async () => {
   }
 });
 
+test("thermal: FIRMS_ONLY plans zero alternate requests and never touches EUMETView", () => {
+  const TS = A.ThermalSources;
+  try {
+    TS.setMode("FIRMS_ONLY");
+    const plan = TS.planThermalRequests({
+      mode: TS.getMode(),
+      sentinel3a: true,
+      sentinel3b: true,
+    });
+    assert.deepEqual(plan, { slstrIds: [], mtg: false }, "no alternate-source query in FIRMS_ONLY");
+  } finally {
+    TS.setMode("SEPARATE_SOURCES");
+  }
+});
+
+test("thermal: SEPARATE_SOURCES plans both SLSTR satellites and keeps MTG behind its flag", () => {
+  const TS = A.ThermalSources;
+  const plan = TS.planThermalRequests({
+    mode: "SEPARATE_SOURCES",
+    sentinel3a: true,
+    sentinel3b: true,
+  });
+  assert.deepEqual(plan.slstrIds, ["sentinel3a-slstr", "sentinel3b-slstr"]);
+  assert.equal(plan.mtg, false, "MTG stays off unless its feature flag is enabled");
+  const multi = TS.planThermalRequests({
+    mode: "MULTI_SOURCE",
+    sentinel3a: true,
+    sentinel3b: true,
+  });
+  assert.deepEqual(multi.slstrIds, ["sentinel3a-slstr", "sentinel3b-slstr"]);
+});
+
+test("thermal: per-source flags restrict SLSTR WFS queries and disabled sensors never query", async () => {
+  const TS = A.ThermalSources;
+  const req = {
+    bbox,
+    countryCode: "TR",
+    startTime: new Date("2026-08-01T00:00:00Z"),
+    endTime: new Date("2026-08-02T00:00:00Z"),
+  };
+  const calls = [];
+  const handler = async (opts) => {
+    calls.push(opts.typeNames);
+    return { features: [], pages: 1, totalMatched: 0, meta: {} };
+  };
+  await withGetFeature(() => TS.loadSlstrGroup(req, ["sentinel3b-slstr"]), handler);
+  assert.deepEqual(calls, ["copernicus:sentinel3b_slstr_level2_frp"], "only the enabled sensor is queried");
+  calls.length = 0;
+  await withGetFeature(() => TS.loadSlstrGroup(req, ["sentinel3a-slstr"]), handler);
+  assert.deepEqual(calls, ["copernicus:sentinel3a_slstr_level2_frp"]);
+  const planB = TS.planThermalRequests({ mode: "SEPARATE_SOURCES", sentinel3a: true, sentinel3b: false });
+  assert.deepEqual(planB.slstrIds, ["sentinel3a-slstr"]);
+  calls.length = 0;
+  await withGetFeature(() => TS.loadSlstrGroup(req, []), handler);
+  assert.deepEqual(calls, [], "no enabled sensor means no WFS request");
+});
+
+test("thermal: time change feeds a new UTC window and identical windows are never re-requested", async () => {
+  const TS = A.ThermalSources;
+  const seen = [];
+  await withGetFeature(
+    () =>
+      TS.loadSlstrGroup(
+        {
+          bbox,
+          countryCode: "TR",
+          startTime: new Date("2026-08-01T00:00:00Z"),
+          endTime: new Date("2026-08-01T12:00:00Z"),
+        },
+        ["sentinel3a-slstr"],
+      ),
+    async (opts) => {
+      seen.push({ from: opts.from, to: opts.to });
+      return { features: [], pages: 1, totalMatched: 0, meta: {} };
+    },
+  );
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].from.toISOString(), "2026-08-01T00:00:00.000Z");
+  assert.equal(seen[0].to.toISOString(), "2026-08-01T12:00:00.000Z");
+  const k1 = TS.thermalWindowKey("TR", new Date("2026-08-02T10:00:00Z"));
+  assert.equal(k1, TS.thermalWindowKey("TR", new Date("2026-08-02T10:00:00Z")));
+  assert.notEqual(k1, TS.thermalWindowKey("ES", new Date("2026-08-02T10:00:00Z")), "country changes the window");
+  assert.notEqual(k1, TS.thermalWindowKey("TR", new Date("2026-08-03T10:00:00Z")), "time changes the window");
+});
+
+test("thermal: late FIRMS completion recomputes an association previously labeled without FIRMS", () => {
+  const TS = A.ThermalSources;
+  const fire = (lat = 38.6, lon = 35.2) =>
+    normDet({ frpMw: 45, lat, lon });
+  const slstr = normDet({
+    sourceId: "sentinel3a-slstr",
+    sourceName: "Sentinel-3A SLSTR",
+    sensorFamily: "slstr",
+    satellite: "S3A",
+    frpMw: 61.2,
+    detectedAt: "2026-08-02T10:30:00Z",
+  });
+  const pre = TS.associationSources({ fireData: [], slstrData: [slstr], mtgFrpData: [] });
+  const preEvents = Association.associateAcrossSources({ bySource: pre });
+  assert.equal(preEvents.length, 1);
+  assert.equal(preEvents[0].supportingSources.includes("nasa-firms"), false, "no FIRMS key, no FIRMS label");
+  assert.equal(preEvents[0].confirmationLevel, 1);
+  const post = TS.associationSources({ fireData: [fire()], slstrData: [slstr], mtgFrpData: [] });
+  const postEvents = Association.associateAcrossSources({ bySource: post });
+  const merged = postEvents.find((e) => e.observationCount === 2);
+  assert.ok(merged, "late FIRMS data merges on recompute");
+  assert.deepEqual(merged.supportingSources.sort(), ["nasa-firms", "sentinel3a-slstr"]);
+  assert.equal(merged.independentSensorCount, 2);
+  assert.equal(merged.confirmationLevel, 2);
+});
+
+test("thermal: orchestrator status keys never label warn/empty/error as success", () => {
+  const TS = A.ThermalSources;
+  assert.equal(TS.orchestratorStatusKey("ok"), "thermal.orchestrator.slstrOk");
+  assert.equal(TS.orchestratorStatusKey("warn"), "thermal.orchestrator.warn");
+  assert.equal(TS.orchestratorStatusKey("empty"), "thermal.orchestrator.empty");
+  assert.equal(TS.orchestratorStatusKey("error"), "thermal.orchestrator.error");
+  assert.equal(TS.orchestratorStatusKey("loading"), null);
+  const okTxt = I.t("thermal.orchestrator.slstrOk", { a: 1, b: 2 });
+  const warnTxt = I.t("thermal.orchestrator.warn");
+  const emptyTxt = I.t("thermal.orchestrator.empty");
+  const errorTxt = I.t("thermal.orchestrator.error");
+  assert.ok(okTxt);
+  assert.ok(warnTxt);
+  assert.ok(emptyTxt);
+  assert.ok(errorTxt);
+  assert.notEqual(warnTxt, okTxt);
+  assert.notEqual(emptyTxt, okTxt);
+  assert.notEqual(errorTxt, okTxt);
+  assert.ok(source.app.includes("orchestratorStatusKey"), "app drives status text through the mapping");
+});
+
+test("thermal: country change clears alternate layers, data, statuses and the thermal sequence", () => {
+  const appSrc = source.app,
+    mapSrc = source.map;
+  const resetBlock = appSrc.slice(
+    appSrc.indexOf("resetCountryState("),
+    appSrc.indexOf("resetCountryState(") + 900,
+  );
+  for (const token of [
+    "slstrData",
+    "slstrStatus",
+    "mtgFrpData",
+    "multiSensorEvents",
+    "_thermalWindowKey",
+  ])
+    assert.ok(resetBlock.includes(token), `resetCountryState clears ${token}`);
+  const mapBlock = mapSrc.slice(mapSrc.indexOf("resetCountry()"));
+  for (const token of [
+    "slstrLayer.clearLayers",
+    "slstrALayer.clearLayers",
+    "slstrBLayer.clearLayers",
+    "mtgFrpLayer.clearLayers",
+    "multiSensorLayer.clearLayers",
+  ])
+    assert.ok(mapBlock.includes(token), `map.resetCountry clears ${token}`);
+});
+
+test("multi-sensor layer only shows events confirmed by at least two independent families", () => {
+  const eligible = A.MapManager.eligibleMultiSensor;
+  const single = { id: "e1", lat: 38.6, lon: 35.2, independentSensorCount: 1, observationCount: 1 };
+  const dual = { id: "e2", lat: 38.7, lon: 35.3, independentSensorCount: 2, observationCount: 3 };
+  const triple = { id: "e3", lat: 39.1, lon: 40.0, independentSensorCount: 3, observationCount: 5 };
+  const out = eligible([single, dual, triple]);
+  assert.deepEqual(out.map((e) => e.id).sort(), ["e2", "e3"]);
+  assert.equal(eligible([]).length, 0);
+  assert.equal(eligible([single]).length, 0, "single-source events stay on their raw layers");
+});
+
+test("association: multi-sensor FRP is a per-source maximum, never a sum or an average", () => {
+  const events = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [normDet({ frpMw: 45 })],
+      "sentinel3a-slstr": [
+        normDet({
+          sourceId: "sentinel3a-slstr",
+          sourceName: "Sentinel-3A SLSTR",
+          sensorFamily: "slstr",
+          satellite: "S3A",
+          frpMw: 61.2,
+        }),
+      ],
+    },
+  });
+  const merged = events.find((e) => e.observationCount === 2);
+  assert.ok(merged);
+  assert.equal(merged.maxFrpMw, 61.2, "61.2 is max, not 106.2 sum or 53.1 average");
+  assert.equal(merged.maxFrpBySource["nasa-firms"], 45);
+  assert.equal(merged.maxFrpBySource["sentinel3a-slstr"], 61.2);
+});
+
+test("association: 10k synthetic observations associate quickly, deterministically and never over-merge", async () => {
+  function mulberry32(a) {
+    return function () {
+      a |= 0;
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const make = (seed) => {
+    const rnd = mulberry32(seed);
+    const firms = [];
+    const slstr = [];
+    for (let i = 0; i < 5000; i++) {
+      firms.push(
+        normDet({
+          frpMw: 20 + rnd() * 200,
+          lat: 36.5 + rnd() * 5,
+          lon: 29 + rnd() * 10,
+          detectedAt: `2026-08-02T10:${String(Math.floor(rnd() * 60)).padStart(2, "0")}:00Z`,
+        }),
+      );
+      slstr.push(
+        normDet({
+          sourceId: "sentinel3a-slstr",
+          sourceName: "Sentinel-3A SLSTR",
+          sensorFamily: "slstr",
+          satellite: "S3A",
+          frpMw: 20 + rnd() * 200,
+          lat: 36.5 + rnd() * 5,
+          lon: 29 + rnd() * 8,
+          detectedAt: `2026-08-02T10:${String(Math.floor(rnd() * 60)).padStart(2, "0")}:00Z`,
+        }),
+      );
+    }
+    return {
+      "nasa-firms": firms,
+      "sentinel3a-slstr": slstr,
+    };
+  };
+  const bySource = make(1);
+  const t0 = Date.now();
+  const events = Association.associateAcrossSources({ bySource });
+  const elapsed = Date.now() - t0;
+  assert.ok(events.length > 0, "associator returns events");
+  for (const ev of events) {
+    assert.ok(
+      ev.independentSensorCount === (ev.sensorFamilies || []).length &&
+        ev.independentSensorCount <= 2,
+      "families counted exactly, never invented",
+    );
+    assert.ok(ev.observationCount >= 1);
+  }
+  assert.ok(elapsed < 4000, `10k observations associated in ${elapsed} ms`);
+  const again = Association.associateAcrossSources({ bySource: make(1) });
+  assert.deepEqual(
+    again.map((e) => e.id),
+    events.map((e) => e.id),
+    "indexed association is deterministic for identical input",
+  );
+});
+
 const wfsPage1 = JSON.parse(read("tests/fixtures/wfs-page1.json"));
 const wfsPage2 = JSON.parse(read("tests/fixtures/wfs-page2.json"));
 const wfsEmpty = JSON.parse(read("tests/fixtures/wfs-empty.json"));

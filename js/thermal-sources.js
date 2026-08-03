@@ -34,6 +34,54 @@
     return next;
   }
 
+  function planThermalRequests({
+    mode = getThermalMode(),
+    sentinel3a = true,
+    sentinel3b = true,
+  } = {}) {
+    if (mode === "FIRMS_ONLY") return { slstrIds: [], mtg: false };
+    const slstrIds = [];
+    if (registry.isEnabled("sentinel3a-slstr") && sentinel3a)
+      slstrIds.push("sentinel3a-slstr");
+    if (registry.isEnabled("sentinel3b-slstr") && sentinel3b)
+      slstrIds.push("sentinel3b-slstr");
+    return { slstrIds, mtg: registry.isEnabled("mtg-fci-frp") };
+  }
+
+  function thermalWindowKey(countryCode, selectedTime) {
+    const d =
+      selectedTime instanceof Date ? selectedTime : new Date(selectedTime);
+    const t = Number.isFinite(d.getTime()) ? d.getTime() : Date.now();
+    const end = new Date(t),
+      start = new Date(t - 24 * 3600e3);
+    return `${countryCode || "?"}:${start.toISOString()}:${end.toISOString()}`;
+  }
+
+  const ORCHESTRATOR_KEYS = {
+    ok: "thermal.orchestrator.slstrOk",
+    warn: "thermal.orchestrator.warn",
+    empty: "thermal.orchestrator.empty",
+    error: "thermal.orchestrator.error",
+  };
+
+  function orchestratorStatusKey(status) {
+    return ORCHESTRATOR_KEYS[status] || null;
+  }
+
+  function associationSources({
+    fireData = [],
+    slstrData = [],
+    mtgFrpData = [],
+  } = {}) {
+    const bySource = { "nasa-firms": fireData };
+    const s3a = slstrData.filter((d) => d.satellite === "S3A"),
+      s3b = slstrData.filter((d) => d.satellite === "S3B");
+    if (s3a.length) bySource["sentinel3a-slstr"] = s3a;
+    if (s3b.length) bySource["sentinel3b-slstr"] = s3b;
+    if (mtgFrpData.length) bySource["mtg-fci-frp"] = mtgFrpData;
+    return bySource;
+  }
+
   function initialState() {
     return { status: "idle", data: null, error: null, lastSuccessfulAt: null, latency: null, count: 0, seq: 0 };
   }
@@ -349,6 +397,10 @@
     defaultMode: defaultThermalMode,
     getMode: getThermalMode,
     setMode: setThermalMode,
+    planThermalRequests,
+    thermalWindowKey,
+    orchestratorStatusKey,
+    associationSources,
     state: (sourceId) => {
       if (!registry._state.has(sourceId)) registry._state.set(sourceId, initialState());
       return registry._state.get(sourceId);

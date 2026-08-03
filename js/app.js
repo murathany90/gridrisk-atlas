@@ -759,11 +759,12 @@
     async loadThermalSources() {
       if (A.ThermalSources.getMode() === "FIRMS_ONLY") return;
       const TS = A.ThermalSources;
-      const enabled = TS.registry
-        .list()
-        .filter((a) => a.id !== "nasa-firms" && TS.registry.isEnabled(a.id))
-        .map((a) => a.id);
-      if (!enabled.length) return;
+      const plan = TS.planThermalRequests({
+        mode: TS.getMode(),
+        sentinel3a: this.state.slstrAEnabled,
+        sentinel3b: this.state.slstrBEnabled,
+      });
+      if (!plan.slstrIds.length && !plan.mtg) return;
       this.controllers.thermal?.abort();
       const ctrl = new AbortController();
       this.controllers.thermal = ctrl;
@@ -776,23 +777,15 @@
         endTime: this.state.selectedTime,
         signal: ctrl.signal,
       };
-      const SLSTR_IDS = ["sentinel3a-slstr", "sentinel3b-slstr"];
-      const slstrIds = SLSTR_IDS.filter(
-        (id) =>
-          TS.registry.isEnabled(id) &&
-          (id === "sentinel3a-slstr"
-            ? this.state.slstrAEnabled
-            : this.state.slstrBEnabled),
-      );
       const tasks = [];
-      if (slstrIds.length)
+      if (plan.slstrIds.length)
         tasks.push(
-          TS.loadSlstrGroup(request, slstrIds).then((r) => ({
+          TS.loadSlstrGroup(request, plan.slstrIds).then((r) => ({
             group: "slstr",
             result: r,
           })),
         );
-      if (enabled.includes("mtg-fci-frp")) {
+      if (plan.mtg) {
         TS.setLoading("mtg-fci-frp", seq);
         tasks.push(
           TS.registry
@@ -851,12 +844,9 @@
         this.map.setSlstr(slstrGroupRes.merged, this.state.selectedTime);
         const statusEl = document.getElementById("sentinelSlstrStatus");
         if (statusEl) {
-          const key = {
-            ok: "thermal.orchestrator.slstrOk",
-            warn: "thermal.orchestrator.warn",
-            empty: "thermal.orchestrator.empty",
-            error: "thermal.orchestrator.error",
-          }[slstrGroupRes.status];
+          const key = A.ThermalSources.orchestratorStatusKey(
+            slstrGroupRes.status,
+          );
           if (key)
             statusEl.textContent = T(key, {
               a: counts["sentinel3a-slstr"] ?? 0,
@@ -880,17 +870,11 @@
     rebuildThermalAssociation() {
       if (A.ThermalSources.getMode() !== "MULTI_SOURCE") return;
       if (!A.CONFIG.thermalFusion?.enabled || !A.ThermalAssociation) return;
-      const bySource = { "nasa-firms": this.state.fireData || [] };
-      const s3a = (this.state.slstrData || []).filter(
-        (d) => d.satellite === "S3A",
-      );
-      const s3b = (this.state.slstrData || []).filter(
-        (d) => d.satellite === "S3B",
-      );
-      if (s3a.length) bySource["sentinel3a-slstr"] = s3a;
-      if (s3b.length) bySource["sentinel3b-slstr"] = s3b;
-      if ((this.state.mtgFrpData || []).length)
-        bySource["mtg-fci-frp"] = this.state.mtgFrpData;
+      const bySource = A.ThermalSources.associationSources({
+        fireData: this.state.fireData || [],
+        slstrData: this.state.slstrData || [],
+        mtgFrpData: this.state.mtgFrpData || [],
+      });
       const events = A.ThermalAssociation.associateAcrossSources({ bySource });
       this.state.multiSensorEvents = events;
       this.map.setMultiSensor(events, this.state.selectedTime);
@@ -898,8 +882,10 @@
     }
     scheduleThermalReload(ms) {
       if (A.ThermalSources.getMode() === "FIRMS_ONLY") return;
-      const d = this.state.selectedTime,
-        key = `${this.state.countryCode}:${new Date(d.getTime() - 24 * 3600e3).toISOString()}:${d.toISOString()}`;
+      const key = A.ThermalSources.thermalWindowKey(
+        this.state.countryCode,
+        this.state.selectedTime,
+      );
       if (key === this._thermalWindowKey) return;
       this._thermalWindowKey = key;
       clearTimeout(this.thermalTimer);
