@@ -123,6 +123,7 @@ for (const path of [
   "js/grid.js",
   "js/eumetview-wfs.js",
   "js/thermal-sources.js",
+  "js/thermal-association.js",
   "js/map.js",
   "js/export.js",
 ])
@@ -1388,6 +1389,182 @@ test("EUMETView WFS: aborted signal prevents result application", async () => {
   setTimeout(() => ctrl.abort(), 5);
   await assert.rejects(p, (e) => e.kind === "ABORTED");
   assert.ok(aborted, "underlying fetch was aborted");
+});
+
+const Association = A.ThermalAssociation;
+
+function normDet(overrides) {
+  return {
+    detectionId: null,
+    sourceId: "nasa-firms",
+    sourceName: "NASA FIRMS",
+    sensorFamily: "viirs-modis",
+    satellite: "NOAA-21",
+    detectedAt: "2026-08-02T10:00:00Z",
+    lat: 38.6,
+    lon: 35.2,
+    frpMw: 45,
+    frpUncertaintyMw: null,
+    countryCode: "TR",
+    ...overrides,
+  };
+}
+
+test("association: deduplicateWithinSource merges identical records keeping the max FRP", () => {
+  const out = Association.deduplicateWithinSource([
+    normDet({ frpMw: 45 }),
+    normDet({ frpMw: 55 }),
+    normDet({ frpMw: 30, lat: 39.5, lon: 36.1 }),
+  ]);
+  assert.equal(out.length, 2);
+  const dup = out.find((d) => d.lat === 38.6);
+  assert.equal(dup.frpMw, 55, "max FRP kept, never summed");
+});
+
+test("association: FIRMS-only dataset yields one event per detection, no cross-source merge", () => {
+  const events = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [
+        normDet({ frpMw: 45 }),
+        normDet({ frpMw: 30, lat: 39.5, lon: 36.1 }),
+      ],
+    },
+  });
+  assert.equal(events.length, 2);
+  for (const ev of events) {
+    assert.equal(ev.observationCount, 1);
+    assert.equal(ev.independentSensorCount, 1);
+    assert.equal(ev.confirmationLevel, 1);
+    assert.deepEqual(ev.sensorFamilies, ["viirs-modis"]);
+    assert.deepEqual(ev.supportingSources, ["nasa-firms"]);
+    assert.equal(ev.maxFrpMw, ev.observations[0].frpMw);
+    assert.deepEqual(ev.maxFrpBySource, {
+      "nasa-firms": ev.observations[0].frpMw,
+    });
+  }
+});
+
+test("association: same event seen by VIIRS and SLSTR merges into one multi-sensor event", () => {
+  const events = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [
+        normDet({ frpMw: 45, detectedAt: "2026-08-02T10:00:00Z" }),
+        normDet({ frpMw: 12, lat: 41.2, lon: 42.8, detectedAt: "2026-08-02T10:00:00Z" }),
+      ],
+      "sentinel3a-slstr": [
+        normDet({
+          sourceId: "sentinel3a-slstr",
+          sourceName: "Sentinel-3A SLSTR",
+          sensorFamily: "slstr",
+          satellite: "S3A",
+          frpMw: 61.2,
+          detectedAt: "2026-08-02T10:30:00Z",
+        }),
+      ],
+    },
+  });
+  assert.equal(events.length, 2, "co-located merged, distant one separate");
+  const merged = events.find((e) => e.observationCount === 2);
+  assert.ok(merged, "merged event exists");
+  assert.deepEqual(merged.supportingSources.sort(), ["nasa-firms", "sentinel3a-slstr"]);
+  assert.deepEqual(merged.sensorFamilies.sort(), ["slstr", "viirs-modis"]);
+  assert.equal(merged.independentSensorCount, 2);
+  assert.equal(merged.confirmationLevel, 2);
+  assert.equal(merged.maxFrpMw, 61.2, "max of finite FRPs, never summed (45+61.2)");
+  assert.deepEqual(merged.maxFrpBySource, {
+    "nasa-firms": 45,
+    "sentinel3a-slstr": 61.2,
+  });
+  assert.deepEqual(merged.supportingPlatforms.sort(), ["NOAA-21", "S3A"]);
+  const single = events.find((e) => e.observationCount === 1);
+  assert.equal(single.confirmationLevel, 1);
+});
+
+test("association: time window limits cross-source merge (90 min VIIRS-SLSTR)", () => {
+  const far = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [normDet({ frpMw: 45, detectedAt: "2026-08-02T10:00:00Z" })],
+      "sentinel3b-slstr": [
+        normDet({
+          sourceId: "sentinel3b-slstr",
+          sensorFamily: "slstr",
+          satellite: "S3B",
+          frpMw: 33.3,
+          detectedAt: "2026-08-02T12:00:00Z",
+        }),
+      ],
+    },
+  });
+  assert.equal(far.length, 2, "120 min apart exceeds the 90 min window");
+  assert.ok(far.every((e) => e.observationCount === 1));
+});
+
+test("association: VIrRS-MTG and SLSTR-MTG rules use their own thresholds", () => {
+  const rules = Association.pairRules();
+  assert.deepEqual(rules.viirsToSlstr, { maxDistanceKm: 2.5, maxTimeMinutes: 90 });
+  assert.deepEqual(rules.viirsToMtg, { maxDistanceKm: 4, maxTimeMinutes: 30 });
+  assert.deepEqual(rules.slstrToMtg, { maxDistanceKm: 4, maxTimeMinutes: 45 });
+  const events = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [normDet({ frpMw: 45, detectedAt: "2026-08-02T10:00:00Z" })],
+      "sentinel3a-slstr": [
+        normDet({
+          sourceId: "sentinel3a-slstr",
+          sensorFamily: "slstr",
+          satellite: "S3A",
+          frpMw: 61.2,
+          detectedAt: "2026-08-02T10:00:00Z",
+        }),
+      ],
+      "mtg-fci-frp": [
+        normDet({
+          sourceId: "mtg-fci-frp",
+          sensorFamily: "mtg",
+          satellite: "MTG-I1",
+          frpMw: 150,
+          detectedAt: "2026-08-02T10:20:00Z",
+        }),
+      ],
+    },
+  });
+  assert.equal(events.length, 1);
+  const ev = events[0];
+  assert.equal(ev.observationCount, 3);
+  assert.equal(ev.independentSensorCount, 3);
+  assert.equal(ev.confirmationLevel, 3);
+  assert.equal(ev.maxFrpMw, 150, "max, never summed");
+  assert.deepEqual(ev.maxFrpBySource, {
+    "nasa-firms": 45,
+    "sentinel3a-slstr": 61.2,
+    "mtg-fci-frp": 150,
+  });
+});
+
+test("association: distance beyond threshold keeps events separate", () => {
+  const events = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [normDet({ frpMw: 45, lat: 38.6, lon: 35.2 })],
+      "sentinel3a-slstr": [
+        normDet({
+          sourceId: "sentinel3a-slstr",
+          sensorFamily: "slstr",
+          satellite: "S3A",
+          frpMw: 61.2,
+          lat: 38.62,
+          lon: 35.3,
+        }),
+      ],
+    },
+  });
+  assert.equal(events.length, 2, "~8 km apart exceeds 2.5 km window");
+});
+
+test("association: empty or absent sources produce no events", () => {
+  assert.deepEqual(Association.associateAcrossSources({ bySource: {} }), []);
+  assert.deepEqual(
+    Association.associateAcrossSources({ bySource: { "nasa-firms": [] } }),
+    [],
+  );
 });
 
 let passed = 0;
