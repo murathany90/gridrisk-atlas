@@ -1171,15 +1171,29 @@ test("thermal: loadSlstrGroup empty when both satellites return no detections", 
   assert.equal(TS.state("sentinel3b-slstr").status, "empty");
 });
 
-test("thermal: default mode FIRMS_ONLY preserved in config and no fusion wiring in app", () => {
+test("thermal: default mode FIRMS_ONLY preserved and app wiring is present but inert", () => {
   assert.equal(A.CONFIG.thermalSources.mode, "FIRMS_ONLY");
   assert.equal(A.CONFIG.thermalFusion.enabled, false);
   assert.equal(A.CONFIG.thermal.mode, "FIRMS_ONLY", "legacy alias stays in sync");
   assert.equal(A.CONFIG.thermal.fusion.enabled, false);
-  const hasFusionWiring = /associateAcrossSources|loadThermalSources/.test(
-    source.app,
+  const appSrc = source.app;
+  assert.ok(
+    /loadThermalSources/.test(appSrc),
+    "orchestrator wired after its dedicated commit",
   );
-  assert.equal(hasFusionWiring, false, "no fusion flow before its dedicated commit");
+  const fnStart = appSrc.indexOf("async loadThermalSources()");
+  assert.ok(fnStart !== -1, "loadThermalSources method exists");
+  const sliced = appSrc.slice(fnStart);
+  const earlyReturn = sliced.indexOf("mode === \"FIRMS_ONLY\"");
+  const firstLoad = sliced.indexOf("loadSlstrGroup");
+  assert.ok(earlyReturn !== -1, "FIRMS_ONLY short-circuits");
+  assert.ok(
+    earlyReturn < firstLoad,
+    "FIRMS_ONLY returns before any alternate-source request",
+  );
+  assert.ok(/layerSentinelSlstr/.test(html), "SLSTR layer control exists");
+  assert.ok(/layerMtgFrp/.test(html), "MTG FRP layer control exists");
+  assert.ok(/layerMultiSensorConf/.test(html), "multi-sensor layer control exists");
 });
 
 test("icon variants have the required PNG dimensions", async () => {

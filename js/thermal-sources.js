@@ -220,11 +220,11 @@
             signal: request.signal,
           });
           const ok = setResult(id, groupSeq, data, request.latency, request.requestKey);
-          bySource[id] = { status: data && data.length ? "ok" : "empty", data: data || [], error: null };
+          bySource[id] = { id, status: data && data.length ? "ok" : "empty", data: data || [], error: null };
           return ok ? bySource[id] : null;
         } catch (e) {
           const ok = setError(id, groupSeq, e);
-          bySource[id] = { status: "error", data: null, error: String((e && e.message) || e) };
+          bySource[id] = { id, status: "error", data: null, error: String((e && e.message) || e) };
           return ok ? bySource[id] : null;
         }
       }),

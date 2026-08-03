@@ -379,6 +379,62 @@
                       >
                     </div>
                     <label
+                      ><input id="layerSentinelSlstr" type="checkbox" />
+                      <span data-i18n="layers.sentinelSlstr"
+                        >Sentinel-3 SLSTR</span
+                      >
+                      <span
+                        class="layerBadge observation"
+                        data-i18n="badge.observation"
+                        >GÖZLEM</span
+                      ></label
+                    >
+                    <div
+                      class="layerDependent"
+                      data-depends-on="layerSentinelSlstr"
+                      data-source-status="sentinel3a-slstr"
+                    >
+                      <label
+                        ><input id="layerSentinelSlstrA" type="checkbox" />
+                        <span data-i18n="thermal.source.sentinel3a"
+                          >Sentinel-3A SLSTR</span
+                        ></label
+                      ><label
+                        ><input id="layerSentinelSlstrB" type="checkbox" />
+                        <span data-i18n="thermal.source.sentinel3b"
+                          >Sentinel-3B SLSTR</span
+                        ></label
+                      >
+                      <span id="sentinelSlstrStatus" class="layerHint"
+                        >—</span
+                      >
+                    </div>
+                    <label
+                      ><input
+                        id="layerMtgFrp"
+                        type="checkbox"
+                        data-feature-flag="mtg-fci-frp"
+                        hidden
+                      />
+                      <span data-i18n="layers.mtgFrp">MTG FCI FRP</span>
+                      <span
+                        class="layerBadge observation"
+                        data-i18n="badge.observation"
+                        >GÖZLEM</span
+                      ></label
+                    >
+                    <label
+                      ><input id="layerMultiSensorConf" type="checkbox" />
+                      <span data-i18n="layers.multiSensorConf"
+                        >Multi-sensor Doğrulama</span
+                      >
+                      <span
+                        class="layerBadge verification"
+                        data-i18n="badge.verification"
+                        >DOĞRULAMA</span
+                      ></label
+                    >
+                    <label
                       ><input
                         id="layerEffisBurntArea"
                         type="checkbox"
