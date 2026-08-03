@@ -318,6 +318,135 @@ test("fire normalization, deduplication and clustering remain deterministic", ()
   assert.equal(clustered[0].count, 2);
 });
 
+test("normalized thermal detection fixtures (FIRMS, S3A, S3B, missing fields, backward compat)", () => {
+  const prevCountry = A.CONFIG.activeCountryCode;
+  A.CONFIG.activeCountryCode = "TR";
+  try {
+    const S3A_RAW = {
+    id: "f_01A2B3C4D5E6F7",
+    sourceId: "sentinel3a-slstr",
+    source: "Sentinel-3A SLSTR",
+    sensorFamily: "slstr",
+    platform: "Sentinel-3A",
+    satellite: "Sentinel-3A",
+    sensor: "SLSTR",
+    product: "copernicus:frp",
+    processingMode: "realtime",
+    detectedAt: "2026-08-02T01:10:00Z",
+    receivedAt: "2026-08-02T01:22:00Z",
+    lat: "38.72",
+    lon: "35.05",
+    frpMw: "35.5",
+    frpUncertaintyMw: "7.1",
+    brightnessTemperatureK: 352.1,
+    confidenceRaw: "high",
+    cloudFraction: 0.02,
+    qualityFlags: "valid",
+    dayNight: "N",
+    countryCode: "TR",
+  };
+  const s3a = U.normalizeFireDetection(S3A_RAW);
+  assert.equal(s3a.detectionId, "f_01A2B3C4D5E6F7");
+  assert.equal(s3a.nativeId, "f_01A2B3C4D5E6F7");
+  assert.equal(s3a.sourceId, "sentinel3a-slstr");
+  assert.equal(s3a.sourceName, "Sentinel-3A SLSTR");
+  assert.equal(s3a.sensorFamily, "slstr");
+  assert.equal(s3a.frpMw, 35.5);
+  assert.equal(s3a.frpMw, s3a.frp);
+  assert.equal(s3a.sourceName, s3a.source);
+  assert.equal(s3a.frpUncertaintyMw, 7.1);
+  assert.equal(s3a.confidenceRaw, "high");
+  assert.equal(s3a.confidence, "high");
+  assert.equal(s3a.confidenceNormalized, 1);
+  assert.equal(s3a.detectedAt, "2026-08-02T01:10:00Z");
+  assert.equal(s3a.receivedAt, "2026-08-02T01:22:00Z");
+  assert.equal(s3a.cloudFraction, 0.02);
+  assert.equal(s3a.qualityFlags, "valid");
+  assert.equal(s3a.dayNight, "N");
+  const s3b = U.normalizeFireDetection({
+    ...S3A_RAW,
+    sourceId: "sentinel3b-slstr",
+    satellite: "Sentinel-3B",
+    platform: "Sentinel-3B",
+    detectedAt: "2026-08-02T02:40:00Z",
+  });
+  assert.equal(s3b.sourceId, "sentinel3b-slstr");
+  assert.equal(s3b.satellite, "Sentinel-3B");
+
+  const firms = U.normalizeFireDetection(
+    {
+      latitude: "38.4",
+      longitude: "36.1",
+      acq_date: "2026-08-01",
+      acq_time: "935",
+      instrument: "VIIRS",
+      satellite: "NOAA-21",
+      confidence: "85",
+      frp: "42.3",
+      daynight: "D",
+      bright_ti4: 355,
+      bright_ti5: 310,
+      scan: 1.1,
+      track: 0.6,
+      version: "1.0",
+    },
+    { source: "NASA FIRMS", sourceId: "nasa-firms", product: "VIIRS" },
+  );
+  assert.equal(firms.frpMw, 42.3);
+  assert.equal(firms.sourceName, "NASA FIRMS");
+  assert.equal(firms.sourceId, "nasa-firms");
+  assert.equal(firms.sensor, "VIIRS");
+  assert.equal(firms.satellite, "NOAA-21");
+  assert.equal(firms.confidenceRaw, "85");
+  assert.equal(firms.confidenceNormalized, 0.85);
+  assert.equal(firms.pixelWidthKm, 1.1);
+  assert.equal(firms.pixelHeightKm, 0.6);
+  assert.equal(firms.effectivePixelAreaKm2, 0.66);
+  assert.equal(firms.detectedAt, "2026-08-01T09:35:00Z");
+  assert.equal(firms.brightTi4K, 355);
+  assert.equal(firms.countryCode, "TR");
+  const viaAcqTimePadded = U.normalizeFireDetection(
+    { latitude: "3.3", longitude: "4.4", acq_date: "2026-08-01", acq_time: "25" },
+    { sourceId: "nasa-firms" },
+  );
+  assert.equal(viaAcqTimePadded.detectedAt, "2026-08-01T00:25:00Z");
+
+  const missing = U.normalizeFireDetection(
+    { longitude: "nan", lat: "35xN", detectedAt: "not-a-date", frpMw: "NaN" },
+    {},
+  );
+  assert.equal(missing.lat, null);
+  assert.equal(missing.lon, null);
+  assert.equal(missing.detectedAt, null);
+  assert.equal(missing.frpMw, null);
+  assert.equal(missing.frpUncertaintyMw, null);
+  assert.equal(missing.confidenceRaw, null);
+  assert.equal(missing.qualityFlags, null);
+  const gR = JSON.stringify({ ...missing, rawProperties: undefined });
+  assert.ok(!gR.includes("NaN"), "no NaN in normalized object");
+  assert.ok(!gR.includes("undefined"), "no undefined in JSON-serialized object");
+
+  const noUnc = U.normalizeFireDetection(
+    { lat: 1, lon: 2, frp: 9 },
+    { sourceId: "nasa-firms" },
+  );
+  assert.equal(noUnc.frpUncertaintyMw, null);
+  assert.equal(noUnc.brightTi4K, null);
+  assert.equal(noUnc.qualityFlags, null);
+  assert.equal(noUnc.detectedAt, null);
+
+  const backward = U.clusterFires([
+    U.normalizeFireDetection({ lat: 39, lon: 35, frp: 70, detectedAt: "2026-08-01T08:00:00Z", acq_time: "0" }, { sourceId: "nasa-firms", source: "NASA FIRMS" }),
+    U.normalizeFireDetection({ lat: 39.01, lon: 35.01, frp: 40, detectedAt: "2026-08-01T10:00:00Z" }, { sourceId: "nasa-firms", source: "NASA FIRMS" }),
+  ]);
+  assert.equal(backward.length, 1);
+  assert.equal(backward[0].maxFrp, 70, "legacy maxFrp preserved from normalized input");
+  assert.equal(backward[0].count, 2);
+  } finally {
+    A.CONFIG.activeCountryCode = prevCountry;
+  }
+});
+
 test("adaptive corridor stays in its documented 10–30 km range", () => {
   assert.equal(U.adaptiveCorridorDistanceKm(0, 0), 10);
   assert.equal(U.adaptiveCorridorDistanceKm(300, 35), 30);
@@ -775,27 +904,37 @@ test("thermal source registry contracts (config defaults, adapter registration, 
   assert.equal(registry.get("mtg-fci-frp"), null);
   await assert.rejects(() => registry.load("mtg-fci-frp", {}), /unknown source/);
 
-  const cfg = A.CONFIG.thermal;
+  const cfg = A.CONFIG.thermalSources;
   assert.equal(cfg.mode, "FIRMS_ONLY");
-  assert.equal(cfg.fusion.enabled, false);
-  assert.deepEqual(cfg.fusion.association.viirsToSlstr, {
+  assert.deepEqual(cfg.enabled, {
+    firms: true,
+    sentinel3a: false,
+    sentinel3b: false,
+    mtg: false,
+    msg: false,
+  });
+  assert.equal(A.CONFIG.thermalFusion.enabled, false);
+  assert.deepEqual(A.CONFIG.thermalFusion.association.viirsToSlstr, {
     maxDistanceKm: 2.5,
     maxTimeMinutes: 90,
   });
-  assert.deepEqual(cfg.fusion.association.viirsToMtg, {
+  assert.deepEqual(A.CONFIG.thermalFusion.association.viirsToMtg, {
     maxDistanceKm: 4,
     maxTimeMinutes: 30,
   });
-  assert.deepEqual(cfg.fusion.association.slstrToMtg, {
+  assert.deepEqual(A.CONFIG.thermalFusion.association.slstrToMtg, {
     maxDistanceKm: 4,
     maxTimeMinutes: 45,
   });
-  assert.equal(cfg.sources["nasa-firms"].enabled, true);
-  assert.equal(cfg.sources["nasa-firms"].required, true);
-  assert.equal(cfg.sources["sentinel3a-slstr"].featureFlag, true);
-  assert.equal(cfg.sources["sentinel3a-slstr"].enabled, false);
-  assert.equal(cfg.sources["sentinel3b-slstr"].featureFlag, true);
-  assert.equal(cfg.sources["msg-seviri-frp"].enabled, false);
+  const legacy = A.CONFIG.thermal;
+  assert.equal(legacy.mode, "FIRMS_ONLY");
+  assert.equal(legacy.fusion.enabled, false);
+  assert.equal(legacy.sources["nasa-firms"].enabled, true);
+  assert.equal(legacy.sources["nasa-firms"].required, true);
+  assert.equal(legacy.sources["sentinel3a-slstr"].featureFlag, true);
+  assert.equal(legacy.sources["sentinel3a-slstr"].enabled, false);
+  assert.equal(legacy.sources["sentinel3b-slstr"].featureFlag, true);
+  assert.equal(legacy.sources["msg-seviri-frp"].enabled, false);
   assert.equal(registry.isEnabled("nasa-firms"), true);
   assert.equal(registry.isEnabled("sentinel3a-slstr"), false);
 
@@ -829,7 +968,9 @@ A.FirmsAdapter = {
 });
 
 test("thermal: default mode FIRMS_ONLY preserved in config and no fusion wiring in app", () => {
-  assert.equal(A.CONFIG.thermal.mode, "FIRMS_ONLY");
+  assert.equal(A.CONFIG.thermalSources.mode, "FIRMS_ONLY");
+  assert.equal(A.CONFIG.thermalFusion.enabled, false);
+  assert.equal(A.CONFIG.thermal.mode, "FIRMS_ONLY", "legacy alias stays in sync");
   assert.equal(A.CONFIG.thermal.fusion.enabled, false);
   const hasFusionWiring = /associateAcrossSources|loadThermalSources/.test(
     source.app,

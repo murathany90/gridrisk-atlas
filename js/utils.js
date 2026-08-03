@@ -22,35 +22,93 @@
     if(s==='low'||s==='l')return .45;
     const n=Number(v);return Number.isFinite(n)?Math.max(0,Math.min(1,n/100)):.6;
   }
+  function numOrNull(v) {
+    if (v == null || v === "") return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  }
+  function strOrNull(v) {
+    if (v == null) return null;
+    const s = String(v).trim();
+    return s.length ? s : null;
+  }
   function normalizeFireDetection(raw, defaults = {}) {
-    const lat = Number(raw.lat ?? raw.latitude);
-    const lon = Number(raw.lon ?? raw.longitude);
-    const detectedAt = raw.detectedAt || raw.acq_date ? (
-      raw.detectedAt || (() => {
-        const hhmm = String(raw.acq_time || '').padStart(4, '0');
-        return `${raw.acq_date}T${hhmm.slice(0, 2)}:${hhmm.slice(2)}:00Z`;
-      })()
-    ) : null;
-    const frp = Number(raw.frp ?? raw.FRP ?? raw.brightness);
-    return {
-      id: raw.id || null,
-      countryCode: raw.countryCode || defaults.countryCode || C().activeCountryCode || 'TR',
-      source: raw.source || defaults.source || null,
-      product: raw.product || defaults.product || null,
-      satellite: raw.satellite || defaults.satellite || null,
-      sensor: raw.sensor || defaults.sensor || null,
-      lat: Number.isFinite(lat) ? lat : null,
-      lon: Number.isFinite(lon) ? lon : null,
-      detectedAt: detectedAt || null,
-      frp: Number.isFinite(frp) ? frp : null,
-      confidence: raw.confidence != null ? raw.confidence : null,
-      dayNight: raw.dayNight || raw.daynight || null,
-      brightTi4: raw.brightTi4 != null ? Number(raw.brightTi4) : null,
-      brightTi5: raw.brightTi5 != null ? Number(raw.brightTi5) : null,
-      scan: raw.scan != null ? Number(raw.scan) : null,
-      track: raw.track != null ? Number(raw.track) : null,
-      sourceUrl: raw.sourceUrl || null
+    raw = raw || {};
+    const lat = numOrNull(raw.lat ?? raw.latitude);
+    const lon = numOrNull(raw.lon ?? raw.longitude);
+    let detectedAt = raw.detectedAt ? String(raw.detectedAt) : null;
+    if (!detectedAt && raw.acq_date) {
+      const hhmm = String(raw.acq_time || "").padStart(4, "0");
+      detectedAt = `${raw.acq_date}T${hhmm.slice(0, 2)}:${hhmm.slice(2)}:00Z`;
+    }
+    if (detectedAt && Number.isNaN(Date.parse(detectedAt))) detectedAt = null;
+    const frpMw = numOrNull(raw.frpMw ?? raw.FRP ?? raw.brightness ?? raw.frp);
+    const frpUncertaintyMw = numOrNull(
+      raw.frpUncertaintyMw ?? raw.frp_uncertainty ?? raw.uncertainty ?? raw.FRP_UNCERTAINTY,
+    );
+    const brightTi4K = numOrNull(raw.brightTi4K ?? raw.bright_ti4 ?? raw.brightTi4);
+    const brightTi5K = numOrNull(raw.brightTi5K ?? raw.bright_ti5 ?? raw.brightTi5);
+    const brightnessTemperatureK = numOrNull(
+      raw.brightnessTemperatureK ?? brightTi4K,
+    );
+    const confidenceRaw =
+      raw.confidenceRaw ?? raw.confidence ?? raw.CONFIDENCE ?? null;
+    const pixelWidthKm = numOrNull(raw.scan ?? raw.pixelWidthKm);
+    const pixelHeightKm = numOrNull(raw.track ?? raw.pixelHeightKm);
+    const cloudFraction = numOrNull(raw.cloudFraction ?? raw.cloud_fraction ?? raw.CLOUD_FRACTION);
+    const satellite = strOrNull(raw.satellite ?? defaults.satellite);
+    const sensor = strOrNull(raw.sensor ?? raw.instrument ?? defaults.sensor);
+    const sourceName = strOrNull(raw.sourceName ?? raw.source ?? defaults.source);
+    const product = strOrNull(raw.product ?? defaults.product);
+    const sourceId = strOrNull(raw.sourceId ?? defaults.sourceId);
+    const nativeId = strOrNull(raw.id ?? raw.nativeId);
+    const detectionId = strOrNull(raw.detectionId ?? nativeId);
+    const normalized = {
+      detectionId,
+      nativeId,
+      sourceId,
+      sourceName,
+      platform: strOrNull(raw.platform ?? satellite),
+      satellite,
+      sensor,
+      sensorFamily: strOrNull(raw.sensorFamily ?? defaults.sensorFamily),
+      product,
+      processingMode: strOrNull(raw.processingMode ?? raw.processing),
+      detectedAt,
+      receivedAt: strOrNull(raw.receivedAt ?? raw.received_at),
+      lat,
+      lon,
+      frpMw,
+      frpUncertaintyMw,
+      brightnessTemperatureK,
+      brightTi4K,
+      brightTi5K,
+      confidenceRaw,
+      confidenceNormalized:
+        confidenceRaw != null ? confidenceWeight(confidenceRaw) : null,
+      pixelWidthKm,
+      pixelHeightKm,
+      effectivePixelAreaKm2:
+        pixelWidthKm != null && pixelHeightKm != null
+          ? pixelWidthKm * pixelHeightKm
+          : null,
+      cloudFraction,
+      qualityFlags: strOrNull(raw.qualityFlags ?? raw.quality_flags ?? raw.QUALITY_FLAGS),
+      hotspotClass: strOrNull(raw.hotspotClass ?? raw.hotspot ?? raw.HOTSPOT_CLASS),
+      dayNight: strOrNull(raw.dayNight ?? raw.daynight),
+      countryCode: strOrNull(raw.countryCode ?? defaults.countryCode) || C().activeCountryCode || 'TR',
+      rawProperties: raw,
     };
+    normalized.frp = normalized.frpMw;
+    normalized.confidence = normalized.confidenceRaw;
+    normalized.source = normalized.sourceName;
+    normalized.id = normalized.nativeId;
+    normalized.brightTi4 = normalized.brightTi4K;
+    normalized.brightTi5 = normalized.brightTi5K;
+    normalized.scan = normalized.pixelWidthKm;
+    normalized.track = normalized.pixelHeightKm;
+    normalized.sourceUrl = strOrNull(raw.sourceUrl);
+    return normalized;
   }
 
   function detectionIdentityKey(d) {

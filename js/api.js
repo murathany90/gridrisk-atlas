@@ -333,31 +333,17 @@
   };
 
   function parseFirmsRow(r, source, key, bbox) {
-    const lat = Number(r.latitude),
-      lon = Number(r.longitude);
-    if (!U.insideRegion({ lat, lon })) return null;
-    const hhmm = String(r.acq_time || "").padStart(4, "0");
-    const iso = `${r.acq_date}T${hhmm.slice(0, 2)}:${hhmm.slice(2)}:00Z`;
-    const dt = new Date(iso);
-    if (Number.isNaN(dt.getTime())) return null;
-    const frp = Number(r.frp);
-    return {
-      lat,
-      lon,
-      detectedAt: iso,
-      sensor: r.instrument || source,
-      satellite: r.satellite || "",
-      confidence: r.confidence || null,
-      frp: Number.isFinite(frp) ? frp : null,
-      dayNight: r.daynight || null,
-      brightTi4: U.toNum(r.bright_ti4),
-      brightTi5: U.toNum(r.bright_ti5),
-      scan: U.toNum(r.scan),
-      track: U.toNum(r.track),
+    const parsed = U.normalizeFireDetection(r, {
+      sourceId: "nasa-firms",
       source: "NASA FIRMS",
       product: source,
+      satellite: r.satellite || "",
+      sensor: r.instrument || source,
       countryCode: C.activeCountryCode,
-    };
+    });
+    if (!parsed.lat || !parsed.lon || !U.insideRegion(parsed)) return null;
+    if (!parsed.detectedAt) return null;
+    return parsed;
   }
 
   const VIIRS_PRODUCTS = [

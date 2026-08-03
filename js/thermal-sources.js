@@ -31,10 +31,13 @@
       return [...this._adapters.values()];
     }
     isEnabled(sourceId) {
-      const cfg = C.thermal?.sources?.[sourceId];
-      if (cfg?.required) return true;
-      if (cfg?.featureFlag) return !!cfg.enabled;
-      return !!cfg?.enabled;
+      const keyMap = { "nasa-firms": "firms", "sentinel3a-slstr": "sentinel3a", "sentinel3b-slstr": "sentinel3b", "mtg-fci-frp": "mtg", "msg-seviri-frp": "msg" };
+      const key = keyMap[sourceId] || sourceId;
+      const meta = C.thermalSources?.meta?.[sourceId] || C.thermal?.sources?.[sourceId];
+      if (meta?.required) return true;
+      if (meta?.featureFlag) return !!C.thermalSources?.enabled?.[key];
+      if (meta && key in (C.thermalSources?.enabled || {})) return !!C.thermalSources.enabled[key];
+      return !!meta?.enabled;
     }
     async load(sourceId, request) {
       const adapter = this.get(sourceId);
