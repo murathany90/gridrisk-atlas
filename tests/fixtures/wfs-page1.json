@@ -1,0 +1,48 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "S3A_anon_2608010630_lod0.01",
+      "geometry": { "type": "Point", "coordinates": [38.1, 39.2] },
+      "properties": {
+        "Lat": 39.2,
+        "Lon": 38.1,
+        "FRP": 22.5,
+        "FRPerr": 2.1,
+        "UsedChannel": "F1",
+        "Confidence": 87,
+        "BT": 345.1,
+        "SZA": 34.5,
+        "AcrossSize": 0.94,
+        "AlongSize": 1.12,
+        "Satellite": "S3A",
+        "Datetime": "2026-08-01T07:14:54",
+        "time": "2026-08-01T06:37:00Z"
+      }
+    },
+    {
+      "type": "Feature",
+      "id": "S3A_anon_2608010630_lod0.02",
+      "geometry": { "type": "Point", "coordinates": [38.9, 40.1] },
+      "properties": {
+        "Lat": 40.1,
+        "Lon": 38.9,
+        "FRP": 61.2,
+        "FRPerr": 5.9,
+        "UsedChannel": "F1",
+        "Confidence": 99,
+        "BT": 372.4,
+        "SZA": 33.1,
+        "AcrossSize": 0.94,
+        "AlongSize": 1.12,
+        "Satellite": "S3A",
+        "Datetime": "2026-08-01T07:14:54",
+        "time": "2026-08-01T06:37:00Z"
+      }
+    }
+  ],
+  "totalFeatures": 3,
+  "numberReturned": 2,
+  "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::4326" } }
+}

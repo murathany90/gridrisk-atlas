@@ -63,6 +63,16 @@
         slstrToMtg: { maxDistanceKm: 4, maxTimeMinutes: 45 }
       }
     },
+    eumetviewWfs: {
+      base: 'https://view.eumetsat.int/geoserver/ows',
+      version: '2.0.0',
+      outputFormat: 'application/json',
+      count: 2000,
+      maxPages: 20,
+      timeoutMs: 30000,
+      cacheTtlMs: 7 * 60 * 1000,
+      timeField: 'time'
+    },
     mtgGeoColourWms: {
       label: 'EUMETSAT MTG-I GeoColour RGB',
       url: 'https://view.eumetsat.int/geoserver/wms',

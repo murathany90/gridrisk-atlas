@@ -121,6 +121,7 @@ for (const path of [
   "js/utils.js",
   "js/countries.js",
   "js/grid.js",
+  "js/eumetview-wfs.js",
   "js/thermal-sources.js",
   "js/map.js",
   "js/export.js",
@@ -985,6 +986,206 @@ test("icon variants have the required PNG dimensions", async () => {
     assert.equal(data.readUInt32BE(16), size);
     assert.equal(data.readUInt32BE(20), size);
   }
+});
+
+const wfsPage1 = JSON.parse(read("tests/fixtures/wfs-page1.json"));
+const wfsPage2 = JSON.parse(read("tests/fixtures/wfs-page2.json"));
+const wfsEmpty = JSON.parse(read("tests/fixtures/wfs-empty.json"));
+const wfsInvalid = JSON.parse(read("tests/fixtures/wfs-invalid.json"));
+
+const WFS = A.EumetviewWfs;
+const bbox = [25.6, 35.75, 44.9, 42.2];
+const from = "2026-08-01T00:00:00Z";
+const to = "2026-08-02T00:00:00Z";
+
+async function withFetch(fn, handler) {
+  const orig = global.fetch;
+  try {
+    global.fetch = handler;
+    const result = await fn();
+    return result;
+  } finally {
+    if (orig) global.fetch = orig;
+    else delete global.fetch;
+  }
+}
+
+test("EUMETView WFS: CQL builder uses cql_filter with time field and never time=", () => {
+  const cql = WFS.buildCql({ bbox, from, to });
+  assert.equal(cql, "BBOX(geom, 25.6, 35.75, 44.9, 42.2) AND time >= '2026-08-01T00:00:00Z' AND time <= '2026-08-02T00:00:00Z'");
+  const url = WFS.buildUrl({ typeNames: "copernicus:sentinel3a_slstr_level2_frp", bbox, from, to, count: 2000 });
+  assert.ok(url.includes("service=WFS"));
+  assert.ok(url.includes("request=GetFeature"));
+  assert.equal(url.includes("cql_filter"), true);
+  assert.equal(new URL(url).searchParams.get("cql_filter"), cql);
+  assert.equal(url.includes("time="), false, "the WFS time= parameter is never used");
+  assert.ok(url.includes("count=2000"));
+  assert.equal(url.includes("startIndex="), false, "startIndex 0 omitted");
+  assert.equal(new URL(url).searchParams.get("outputFormat"), "application/json");
+});
+
+test("EUMETView WFS: pagination continues after 2000 and stops on short page", async () => {
+  const seen = [];
+  let calls = 0;
+  const res = await withFetch(
+    async () =>
+      WFS.getFeature({
+        typeNames: "copernicus:sentinel3a_slstr_level2_frp",
+        bbox,
+        from,
+        to,
+        count: 2,
+        ttl: 0,
+        onPage: (p) => seen.push(p.page),
+      }),
+    async () => {
+      calls++;
+      const shortPage = {
+        ...wfsPage2,
+        features: wfsPage2.features.slice(0, 1),
+        numberReturned: 1,
+      };
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return calls === 1 ? wfsPage1 : shortPage;
+        },
+        async text() {
+          return "";
+        },
+      };
+    },
+  );
+  assert.equal(calls, 2, "two pages requested while page size kept at 2");
+  assert.deepEqual(seen, [1, 2]);
+  assert.equal(res.pages, 2);
+  assert.equal(res.totalMatched, 3);
+  assert.equal(res.features.length, 3, "page-boundary duplicate removed");
+  assert.equal(res.url.includes("startIndex="), false);
+});
+
+test("EUMETView WFS: empty response is a valid empty dataset", async () => {
+  const res = await withFetch(
+    () =>
+      WFS.getFeature({
+        typeNames: "copernicus:sentinel3a_slstr_level2_frp",
+        bbox,
+        from,
+        to,
+        count: 2,
+        ttl: 0,
+      }),
+    async () => ({
+      json: async () => wfsEmpty,
+      text: async () => "{}",
+      status: 200,
+      ok: true,
+    }),
+  );
+  assert.equal(res.features.length, 0);
+  assert.equal(res.pages, 1);
+  assert.equal(WFS.isGeoJsonCollection(wfsInvalid), false);
+});
+
+test("EUMETView WFS: invalid GeoJSON rejected with INVALID_RESPONSE", async () => {
+  await assert.rejects(
+    () =>
+      withFetch(
+        () =>
+          WFS.getFeature({
+            typeNames: "x",
+            bbox,
+            from,
+            to,
+            count: 2,
+            ttl: 0,
+          }),
+        async () => ({
+          json: async () => wfsInvalid,
+          status: 200,
+          ok: true,
+        }),
+      ),
+    /not a GeoJSON FeatureCollection/,
+  );
+});
+
+test("EUMETView WFS: max page guard applies and partial results are reported", async () => {
+  await assert.rejects(
+    () =>
+      withFetch(
+        async () =>
+          WFS.getFeature({
+            typeNames: "copernicus:sentinel3a_slstr_level2_frp",
+            bbox,
+            from,
+            to,
+            count: 2,
+            maxPages: 3,
+            ttl: 0,
+          }),
+        async () => ({
+          json: async () => wfsPage1,
+          status: 200,
+          ok: true,
+        }),
+      ),
+    /max page limit reached/,
+  );
+});
+
+test("EUMETView WFS: HTTP error surfaces as HTTP_ERROR with status", async () => {
+  await assert.rejects(
+    () =>
+      withFetch(
+        () =>
+          WFS.getFeature({
+            typeNames: "x",
+            bbox,
+            from,
+            to,
+            count: 2,
+            ttl: 0,
+          }),
+        async () => ({
+          json: async () => ({}),
+          text: async () => "boom",
+          status: 500,
+          ok: false,
+        }),
+      ),
+    (e) => e.kind === "HTTP_ERROR" && e.status === 500,
+  );
+});
+
+test("EUMETView WFS: aborted signal prevents result application", async () => {
+  const ctrl = new AbortController();
+  let aborted = false;
+  const p = withFetch(
+    () =>
+      WFS.getFeature({
+        typeNames: "x",
+        bbox,
+        from,
+        to,
+        count: 2,
+        ttl: 0,
+        signal: ctrl.signal,
+      }),
+    (_url, opts) =>
+      new Promise((_resolve, reject) => {
+        opts.signal.addEventListener("abort", () => {
+          aborted = true;
+          const e = new Error("The operation was aborted.");
+          e.name = "AbortError";
+          reject(e);
+        });
+      }),
+  );
+  setTimeout(() => ctrl.abort(), 5);
+  await assert.rejects(p, (e) => e.kind === "ABORTED");
+  assert.ok(aborted, "underlying fetch was aborted");
 });
 
 let passed = 0;
