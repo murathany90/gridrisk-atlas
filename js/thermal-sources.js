@@ -197,6 +197,76 @@
   registry.register(slstr3a);
   registry.register(slstr3b);
 
+  function mtgFeatureToRaw(f) {
+    if (!f || !f.properties) return null;
+    const p = f.properties;
+    const geom = f.geometry && f.geometry.coordinates;
+    const bt = U.toNum(p.BT_mir_k != null ? p.BT_mir_k : p.BT_tir_k);
+    return Object.assign({}, p, {
+      lat: U.toNum(p.Lat != null ? p.Lat : geom ? geom[1] : null),
+      lon: U.toNum(p.Lon != null ? p.Lon : geom ? geom[0] : null),
+      detectedAt: p.time || p.Datetime,
+      receivedAt: p.Datetime,
+      frp: U.toNum(p.FRP),
+      frpUncertaintyMw: U.toNum(p.FRPerr),
+      brightnessTemperatureK: bt,
+      brightTi4K: bt,
+      confidenceRaw: U.toNum(p.Confidence),
+      qualityFlags: null,
+      hotspotClass: null,
+      dayNight: p.SZA != null ? (Number(p.SZA) > 90 ? "night" : "day") : null,
+      id: f.id || null,
+      cloudFraction: null,
+      time: p.time,
+    });
+  }
+
+  const mtgFrpAdapter = {
+    id: "mtg-fci-frp",
+    label: "MTG FCI FRP",
+    sensorFamily: "mtg",
+    supportsFrp: true,
+    supportsUncertainty: true,
+    defaultEnabled: false,
+    async discover() {
+      return { layers: ["mtg_fd:frp"] };
+    },
+    async load({ bbox, countryCode, startTime, endTime, signal } = {}) {
+      const wfs = A.EumetviewWfs;
+      if (!wfs) throw new Error("mtg-fci-frp: A.EumetviewWfs is not available");
+      const from = startTime || new Date(Date.now() - 24 * 3600e3);
+      const to = endTime || new Date();
+      const box = bbox || regionBboxArray();
+      const result = await wfs.getFeature({
+        typeNames: "mtg_fd:frp",
+        bbox: box,
+        from,
+        to,
+        signal,
+        cacheKey: `mtg-fci-frp:${countryCode || C.activeCountryCode}:${from.toISOString()}:${to.toISOString()}`,
+      });
+      const out = [];
+      for (const f of result.features || []) {
+        const raw = mtgFeatureToRaw(f);
+        if (!raw) continue;
+        const d = U.normalizeFireDetection(raw, {
+          sourceId: "mtg-fci-frp",
+          source: mtgFrpAdapter.label,
+          product: "MTG FCI FRP",
+          sensor: "FCI",
+          sensorFamily: "mtg",
+          satellite: raw.Satellite || "MTG-I1",
+          countryCode: countryCode || C.activeCountryCode,
+        });
+        if (!d || !d.lat || !d.lon || !d.detectedAt) continue;
+        if (!U.insideRegion(d)) continue;
+        out.push(d);
+      }
+      return out;
+    },
+  };
+  registry.register(mtgFrpAdapter);
+
   let _groupSeq = 0;
 
   function nextGroupSeq() {

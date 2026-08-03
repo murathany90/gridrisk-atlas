@@ -893,7 +893,7 @@ test("thermal source registry contracts (config defaults, adapter registration, 
   assert.ok(registry, "registry exposed");
   assert.deepEqual(
     [...registry.list()].map((a) => a.id),
-    ["nasa-firms", "sentinel3a-slstr", "sentinel3b-slstr"],
+    ["nasa-firms", "sentinel3a-slstr", "sentinel3b-slstr", "mtg-fci-frp"],
   );
   const firms = registry.get("nasa-firms");
   assert.equal(firms.label, "NASA FIRMS");
@@ -903,8 +903,10 @@ test("thermal source registry contracts (config defaults, adapter registration, 
   assert.equal(firms.defaultEnabled, true);
   assert.equal(typeof firms.discover, "function");
   assert.equal(typeof firms.load, "function");
-  assert.equal(registry.get("mtg-fci-frp"), null);
-  await assert.rejects(() => registry.load("mtg-fci-frp", {}), /unknown source/);
+  const mtgAdapter = registry.get("mtg-fci-frp");
+  assert.ok(mtgAdapter, "mtg-fci-frp registered after its dedicated commit");
+  assert.equal(mtgAdapter.defaultEnabled, false);
+  assert.equal(registry.isEnabled("mtg-fci-frp"), false);
 
   const cfg = A.CONFIG.thermalSources;
   assert.equal(cfg.mode, "FIRMS_ONLY");
@@ -1169,6 +1171,85 @@ test("thermal: loadSlstrGroup empty when both satellites return no detections", 
   assert.equal(res.merged.length, 0);
   assert.equal(TS.state("sentinel3a-slstr").status, "empty");
   assert.equal(TS.state("sentinel3b-slstr").status, "empty");
+});
+
+const mtgFixture = {
+  features: [
+    {
+      id: "MTG_anon_2608010700_lod0.01",
+      geometry: { type: "Point", coordinates: [36.2, 39.4] },
+      properties: {
+        Lat: 39.4,
+        Lon: 36.2,
+        FRP: 88.4,
+        FRPerr: 6.6,
+        Confidence: 3,
+        BT_mir_k: 358.2,
+        BT_tir_k: 295.1,
+        SZA: 41.2,
+        VZA: 18.7,
+        Satellite: "MTG-I1",
+        Datetime: "2026-08-01T08:02:33",
+        time: "2026-08-01T07:10:00Z",
+      },
+    },
+  ],
+};
+
+test("thermal: MTG FCI FRP adapter registered behind a feature flag and normalizes its own field set", async () => {
+  const TS = A.ThermalSources;
+  const mtg = TS.registry.get("mtg-fci-frp");
+  assert.ok(mtg, "mtg-fci-frp registered");
+  assert.equal(mtg.sensorFamily, "mtg");
+  assert.equal(mtg.supportsFrp, true);
+  assert.equal(mtg.supportsUncertainty, true);
+  assert.equal(TS.registry.isEnabled("mtg-fci-frp"), false, "feature flag off by default");
+
+  const out = await withGetFeature(
+    () =>
+      mtg.load({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async (opts) => {
+      assert.equal(opts.typeNames, "mtg_fd:frp");
+      return { features: mtgFixture.features, pages: 1, totalMatched: 1, meta: {} };
+    },
+  );
+  assert.equal(out.length, 1);
+  const d = out[0];
+  assert.equal(d.sourceId, "mtg-fci-frp");
+  assert.equal(d.sensorFamily, "mtg");
+  assert.equal(d.satellite, "MTG-I1");
+  assert.equal(d.detectedAt, "2026-08-01T07:10:00Z");
+  assert.equal(d.frpMw, 88.4);
+  assert.equal(d.frpUncertaintyMw, 6.6);
+  assert.equal(d.brightnessTemperatureK, 358.2, "BT_mir_k preferred over BT_tir_k");
+  assert.equal(d.brightTi4K, 358.2);
+  assert.equal(d.confidenceRaw, 3, "MTG confidence is a long, kept raw");
+  assert.equal(d.dayNight, "day");
+  assert.equal(d.countryCode, "TR");
+});
+
+test("thermal: MTG adapter keeps only real WFS features inside the region", async () => {
+  const mtg = A.ThermalSources.registry.get("mtg-fci-frp");
+  const outside = {
+    ...mtgFixture.features[0],
+    properties: { ...mtgFixture.features[0].properties, Lat: 36.1, Lon: 3.2 },
+  };
+  const out = await withGetFeature(
+    () =>
+      mtg.load({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async () => ({ features: [outside], pages: 1, totalMatched: 1, meta: {} }),
+  );
+  assert.equal(out.length, 0);
 });
 
 test("thermal: default mode FIRMS_ONLY preserved and app wiring is present but inert", () => {
