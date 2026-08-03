@@ -301,9 +301,9 @@
     return ++_groupSeq;
   }
 
-  async function loadSlstrGroup(request = {}) {
+  async function loadSlstrGroup(request = {}, enabledIds = ["sentinel3a-slstr", "sentinel3b-slstr"]) {
     const groupSeq = nextGroupSeq();
-    const ids = ["sentinel3a-slstr", "sentinel3b-slstr"];
+    const ids = enabledIds.filter((id) => registry.get(id));
     const bySource = {};
     const settled = await Promise.all(
       ids.map(async (id) => {
@@ -332,8 +332,9 @@
     const hasData = results.includes("ok");
     const failed = results.filter((s) => s === "error").length;
     let status;
-    if (failed === ids.length) status = "error";
-    else if (!hasData && results.every((s) => s === "empty")) status = "empty";
+    if (!ids.length) status = "empty";
+    else if (failed === ids.length) status = "error";
+    else if (!hasData && results.length && results.every((s) => s === "empty")) status = "empty";
     else if (failed > 0) status = "warn";
     else status = "ok";
     const merged = [];

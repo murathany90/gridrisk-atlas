@@ -471,6 +471,16 @@
       this.footprintLayer.clearLayers();
       this.thermalEnvelopeLayer.clearLayers();
       this.evolutionLayer.clearLayers();
+      this.slstrLayer.clearLayers();
+      this.slstrALayer.clearLayers();
+      this.slstrBLayer.clearLayers();
+      this.mtgFrpLayer.clearLayers();
+      this.multiSensorLayer.clearLayers();
+      this.slstrData = [];
+      this.slstrAData = [];
+      this.slstrBData = [];
+      this.mtgFrpData = [];
+      this.multiSensorEvents = [];
       for (const layer of this.gridLayers.values())
         if (this.map.hasLayer(layer)) this.map.removeLayer(layer);
       this.gridLayers.clear();
@@ -716,8 +726,10 @@
       else if (!this.mtgFrpVisible) this.map.removeLayer(this.mtgFrpLayer);
     }
     setMultiSensor(events, selectedTime) {
-      this.multiSensorEvents = (events || []).filter((ev) =>
-        U.insideRegion({ lat: ev.lat, lon: ev.lon }),
+      this.multiSensorEvents = (events || []).filter(
+        (ev) =>
+          (ev.independentSensorCount || 0) >= 2 &&
+          U.insideRegion({ lat: ev.lat, lon: ev.lon }),
       );
       this.multiSensorLayer.clearLayers();
       for (const ev of this.multiSensorEvents) {
@@ -735,16 +747,37 @@
           fillOpacity: 0.55,
           opacity: 0.95,
         });
-        m.bindTooltip(
-          `${T("map.multiSensorLabel")} · ${T("map.multiSensorCount", { count: ev.observationCount })} · ${T("map.multiSensorSensors", { count: ev.independentSensorCount })}`,
-          { className: "fire-event-tooltip", direction: "top", offset: L.point(0, -8), opacity: 0.97 },
-        );
+        m.bindTooltip(this.multiSensorTooltip(ev), {
+          className: "fire-event-tooltip",
+          direction: "top",
+          offset: L.point(0, -8),
+          opacity: 0.97,
+        });
         m.addTo(this.multiSensorLayer);
       }
       if (this.multiSensorVisible && !this.map.hasLayer(this.multiSensorLayer))
         this.multiSensorLayer.addTo(this.map);
       else if (!this.multiSensorVisible)
         this.map.removeLayer(this.multiSensorLayer);
+    }
+    multiSensorTooltip(ev) {
+      const sourceLabels = {
+        "nasa-firms": "FIRMS",
+        "sentinel3a-slstr": "S3A",
+        "sentinel3b-slstr": "S3B",
+        "mtg-fci-frp": "MTG",
+        "msg-seviri-frp": "MSG",
+      };
+      const perSource = Object.entries(ev.maxFrpBySource || {})
+        .map(
+          ([s, v]) =>
+            `${sourceLabels[s] || s} ${U.round(v, 1)} MW`,
+        );
+      const platforms = (ev.supportingPlatforms || []).join(", ");
+      const frpLine = Number.isFinite(ev.maxFrpMw)
+        ? `<small>${T("map.multiSensorMaxFrp", { frp: U.round(ev.maxFrpMw, 1) })}${perSource.length ? ` · ${perSource.join(" · ")}` : ""}</small>`
+        : "";
+      return `<strong>${T("map.multiSensorLabel")}</strong> · ${T("map.multiSensorSensors", { count: ev.independentSensorCount || 1 })} · ${T("map.multiSensorCount", { count: ev.observationCount || 0 })}<br><small>${T("map.multiSensorPlatforms", { count: (ev.supportingPlatforms || []).length })}${platforms ? `: ${platforms}` : ""}</small>${frpLine ? "<br>" + frpLine : ""}`;
     }
     toggleSentinelSlstr(show) {
       this.slstrVisible = !!show;

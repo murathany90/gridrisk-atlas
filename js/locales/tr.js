@@ -428,6 +428,8 @@
     "map.multiSensorLabel": "Çoklu sensör doğrulaması",
     "map.multiSensorCount": "{count} tespit",
     "map.multiSensorSensors": "{count} sensör",
+    "map.multiSensorPlatforms": "{count} platform",
+    "map.multiSensorMaxFrp": "Azami FRP: {frp} MW",
     "map.slstrLabel": "Sentinel-3 SLSTR",
     "map.sentinelStatus": "Sentinel-3 SLSTR durumu: {status}",
     "thermal.orchestrator.none": "Termal kaynak etkin değil",

@@ -428,6 +428,8 @@
     "map.multiSensorLabel": "Multi-sensor confirmation",
     "map.multiSensorCount": "{count} detections",
     "map.multiSensorSensors": "{count} sensors",
+    "map.multiSensorPlatforms": "{count} platforms",
+    "map.multiSensorMaxFrp": "Max FRP: {frp} MW",
     "map.slstrLabel": "Sentinel-3 SLSTR",
     "map.sentinelStatus": "Sentinel-3 SLSTR status: {status}",
     "thermal.orchestrator.none": "No thermal source enabled",
