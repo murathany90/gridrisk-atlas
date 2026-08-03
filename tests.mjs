@@ -892,7 +892,7 @@ test("thermal source registry contracts (config defaults, adapter registration, 
   assert.ok(registry, "registry exposed");
   assert.deepEqual(
     [...registry.list()].map((a) => a.id),
-    ["nasa-firms"],
+    ["nasa-firms", "sentinel3a-slstr", "sentinel3b-slstr"],
   );
   const firms = registry.get("nasa-firms");
   assert.equal(firms.label, "NASA FIRMS");
@@ -966,6 +966,208 @@ A.FirmsAdapter = {
   for (const key of ["idle", "loading", "ok", "empty", "error", "stale"])
     assert.ok(TS.SOURCE_STATES.includes(key));
   assert.equal(TS.SOURCE_STATES.includes("warn"), true);
+});
+
+const wfsS3B = JSON.parse(read("tests/fixtures/wfs-s3b.json"));
+
+async function withGetFeature(fn, handler) {
+  const orig = A.EumetviewWfs.getFeature;
+  try {
+    A.EumetviewWfs.getFeature = handler;
+    return await fn();
+  } finally {
+    A.EumetviewWfs.getFeature = orig;
+  }
+}
+
+test("thermal: Sentinel-3 SLSTR adapters normalize GeoJSON to the shared model", async () => {
+  const TS = A.ThermalSources;
+  const s3a = TS.registry.get("sentinel3a-slstr");
+  const s3b = TS.registry.get("sentinel3b-slstr");
+  assert.ok(s3a, "sentinel3a-slstr registered");
+  assert.ok(s3b, "sentinel3b-slstr registered");
+  assert.equal(s3a.sensorFamily, "slstr");
+  assert.equal(s3a.supportsFrp, true);
+  assert.equal(s3a.supportsUncertainty, true);
+  assert.equal(s3a.defaultEnabled, false);
+  assert.equal(TS.registry.isEnabled("sentinel3a-slstr"), false, "feature-flag gated off by default");
+  assert.equal(TS.registry.isEnabled("sentinel3b-slstr"), false);
+
+  const out = await withGetFeature(
+    () =>
+      s3a.load({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async (opts) => {
+      assert.equal(opts.typeNames, "copernicus:sentinel3a_slstr_level2_frp");
+      assert.deepEqual(opts.bbox, bbox);
+      return { features: wfsPage1.features, pages: 1, totalMatched: 2, cql: "", url: "", meta: {} };
+    },
+  );
+  assert.equal(out.length, 2);
+  const d = out[0];
+  assert.equal(d.sourceId, "sentinel3a-slstr");
+  assert.equal(d.satellite, "S3A");
+  assert.equal(d.sensorFamily, "slstr");
+  assert.equal(d.detectedAt, "2026-08-01T06:37:00Z");
+  assert.equal(d.lat, 39.2);
+  assert.equal(d.lon, 38.1);
+  assert.equal(d.frpMw, 22.5);
+  assert.equal(d.frpUncertaintyMw, 2.1);
+  assert.equal(d.confidenceRaw, 87);
+  assert.equal(d.brightnessTemperatureK, 345.1);
+  assert.equal(d.pixelWidthKm, 0.94);
+  assert.equal(d.pixelHeightKm, 1.12);
+  assert.equal(d.qualityFlags, "UsedChannel=F1");
+  assert.equal(d.dayNight, "day");
+  assert.equal(d.countryCode, "TR");
+  assert.equal(out[1].frpMw, 61.2);
+});
+
+test("thermal: SLSTR adapter drops features outside the region and without FRP/geometry", async () => {
+  const s3a = A.ThermalSources.registry.get("sentinel3a-slstr");
+  const outside = {
+    ...wfsPage1.features[0],
+    properties: { ...wfsPage1.features[0].properties, Lat: 30.1, Lon: 10.2 },
+  };
+  const noTime = {
+    ...wfsPage1.features[0],
+    properties: { ...wfsPage1.features[0].properties, time: null, Datetime: null },
+  };
+  const noGeom = {
+    ...wfsPage1.features[0],
+    geometry: null,
+    properties: { ...wfsPage1.features[0].properties, Lat: null, Lon: null },
+  };
+  const out = await withGetFeature(
+    () =>
+      s3a.load({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async () => ({ features: [outside, noTime, noGeom], pages: 1, totalMatched: 3, meta: {} }),
+  );
+  assert.equal(out.length, 0, "all three invalid features filtered out");
+});
+
+test("thermal: SLSTR adapter keeps the best record when duplicates overlap in the window", async () => {
+  const s3b = A.ThermalSources.registry.get("sentinel3b-slstr");
+  const dup = { ...wfsS3B.features[0] };
+  const out = await withGetFeature(
+    () =>
+      s3b.load({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async () => ({ features: [wfsS3B.features[0], dup], pages: 1, totalMatched: 2, meta: {} }),
+  );
+  assert.equal(out.length, 1, "same-source duplicates merged");
+  assert.equal(out[0].satellite, "S3B");
+  assert.equal(out[0].frpMw, 33.3);
+});
+
+test("thermal: loadSlstrGroup runs both satellites in parallel and reports ok", async () => {
+  const TS = A.ThermalSources;
+  const calls = [];
+  const res = await withGetFeature(
+    () =>
+      TS.loadSlstrGroup({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async (opts) => {
+      calls.push(opts.typeNames);
+      return {
+        features: opts.typeNames.includes("3b") ? wfsS3B.features : wfsPage1.features,
+        pages: 1,
+        totalMatched: 2,
+        meta: {},
+      };
+    },
+  );
+  assert.deepEqual(
+    calls.sort(),
+    ["copernicus:sentinel3a_slstr_level2_frp", "copernicus:sentinel3b_slstr_level2_frp"],
+  );
+  assert.equal(res.status, "ok");
+  assert.equal(res.bySource.length, 2);
+  assert.equal(res.merged.length, 3, "2 S3A + 1 S3B merged");
+  assert.equal(TS.state("sentinel3a-slstr").status, "ok");
+  assert.equal(TS.state("sentinel3a-slstr").count, 2);
+  assert.equal(TS.state("sentinel3b-slstr").status, "ok");
+  assert.equal(TS.state("sentinel3b-slstr").count, 1);
+});
+
+test("thermal: loadSlstrGroup warn when one satellite fails, error when both fail", async () => {
+  const TS = A.ThermalSources;
+  for (const id of ["sentinel3a-slstr", "sentinel3b-slstr"])
+    TS.patchState(id, { status: "idle", data: null, lastSuccessfulAt: null, seq: 0 });
+  const warn = await withGetFeature(
+    () =>
+      TS.loadSlstrGroup({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async (opts) => {
+      if (opts.typeNames.includes("3a")) throw new Error("s3a down");
+      return { features: wfsS3B.features, pages: 1, totalMatched: 1, meta: {} };
+    },
+  );
+  assert.equal(warn.status, "warn");
+  assert.equal(warn.merged.length, 1);
+  assert.equal(warn.bySource.length, 2);
+  assert.equal(TS.state("sentinel3a-slstr").status, "error");
+  assert.equal(TS.state("sentinel3b-slstr").status, "ok");
+
+  const bothFail = await withGetFeature(
+    () =>
+      TS.loadSlstrGroup({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async () => {
+      throw new Error("view down");
+    },
+  );
+  assert.equal(bothFail.status, "error");
+  assert.equal(bothFail.merged.length, 0);
+  assert.equal(TS.state("sentinel3a-slstr").status, "error");
+  assert.equal(
+    TS.state("sentinel3b-slstr").status,
+    "stale",
+    "previously-successful source degrades to stale, keeping old data",
+  );
+});
+
+test("thermal: loadSlstrGroup empty when both satellites return no detections", async () => {
+  const TS = A.ThermalSources;
+  const res = await withGetFeature(
+    () =>
+      TS.loadSlstrGroup({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async () => ({ features: [], pages: 1, totalMatched: 0, meta: {} }),
+  );
+  assert.equal(res.status, "empty");
+  assert.equal(res.merged.length, 0);
+  assert.equal(TS.state("sentinel3a-slstr").status, "empty");
+  assert.equal(TS.state("sentinel3b-slstr").status, "empty");
 });
 
 test("thermal: default mode FIRMS_ONLY preserved in config and no fusion wiring in app", () => {
