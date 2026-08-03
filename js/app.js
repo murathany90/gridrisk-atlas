@@ -56,6 +56,8 @@
       this.moveTimer = null;
       this.timeTimer = null;
       this.playTimer = null;
+      this.thermalTimer = null;
+      this._thermalWindowKey = null;
       this.lastApiCall = 0;
       this.resizeT = null;
       this.countryManager = new A.CountryManager(this);
@@ -129,6 +131,8 @@
       for (const key of Object.keys(this.reqSeq)) this.reqSeq[key]++;
       clearTimeout(this.moveTimer);
       clearTimeout(this.timeTimer);
+      clearTimeout(this.thermalTimer);
+      this._thermalWindowKey = null;
     }
     resetCountryState(code) {
       this.grid.reset();
@@ -166,14 +170,15 @@
       if (this.state.mtgEnabled)
         this.map.toggleMtg(true, this.state.selectedTime);
       if (C.firmsMapKey && C.firmsMapKey !== "__FIRMS_MAP_KEY__")
-        this.loadFirms();
-      else
+        this.loadFirms().finally(() => this.loadThermalSources());
+      else {
         A.Events.emit("service", {
           id: "firms",
           state: "warn",
           note: T("ui.firmsInactive", { country: I.countryName(country.code) }),
         });
-      this.loadThermalSources();
+        this.loadThermalSources();
+      }
       document.querySelectorAll("[data-feature-flag]").forEach((el) => {
         const flagId = el.dataset.featureFlag;
         if (!flagId) return;
@@ -523,6 +528,7 @@
       this.updateImpact();
       this.ui.renderExportSummary(this.state);
       this.renderFireLayers();
+      if (!this.playTimer) this.scheduleThermalReload(reload ? 0 : 400);
       if (reload) this.scheduleTimeReload(0);
       else this.scheduleTimeReload(300);
     }
@@ -538,10 +544,12 @@
         clearInterval(this.playTimer);
         this.playTimer = null;
         b.textContent = "▶";
+        this.scheduleThermalReload(0);
         return;
       }
       b.textContent = "⏸";
       this._playbackApiThrottle = 0;
+      this.scheduleThermalReload(600);
       this.playTimer = setInterval(() => {
         const s = document.getElementById("timeSlider");
         const step = this.state.mtgEnabled
@@ -706,6 +714,7 @@
         this.ui.renderExportSummary(this.state);
         this.ui.setUpdated();
         this.renderFireLayers();
+        this.rebuildThermalAssociation();
       } catch (e) {
         if (e.kind === "ABORTED" || countryCode !== this.state.countryCode)
           return;
@@ -798,22 +807,38 @@
         if (this.state.mtgFrpEnabled) this.map.toggleMtgFrp(true);
       }
       this.renderThermalLayers();
-      if (A.CONFIG.thermalFusion?.enabled) {
-        const bySource = {
-          "nasa-firms": this.state.fireData,
-        };
-        if (slstrGroupRes) {
-          if (this.state.slstrData.some((d) => d.satellite === "S3A"))
-            bySource["sentinel3a-slstr"] = this.state.slstrData.filter((d) => d.satellite === "S3A");
-          if (this.state.slstrData.some((d) => d.satellite === "S3B"))
-            bySource["sentinel3b-slstr"] = this.state.slstrData.filter((d) => d.satellite === "S3B");
-        }
-        if (mtgRes) bySource["mtg-fci-frp"] = mtgRes.merged;
-        const events = A.ThermalAssociation.associateAcrossSources({ bySource });
-        this.state.multiSensorEvents = events;
-        this.map.setMultiSensor(events, this.state.selectedTime);
-        if (this.state.multiSensorEnabled) this.map.toggleMultiSensor(true);
-      }
+      this.rebuildThermalAssociation();
+    }
+    rebuildThermalAssociation() {
+      if (A.ThermalSources.getMode() !== "MULTI_SOURCE") return;
+      if (!A.CONFIG.thermalFusion?.enabled || !A.ThermalAssociation) return;
+      const bySource = { "nasa-firms": this.state.fireData || [] };
+      const s3a = (this.state.slstrData || []).filter(
+        (d) => d.satellite === "S3A",
+      );
+      const s3b = (this.state.slstrData || []).filter(
+        (d) => d.satellite === "S3B",
+      );
+      if (s3a.length) bySource["sentinel3a-slstr"] = s3a;
+      if (s3b.length) bySource["sentinel3b-slstr"] = s3b;
+      if ((this.state.mtgFrpData || []).length)
+        bySource["mtg-fci-frp"] = this.state.mtgFrpData;
+      const events = A.ThermalAssociation.associateAcrossSources({ bySource });
+      this.state.multiSensorEvents = events;
+      this.map.setMultiSensor(events, this.state.selectedTime);
+      if (this.state.multiSensorEnabled) this.map.toggleMultiSensor(true);
+    }
+    scheduleThermalReload(ms) {
+      if (A.ThermalSources.getMode() === "FIRMS_ONLY") return;
+      const d = this.state.selectedTime,
+        key = `${this.state.countryCode}:${new Date(d.getTime() - 24 * 3600e3).toISOString()}:${d.toISOString()}`;
+      if (key === this._thermalWindowKey) return;
+      this._thermalWindowKey = key;
+      clearTimeout(this.thermalTimer);
+      this.thermalTimer = setTimeout(
+        () => this.loadThermalSources(),
+        ms == null ? 400 : ms,
+      );
     }
     renderThermalLayers() {
       if (!this.map) return;
