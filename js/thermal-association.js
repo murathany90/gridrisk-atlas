@@ -68,6 +68,28 @@
     return out;
   }
 
+  function overMerged(members, all, rules) {
+    if (members.length < 2) return false;
+    const byFamily = new Map();
+    for (const m of members) {
+      const f = all[m].family;
+      if (!byFamily.has(f)) byFamily.set(f, []);
+      byFamily.get(f).push(all[m].d);
+    }
+    const fams = [...byFamily.keys()];
+    for (let a = 0; a < fams.length; a++) {
+      for (let b = a + 1; b < fams.length; b++) {
+        const rule = ruleFor(fams[a], fams[b], rules);
+        if (!rule) continue;
+        const A = byFamily.get(fams[a]),
+          B = byFamily.get(fams[b]);
+        for (const x of A)
+          for (const y of B) if (!canAssociate(x, y, rule)) return true;
+      }
+    }
+    return false;
+  }
+
   function associateAcrossSources({ bySource = {}, dedupeFirst = true } = {}) {
     const rules = pairRules();
     const all = [];
@@ -93,10 +115,63 @@
         b = find(j);
       if (a !== b) parent[a] = b;
     }
-    for (let i = 0; i < n; i++) {
-      for (let j = i + 1; j < n; j++) {
-        const rule = ruleFor(all[i].family, all[j].family, rules);
-        if (canAssociate(all[i].d, all[j].d, rule)) unite(i, j);
+    if (n > 1) {
+      const limits = [
+        rules.viirsToSlstr,
+        rules.viirsToMtg,
+        rules.slstrToMtg,
+      ];
+      const maxDistKm = Math.max(...limits.map((r) => r.maxDistanceKm));
+      const maxTimeMinutes = Math.max(...limits.map((r) => r.maxTimeMinutes));
+      const cellDeg = maxDistKm / 111.32;
+      const bucketMs = 30 * 60e3;
+      const lookback = Math.ceil(maxTimeMinutes / 30);
+      const times = all.map((x) =>
+        x.d.detectedAt ? new Date(x.d.detectedAt).getTime() : NaN,
+      );
+      const grid = new Map();
+      const cellKey = (lat, lon) =>
+        `${Math.floor(lat / cellDeg)}:${Math.floor(lon / cellDeg)}`;
+      const bucketKey = (t) =>
+        Number.isFinite(t) ? Math.floor(t / bucketMs) : -Infinity;
+      for (let i = 0; i < n; i++) {
+        const ck = cellKey(all[i].d.lat, all[i].d.lon);
+        let buckets = grid.get(ck);
+        if (!buckets) {
+          buckets = new Map();
+          grid.set(ck, buckets);
+        }
+        const bk = bucketKey(times[i]);
+        let list = buckets.get(bk);
+        if (!list) {
+          list = [];
+          buckets.set(bk, list);
+        }
+        list.push(i);
+      }
+      const offsets = [-1, 0, 1];
+      for (let i = 0; i < n; i++) {
+        const d = all[i].d,
+          cx = Math.floor(d.lat / cellDeg),
+          cy = Math.floor(d.lon / cellDeg),
+          b0 = bucketKey(times[i]);
+        const candidates = new Set();
+        for (const ox of offsets)
+          for (const oy of offsets) {
+            const buckets = grid.get(`${cx + ox}:${cy + oy}`);
+            if (!buckets) continue;
+            for (let kb = b0 - lookback; kb <= b0 + lookback; kb++) {
+              const list = buckets.get(kb);
+              if (!list) continue;
+              for (const j of list) candidates.add(j);
+            }
+          }
+        const sorted = [...candidates].sort((a, b) => a - b);
+        for (const j of sorted) {
+          if (j <= i) continue;
+          const rule = ruleFor(all[i].family, all[j].family, rules);
+          if (canAssociate(d, all[j].d, rule)) unite(i, j);
+        }
       }
     }
     const groups = new Map();
@@ -108,6 +183,7 @@
     let counter = 0;
     const events = [];
     for (const members of groups.values()) {
+      if (overMerged(members, all, rules)) continue;
       const obs = members.map((i) => all[i].d);
       const families = [...new Set(members.map((i) => all[i].family))];
       const sources = [...new Set(members.map((i) => all[i].sourceId))];
