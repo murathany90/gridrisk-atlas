@@ -93,15 +93,17 @@ Dil değişimi mevcut ülkeyi, harita merkezini/zoomunu, timeline'ı ve katman s
 
 ## Çoklu kaynak termal tespit / Multi-source thermal detections
 
-Yakıcı tespit kaynakları `js/thermal-sources.js` içindeki kayıt (registry) üzerinden yönetilir. Varsayılan `FIRMS_ONLY` modu mevcut FIRMS davranışını bire bir korur; alternatif kaynaklar hiç devreye girmez.
+Termal tespit kaynakları `js/thermal-sources.js` içindeki kayıt (registry) üzerinden yönetilir. Varsayılan `SEPARATE_SOURCES` modu FIRMS'ı mevcut davranışıyla korur ve Sentinel-3A/3B SLSTR tespitlerini ayrı katmanlarda sorgular; MTG FCI FRP ayrı bir `featureFlag` gerektirir. Mod **Ayarlar / Settings → Termal Kaynak Modu** bölümünden seçilir ve ülke/dilden bağımsız olarak `localStorage.thermalMode` içinde saklanır.
 
+- **Modlar:** `FIRMS_ONLY` yalnız NASA FIRMS kullanır ve hiçbir EUMETView isteği yapmaz; `SEPARATE_SOURCES` Sentinel-3 SLSTR tespitlerini kendi katmanlarında gösterir (varsayılan); `MULTI_SOURCE` (beta) kaynaklar arası doğrulama eşleştirmesini etkinleştirir — fusion yalnızca bu modda devrededir. FRP hiçbir modda toplanmaz veya ortalanmaz.
 - **Kaynak orkestrasyonu:** FIRMS her zaman önce yüklenir ve render edilir; Sentinel-3 SLSTR istekleri ona engel olamaz. Her kaynak kendi `js/eumetview-wfs.js` istemcisi üzerinden EUMETView WFS `GetFeature` çağrısı yapar — `time=` parametresi güvenilmez olduğu için filtre her zaman `cql_filter` içinde `BBOX(...) AND time >= ... AND time <= ...` biçiminde kurulur.
-- `map` kanalları: tek bir uydunun başarısızlığı diğerini engellemez (`loadSlstrGroup`). İki uydu da yüklenemezse stato `error`, biri çalışırsa `warn`, ikisi de boşsa `empty` döner.
+- Timeline değiştiğinde Sentinel/MTG yalnız seçili ana göre son 24 saatlik pencere için (yeniden) sorgulanır; pencere normalize edilmiş bir anahtarla tekilleştirilir, aynı pencere tekrar istenmez, oynatma adımlarında ağ isteği yapılmaz ve eski istek sonuçları sıra (seq) denetimiyle uygulanmaz.
+- `map` kanalları: tek bir uydunun başarısızlığı diğerini engellemez (`loadSlstrGroup`). Etkin uyduların tamamı yüklenemezse status `error`, biri çalışırsa `warn`, hepsi boşsa `empty` döner; alt kaynak bayrağı kapatılan uydu için istek yapılmaz.
 - Bir kaynak hatası `state.fireData`'ya dokunmaz; FIRMS markerları güncel kalır.
 - **Kaynaklar arası eşleştirme (association):** Aynı olay farklı uydulardan göründüğünde `observations` içinde gruplanır; FRP asla toplanmaz veya ortalanmaz, `maxFrpMw` sonlu gözlemlerin maksimumudur. Eşikler config'de tanımlıdır: VIIRS→SLSTR 2.5 km / 90 dk, VIIRS→MTG 4 km / 30 dk, SLSTR→MTG 4 km / 45 dk.
-- **Doğrulama seviyeleri:** 1 sensör ailesi = `1`, 2 aile = `2`, 3 aile = `3` (`independent-sensor-count`).
-- **Bayrak: MTG FCI FRP** `CONFIG.thermalSources.enabled.mtg` ile kapatılır (`featureFlag: true`); kapatıkken UI'da gizlenir ve hiçbir WFS isteği yapılmaz.
-- **Bilinen sınırlar:** GitHub Pages statiktir; `server.mjs` proxy'i yalnız yerel çalışmada geçerlidir. WFS, CORS'u `*` ile açtığı için tarayıcıdan doğrudan çalışır, ancak Pages'te bu uçlar için ek proxy kurulamamaktad. MTG `time=` parametresi güvenilmez bulunduğundan yalnız WFS `cql_filter` yolu kullanılır.
+- **Doğrulama seviyeleri:** 1 sensör ailesi = `1`, 2 aile = `2`, 3 aile = `3` (`independent-sensor-count`). Multi-sensor katmanı yalnız en az 2 bağımsız sensör ailesiyle doğrulanan olayları gösterir; tek kaynak tespitleri kendi ham katmanlarında kalır.
+- **Bayrak: MTG FCI FRP** `CONFIG.thermalSources.enabled.mtg` ile kapatılır (`featureFlag: true`); kapalıyken UI'da gizlenir ve hiçbir WFS isteği yapılmaz.
+- **Bilinen sınırlar:** GitHub Pages statiktir; `server.mjs` proxy'i yalnız yerel çalışmada geçerlidir. WFS, CORS'u `*` ile açtığı için tarayıcıdan doğrudan çalışır, ancak Pages'te bu uçlar için ek proxy kurulamamaktadır. MTG `time=` parametresi güvenilmez bulunduğundan yalnız WFS `cql_filter` yolu kullanılır.
 
 ## Grid verisini üretme ve doğrulama
 
