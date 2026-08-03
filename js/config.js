@@ -38,6 +38,24 @@
     timeline: { minHours: -48, maxHours: 12, playStepHours: 3, playIntervalMs: 1500, mtgPlayStepMinutes: 10 },
     cacheTtl: { air: 30*60*1000, weather: 60*60*1000, geocode: 60*60*1000, firms: 7*60*1000, grid: 24*60*60*1000 },
     firmsSources: ['VIIRS_NOAA21_NRT','VIIRS_NOAA20_NRT','VIIRS_SNPP_NRT','MODIS_NRT'],
+    thermal: {
+      mode: 'FIRMS_ONLY',
+      fusion: {
+        enabled: false,
+        association: {
+          viirsToSlstr: { maxDistanceKm: 2.5, maxTimeMinutes: 90 },
+          viirsToMtg: { maxDistanceKm: 4, maxTimeMinutes: 30 },
+          slstrToMtg: { maxDistanceKm: 4, maxTimeMinutes: 45 }
+        }
+      },
+      sources: {
+        'nasa-firms': { labelKey: 'thermal.source.firms', enabled: true, required: true, featureFlag: false },
+        'sentinel3a-slstr': { labelKey: 'thermal.source.sentinel3a', enabled: false, required: false, featureFlag: true },
+        'sentinel3b-slstr': { labelKey: 'thermal.source.sentinel3b', enabled: false, required: false, featureFlag: true },
+        'mtg-fci-frp': { labelKey: 'thermal.source.mtg', enabled: false, required: false, featureFlag: true },
+        'msg-seviri-frp': { labelKey: 'thermal.source.msg', enabled: false, required: false, featureFlag: true }
+      }
+    },
     mtgGeoColourWms: {
       label: 'EUMETSAT MTG-I GeoColour RGB',
       url: 'https://view.eumetsat.int/geoserver/wms',

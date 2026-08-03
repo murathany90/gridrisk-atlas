@@ -121,6 +121,7 @@ for (const path of [
   "js/utils.js",
   "js/countries.js",
   "js/grid.js",
+  "js/thermal-sources.js",
   "js/map.js",
   "js/export.js",
 ])
@@ -753,6 +754,87 @@ test("all local production asset references resolve", () => {
   for (const ref of refs) assert.equal(statSync(ref).isFile(), true, ref);
   for (const icon of manifest.icons)
     assert.equal(statSync(icon.src).isFile(), true, icon.src);
+});
+
+test("thermal source registry contracts (config defaults, adapter registration, FIRMS passthrough)", async () => {
+  const TS = A.ThermalSources,
+    registry = TS.registry;
+  assert.ok(registry, "registry exposed");
+  assert.deepEqual(
+    [...registry.list()].map((a) => a.id),
+    ["nasa-firms"],
+  );
+  const firms = registry.get("nasa-firms");
+  assert.equal(firms.label, "NASA FIRMS");
+  assert.equal(firms.sensorFamily, "viirs-modis");
+  assert.equal(firms.supportsFrp, true);
+  assert.equal(firms.supportsUncertainty, false);
+  assert.equal(firms.defaultEnabled, true);
+  assert.equal(typeof firms.discover, "function");
+  assert.equal(typeof firms.load, "function");
+  assert.equal(registry.get("mtg-fci-frp"), null);
+  await assert.rejects(() => registry.load("mtg-fci-frp", {}), /unknown source/);
+
+  const cfg = A.CONFIG.thermal;
+  assert.equal(cfg.mode, "FIRMS_ONLY");
+  assert.equal(cfg.fusion.enabled, false);
+  assert.deepEqual(cfg.fusion.association.viirsToSlstr, {
+    maxDistanceKm: 2.5,
+    maxTimeMinutes: 90,
+  });
+  assert.deepEqual(cfg.fusion.association.viirsToMtg, {
+    maxDistanceKm: 4,
+    maxTimeMinutes: 30,
+  });
+  assert.deepEqual(cfg.fusion.association.slstrToMtg, {
+    maxDistanceKm: 4,
+    maxTimeMinutes: 45,
+  });
+  assert.equal(cfg.sources["nasa-firms"].enabled, true);
+  assert.equal(cfg.sources["nasa-firms"].required, true);
+  assert.equal(cfg.sources["sentinel3a-slstr"].featureFlag, true);
+  assert.equal(cfg.sources["sentinel3a-slstr"].enabled, false);
+  assert.equal(cfg.sources["sentinel3b-slstr"].featureFlag, true);
+  assert.equal(cfg.sources["msg-seviri-frp"].enabled, false);
+  assert.equal(registry.isEnabled("nasa-firms"), true);
+  assert.equal(registry.isEnabled("sentinel3a-slstr"), false);
+
+  const fixtures = [
+    { lat: 38.6, lon: 35.2, detectedAt: "2026-08-02T10:00:00Z", frp: 45, product: "VIIRS_NOAA21_NRT", satellite: "NOAA-21", source: "NASA FIRMS" },
+    { lat: 38.6, lon: 35.2, detectedAt: "2026-08-02T10:00:00Z", frp: 55, product: "V_NRT", satellite: "NOAA-21", source: "NASA FIRMS" },
+  ];
+A.FirmsAdapter = {
+    load: async () => fixtures,
+    source: async () => "AUTO",
+    setSource: () => {},
+    isAuto: () => true,
+  };
+  const out = await registry.load("nasa-firms", { bbox: "", countryCode: "TR" });
+  assert.equal(out, fixtures, "passthrough returns the exact FirmsAdapter result");
+
+  const st = TS.state("nasa-firms");
+  assert.equal(st.status, "idle");
+  TS.setLoading("nasa-firms", 1);
+  assert.equal(TS.state("nasa-firms").status, "loading");
+  assert.equal(TS.setResult("nasa-firms", 1, fixtures, 12, "req"), true);
+  assert.equal(TS.state("nasa-firms").status, "ok");
+  assert.equal(TS.state("nasa-firms").count, 2);
+  assert.equal(TS.setResult("nasa-firms", 2, [], 5, "req2"), false, "stale seq ignored");
+  const expectConnected = A.I18n.locale === "en" ? "Connected" : "Bağlı";
+  assert.equal(TS.statusLabel("ok"), expectConnected);
+
+  for (const key of ["idle", "loading", "ok", "empty", "error", "stale"])
+    assert.ok(TS.SOURCE_STATES.includes(key));
+  assert.equal(TS.SOURCE_STATES.includes("warn"), true);
+});
+
+test("thermal: default mode FIRMS_ONLY preserved in config and no fusion wiring in app", () => {
+  assert.equal(A.CONFIG.thermal.mode, "FIRMS_ONLY");
+  assert.equal(A.CONFIG.thermal.fusion.enabled, false);
+  const hasFusionWiring = /associateAcrossSources|loadThermalSources/.test(
+    source.app,
+  );
+  assert.equal(hasFusionWiring, false, "no fusion flow before its dedicated commit");
 });
 
 test("icon variants have the required PNG dimensions", async () => {
