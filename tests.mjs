@@ -909,11 +909,11 @@ test("thermal source registry contracts (config defaults, adapter registration, 
   assert.equal(registry.isEnabled("mtg-fci-frp"), false);
 
   const cfg = A.CONFIG.thermalSources;
-  assert.equal(cfg.mode, "FIRMS_ONLY");
+  assert.equal(cfg.mode, "SEPARATE_SOURCES");
   assert.deepEqual(cfg.enabled, {
     firms: true,
-    sentinel3a: false,
-    sentinel3b: false,
+    sentinel3a: true,
+    sentinel3b: true,
     mtg: false,
     msg: false,
   });
@@ -931,16 +931,18 @@ test("thermal source registry contracts (config defaults, adapter registration, 
     maxTimeMinutes: 45,
   });
   const legacy = A.CONFIG.thermal;
-  assert.equal(legacy.mode, "FIRMS_ONLY");
+  assert.equal(legacy.mode, "SEPARATE_SOURCES");
   assert.equal(legacy.fusion.enabled, false);
   assert.equal(legacy.sources["nasa-firms"].enabled, true);
   assert.equal(legacy.sources["nasa-firms"].required, true);
   assert.equal(legacy.sources["sentinel3a-slstr"].featureFlag, true);
-  assert.equal(legacy.sources["sentinel3a-slstr"].enabled, false);
+  assert.equal(legacy.sources["sentinel3a-slstr"].enabled, true);
   assert.equal(legacy.sources["sentinel3b-slstr"].featureFlag, true);
+  assert.equal(legacy.sources["sentinel3b-slstr"].enabled, true);
   assert.equal(legacy.sources["msg-seviri-frp"].enabled, false);
   assert.equal(registry.isEnabled("nasa-firms"), true);
-  assert.equal(registry.isEnabled("sentinel3a-slstr"), false);
+  assert.equal(registry.isEnabled("sentinel3a-slstr"), true);
+  assert.equal(registry.isEnabled("sentinel3b-slstr"), true);
 
   const fixtures = [
     { lat: 38.6, lon: 35.2, detectedAt: "2026-08-02T10:00:00Z", frp: 45, product: "VIIRS_NOAA21_NRT", satellite: "NOAA-21", source: "NASA FIRMS" },
@@ -993,8 +995,12 @@ test("thermal: Sentinel-3 SLSTR adapters normalize GeoJSON to the shared model",
   assert.equal(s3a.supportsFrp, true);
   assert.equal(s3a.supportsUncertainty, true);
   assert.equal(s3a.defaultEnabled, false);
-  assert.equal(TS.registry.isEnabled("sentinel3a-slstr"), false, "feature-flag gated off by default");
-  assert.equal(TS.registry.isEnabled("sentinel3b-slstr"), false);
+  assert.equal(
+    TS.registry.isEnabled("sentinel3a-slstr"),
+    true,
+    "enabled by default under SEPARATE_SOURCES",
+  );
+  assert.equal(TS.registry.isEnabled("sentinel3b-slstr"), true);
 
   const out = await withGetFeature(
     () =>
@@ -1252,11 +1258,31 @@ test("thermal: MTG adapter keeps only real WFS features inside the region", asyn
   assert.equal(out.length, 0);
 });
 
-test("thermal: default mode FIRMS_ONLY preserved and app wiring is present but inert", () => {
-  assert.equal(A.CONFIG.thermalSources.mode, "FIRMS_ONLY");
+test("thermal: runtime modes activate alternates while fusion stays config-locked until MULTI_SOURCE", () => {
+  const TS = A.ThermalSources;
+  assert.equal(A.CONFIG.thermalSources.mode, "SEPARATE_SOURCES");
   assert.equal(A.CONFIG.thermalFusion.enabled, false);
-  assert.equal(A.CONFIG.thermal.mode, "FIRMS_ONLY", "legacy alias stays in sync");
+  assert.equal(A.CONFIG.thermal.mode, "SEPARATE_SOURCES", "legacy alias stays in sync");
   assert.equal(A.CONFIG.thermal.fusion.enabled, false);
+  assert.deepEqual(TS.THERMAL_MODES, [
+    "FIRMS_ONLY",
+    "SEPARATE_SOURCES",
+    "MULTI_SOURCE",
+  ]);
+  localStorage.removeItem("thermalMode");
+  assert.equal(TS.getMode(), "SEPARATE_SOURCES", "localStorage unset falls back to config");
+  assert.equal(TS.setMode("MULTI_SOURCE"), "MULTI_SOURCE");
+  assert.equal(localStorage.getItem("thermalMode"), "MULTI_SOURCE");
+  assert.equal(
+    A.CONFIG.thermalFusion.enabled,
+    true,
+    "fusion activates at runtime only in MULTI_SOURCE",
+  );
+  assert.equal(TS.setMode("FIRMS_ONLY"), "FIRMS_ONLY");
+  assert.equal(A.CONFIG.thermalFusion.enabled, false, "fusion deactivates outside MULTI_SOURCE");
+  assert.equal(TS.setMode("BOGUS"), "SEPARATE_SOURCES", "invalid mode falls back to config default");
+  assert.equal(A.CONFIG.thermalFusion.enabled, false);
+  TS.setMode("SEPARATE_SOURCES");
   const appSrc = source.app;
   assert.ok(
     /loadThermalSources/.test(appSrc),
@@ -1265,7 +1291,7 @@ test("thermal: default mode FIRMS_ONLY preserved and app wiring is present but i
   const fnStart = appSrc.indexOf("async loadThermalSources()");
   assert.ok(fnStart !== -1, "loadThermalSources method exists");
   const sliced = appSrc.slice(fnStart);
-  const earlyReturn = sliced.indexOf("mode === \"FIRMS_ONLY\"");
+  const earlyReturn = sliced.indexOf("getMode() === \"FIRMS_ONLY\"");
   const firstLoad = sliced.indexOf("loadSlstrGroup");
   assert.ok(earlyReturn !== -1, "FIRMS_ONLY short-circuits");
   assert.ok(
@@ -1275,6 +1301,9 @@ test("thermal: default mode FIRMS_ONLY preserved and app wiring is present but i
   assert.ok(/layerSentinelSlstr/.test(html), "SLSTR layer control exists");
   assert.ok(/layerMtgFrp/.test(html), "MTG FRP layer control exists");
   assert.ok(/layerMultiSensorConf/.test(html), "multi-sensor layer control exists");
+  assert.ok(/thermalModeSelect/.test(html), "settings mode selector exists");
+  assert.ok(/syncThermalModeUI/.test(appSrc), "mode drives UI visibility");
+  assert.ok(/clearThermalAlternates/.test(appSrc), "settings mode selector exists");
 });
 
 test("icon variants have the required PNG dimensions", async () => {

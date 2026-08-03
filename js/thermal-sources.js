@@ -6,6 +6,34 @@
 
   const SOURCE_STATES = ["idle", "loading", "ok", "empty", "warn", "error", "stale"];
 
+  const THERMAL_MODES = ["FIRMS_ONLY", "SEPARATE_SOURCES", "MULTI_SOURCE"];
+
+  function defaultThermalMode() {
+    return C.thermalSources?.mode || "FIRMS_ONLY";
+  }
+
+  function storedThermalMode() {
+    try {
+      const v = localStorage.getItem("thermalMode");
+      return v && THERMAL_MODES.includes(v) ? v : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function getThermalMode() {
+    return storedThermalMode() || defaultThermalMode();
+  }
+
+  function setThermalMode(mode) {
+    const next = THERMAL_MODES.includes(mode) ? mode : defaultThermalMode();
+    try {
+      localStorage.setItem("thermalMode", next);
+    } catch (e) {}
+    if (C.thermalFusion) C.thermalFusion.enabled = next === "MULTI_SOURCE";
+    return next;
+  }
+
   function initialState() {
     return { status: "idle", data: null, error: null, lastSuccessfulAt: null, latency: null, count: 0, seq: 0 };
   }
@@ -316,6 +344,10 @@
   A.ThermalSources = {
     registry,
     SOURCE_STATES,
+    THERMAL_MODES,
+    defaultMode: defaultThermalMode,
+    getMode: getThermalMode,
+    setMode: setThermalMode,
     state: (sourceId) => {
       if (!registry._state.has(sourceId)) registry._state.set(sourceId, initialState());
       return registry._state.get(sourceId);

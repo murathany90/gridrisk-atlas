@@ -179,6 +179,12 @@
     "settings.firmsAuto": "AUTO — 3 VIIRS NRT (önerilir)",
     "settings.firmsHint":
       "AUTO modu tüm VIIRS NRT ürünlerini paralel yükler ve birleştirir. MODIS manuel seçimde kullanılır. MAP_KEY GitHub Actions → Pages build sırasında otomatik gömülür.",
+    "settings.thermalMode": "Termal Kaynak Modu",
+    "settings.thermalModeHint":
+      "Yalnız NASA FIRMS: yalnız FIRMS tespitleri kullanılır, EUMETView isteği yapılmaz. Kaynakları ayrı göster: Sentinel-3 SLSTR tespitleri ayrı katmanlarda gösterilir. Çoklu sensör doğrulaması: aynı yanma farklı sensörlerde eşleştirilip doğrulanır; FRP asla toplanmaz veya ortalanmaz.",
+    "thermal.mode.firmsOnly": "Yalnız NASA FIRMS",
+    "thermal.mode.separate": "Kaynakları ayrı göster",
+    "thermal.mode.multi": "Çoklu sensör doğrulaması · Beta",
     "settings.servicesTitle": "Veri Kaynağı Durumu",
     "settings.health": "Bağlantıları Test Et",
     "settings.source": "Kaynak",

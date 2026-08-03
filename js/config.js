@@ -39,11 +39,11 @@
     cacheTtl: { air: 30*60*1000, weather: 60*60*1000, geocode: 60*60*1000, firms: 7*60*1000, grid: 24*60*60*1000 },
     firmsSources: ['VIIRS_NOAA21_NRT','VIIRS_NOAA20_NRT','VIIRS_SNPP_NRT','MODIS_NRT'],
     thermalSources: {
-      mode: 'FIRMS_ONLY',
+      mode: 'SEPARATE_SOURCES',
       enabled: {
         firms: true,
-        sentinel3a: false,
-        sentinel3b: false,
+        sentinel3a: true,
+        sentinel3b: true,
         mtg: false,
         msg: false
       },

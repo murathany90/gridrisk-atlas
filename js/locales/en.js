@@ -178,6 +178,12 @@
     "settings.firmsAuto": "AUTO — 3 VIIRS NRT (recommended)",
     "settings.firmsHint":
       "AUTO loads all VIIRS NRT products in parallel and merges them. MODIS is available by manual selection. MAP_KEY is injected automatically during the GitHub Actions → Pages build.",
+    "settings.thermalMode": "Thermal Source Mode",
+    "settings.thermalModeHint":
+      "NASA FIRMS only: only FIRMS detections are used and no EUMETView requests are made. Show sources separately: Sentinel-3 SLSTR detections are shown in their own layers. Multi-sensor confirmation: the same fire is matched and confirmed across sensors; FRP is never summed or averaged.",
+    "thermal.mode.firmsOnly": "NASA FIRMS only",
+    "thermal.mode.separate": "Show sources separately",
+    "thermal.mode.multi": "Multi-sensor confirmation · Beta",
     "settings.servicesTitle": "Data Source Status",
     "settings.health": "Test Connections",
     "settings.source": "Source",
