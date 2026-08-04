@@ -1,4 +1,4 @@
-﻿window.AtmoApp = window.AtmoApp || {};
+window.AtmoApp = window.AtmoApp || {};
 (function(A){
   A.CONFIG = {
     appName: 'GridRisk Atlas',
@@ -199,6 +199,10 @@
     IT: {
       code:'IT',name:{tr:'İtalya',en:'Italy'},nameTr:'İtalya',timezone:'Europe/Rome',geocodeCountryCode:'it',center:[42.5,12.5],zoom:6,
       coverageNote:{tr:'İtalya ana karası, Sicilya ve Sardinya',en:'Mainland Italy, Sicily and Sardinia'},boundaryUrl:'data/countries/IT/boundary.geojson',grid400Url:'data/countries/IT/grid_400.geojson',grid154Url:'data/countries/IT/grid_154.geojson',substationsUrl:'data/countries/IT/substations.geojson',manifestUrl:'data/countries/IT/manifest.json'
+    },
+    GR: {
+      code:'GR',name:{tr:'Yunanistan',en:'Greece'},nameTr:'Yunanistan',timezone:'Europe/Athens',geocodeCountryCode:'gr',center:[38.5,23.7],zoom:6,
+      coverageNote:{tr:'Yunanistan ana karası, Girit ve büyük adalar',en:'Mainland Greece, Crete and major islands'},boundaryUrl:'data/countries/GR/boundary.geojson',grid400Url:'data/countries/GR/grid_400.geojson',grid154Url:'data/countries/GR/grid_154.geojson',substationsUrl:'data/countries/GR/substations.geojson',manifestUrl:'data/countries/GR/manifest.json'
     }
   };
   A.activeCountry=()=>A.COUNTRIES[A.CONFIG.activeCountryCode]||A.COUNTRIES.TR;

@@ -259,13 +259,14 @@ test("locale and country timezone remain independent", () => {
   assert.equal(I.formatNumber(1234.5).includes("."), true);
 });
 
-test("five countries expose localized names, coverage and correct timezones", () => {
+test("six countries expose localized names, coverage and correct timezones", () => {
   const zones = {
     TR: "Europe/Istanbul",
     ES: "Europe/Madrid",
     FR: "Europe/Paris",
     PT: "Europe/Lisbon",
     IT: "Europe/Rome",
+    GR: "Europe/Athens",
   };
   assert.deepEqual(Object.keys(A.COUNTRIES), Object.keys(zones));
   for (const [code, zone] of Object.entries(zones)) {

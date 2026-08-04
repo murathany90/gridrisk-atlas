@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import fs from 'fs';
 
-const countries = ['TR', 'ES', 'FR', 'PT', 'IT'];
+const countries = ['TR', 'ES', 'FR', 'PT', 'IT', 'GR'];
 const languages = ['tr', 'en'];
 const modes = ['FIRMS_ONLY', 'SEPARATE_SOURCES', 'MULTI_SOURCE'];
 
