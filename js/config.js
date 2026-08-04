@@ -38,6 +38,41 @@
     timeline: { minHours: -48, maxHours: 12, playStepHours: 3, playIntervalMs: 1500, mtgPlayStepMinutes: 10 },
     cacheTtl: { air: 30*60*1000, weather: 60*60*1000, geocode: 60*60*1000, firms: 7*60*1000, grid: 24*60*60*1000 },
     firmsSources: ['VIIRS_NOAA21_NRT','VIIRS_NOAA20_NRT','VIIRS_SNPP_NRT','MODIS_NRT'],
+    thermalSources: {
+      mode: 'SEPARATE_SOURCES',
+      enabled: {
+        firms: true,
+        sentinel3a: true,
+        sentinel3b: true,
+        mtg: false,
+        msg: false
+      },
+      meta: {
+        'nasa-firms': { labelKey: 'thermal.source.firms', required: true, featureFlag: false },
+        'sentinel3a-slstr': { labelKey: 'thermal.source.sentinel3a', required: false, featureFlag: true },
+        'sentinel3b-slstr': { labelKey: 'thermal.source.sentinel3b', required: false, featureFlag: true },
+        'mtg-fci-frp': { labelKey: 'thermal.source.mtg', required: false, featureFlag: true },
+        'msg-seviri-frp': { labelKey: 'thermal.source.msg', required: false, featureFlag: true }
+      }
+    },
+    thermalFusion: {
+      enabled: false,
+      association: {
+        viirsToSlstr: { maxDistanceKm: 2.5, maxTimeMinutes: 90 },
+        viirsToMtg: { maxDistanceKm: 4, maxTimeMinutes: 30 },
+        slstrToMtg: { maxDistanceKm: 4, maxTimeMinutes: 45 }
+      }
+    },
+    eumetviewWfs: {
+      base: 'https://view.eumetsat.int/geoserver/ows',
+      version: '2.0.0',
+      outputFormat: 'application/json',
+      count: 2000,
+      maxPages: 20,
+      timeoutMs: 30000,
+      cacheTtlMs: 7 * 60 * 1000,
+      timeField: 'time'
+    },
     mtgGeoColourWms: {
       label: 'EUMETSAT MTG-I GeoColour RGB',
       url: 'https://view.eumetsat.int/geoserver/wms',
@@ -128,6 +163,22 @@
       {min:0,labelKey:'risk.watch',level:'watch'}
     ]
   };
+  Object.defineProperty(A.CONFIG, "thermal", {
+    enumerable: true,
+    configurable: true,
+    get() {
+      return {
+        mode: A.CONFIG.thermalSources.mode,
+        fusion: A.CONFIG.thermalFusion,
+        sources: Object.fromEntries(
+          Object.entries(A.CONFIG.thermalSources.meta).map(([id, m]) => {
+            const key = { "nasa-firms": "firms", "sentinel3a-slstr": "sentinel3a", "sentinel3b-slstr": "sentinel3b", "mtg-fci-frp": "mtg", "msg-seviri-frp": "msg" }[id] || id;
+            return [id, { ...m, enabled: !!A.CONFIG.thermalSources.enabled[key] }];
+          }),
+        ),
+      };
+    },
+  });
   A.COUNTRIES = {
     TR: {
       code:'TR',name:{tr:'Türkiye',en:'Türkiye'},nameTr:'Türkiye',timezone:'Europe/Istanbul',center:[39.0,35.2],zoom:6,

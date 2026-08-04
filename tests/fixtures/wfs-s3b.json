@@ -1,0 +1,28 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "id": "S3B_anon_2608010630_lod0.01",
+      "geometry": { "type": "Point", "coordinates": [36.4, 38.0] },
+      "properties": {
+        "Lat": 38.0,
+        "Lon": 36.4,
+        "FRP": 33.3,
+        "FRPerr": 3.1,
+        "UsedChannel": "F1",
+        "Confidence": 91,
+        "BT": 351.9,
+        "SZA": 31.8,
+        "AcrossSize": 0.94,
+        "AlongSize": 1.12,
+        "Satellite": "S3B",
+        "Datetime": "2026-08-01T07:52:11",
+        "time": "2026-08-01T07:10:00Z"
+      }
+    }
+  ],
+  "totalFeatures": 1,
+  "numberReturned": 1,
+  "crs": { "type": "name", "properties": { "name": "urn:ogc:def:crs:EPSG::4326" } }
+}

@@ -121,6 +121,9 @@ for (const path of [
   "js/utils.js",
   "js/countries.js",
   "js/grid.js",
+  "js/eumetview-wfs.js",
+  "js/thermal-sources.js",
+  "js/thermal-association.js",
   "js/map.js",
   "js/export.js",
 ])
@@ -315,6 +318,135 @@ test("fire normalization, deduplication and clustering remain deterministic", ()
   ]);
   assert.equal(clustered.length, 1);
   assert.equal(clustered[0].count, 2);
+});
+
+test("normalized thermal detection fixtures (FIRMS, S3A, S3B, missing fields, backward compat)", () => {
+  const prevCountry = A.CONFIG.activeCountryCode;
+  A.CONFIG.activeCountryCode = "TR";
+  try {
+    const S3A_RAW = {
+    id: "f_01A2B3C4D5E6F7",
+    sourceId: "sentinel3a-slstr",
+    source: "Sentinel-3A SLSTR",
+    sensorFamily: "slstr",
+    platform: "Sentinel-3A",
+    satellite: "Sentinel-3A",
+    sensor: "SLSTR",
+    product: "copernicus:frp",
+    processingMode: "realtime",
+    detectedAt: "2026-08-02T01:10:00Z",
+    receivedAt: "2026-08-02T01:22:00Z",
+    lat: "38.72",
+    lon: "35.05",
+    frpMw: "35.5",
+    frpUncertaintyMw: "7.1",
+    brightnessTemperatureK: 352.1,
+    confidenceRaw: "high",
+    cloudFraction: 0.02,
+    qualityFlags: "valid",
+    dayNight: "N",
+    countryCode: "TR",
+  };
+  const s3a = U.normalizeFireDetection(S3A_RAW);
+  assert.equal(s3a.detectionId, "f_01A2B3C4D5E6F7");
+  assert.equal(s3a.nativeId, "f_01A2B3C4D5E6F7");
+  assert.equal(s3a.sourceId, "sentinel3a-slstr");
+  assert.equal(s3a.sourceName, "Sentinel-3A SLSTR");
+  assert.equal(s3a.sensorFamily, "slstr");
+  assert.equal(s3a.frpMw, 35.5);
+  assert.equal(s3a.frpMw, s3a.frp);
+  assert.equal(s3a.sourceName, s3a.source);
+  assert.equal(s3a.frpUncertaintyMw, 7.1);
+  assert.equal(s3a.confidenceRaw, "high");
+  assert.equal(s3a.confidence, "high");
+  assert.equal(s3a.confidenceNormalized, 1);
+  assert.equal(s3a.detectedAt, "2026-08-02T01:10:00Z");
+  assert.equal(s3a.receivedAt, "2026-08-02T01:22:00Z");
+  assert.equal(s3a.cloudFraction, 0.02);
+  assert.equal(s3a.qualityFlags, "valid");
+  assert.equal(s3a.dayNight, "N");
+  const s3b = U.normalizeFireDetection({
+    ...S3A_RAW,
+    sourceId: "sentinel3b-slstr",
+    satellite: "Sentinel-3B",
+    platform: "Sentinel-3B",
+    detectedAt: "2026-08-02T02:40:00Z",
+  });
+  assert.equal(s3b.sourceId, "sentinel3b-slstr");
+  assert.equal(s3b.satellite, "Sentinel-3B");
+
+  const firms = U.normalizeFireDetection(
+    {
+      latitude: "38.4",
+      longitude: "36.1",
+      acq_date: "2026-08-01",
+      acq_time: "935",
+      instrument: "VIIRS",
+      satellite: "NOAA-21",
+      confidence: "85",
+      frp: "42.3",
+      daynight: "D",
+      bright_ti4: 355,
+      bright_ti5: 310,
+      scan: 1.1,
+      track: 0.6,
+      version: "1.0",
+    },
+    { source: "NASA FIRMS", sourceId: "nasa-firms", product: "VIIRS" },
+  );
+  assert.equal(firms.frpMw, 42.3);
+  assert.equal(firms.sourceName, "NASA FIRMS");
+  assert.equal(firms.sourceId, "nasa-firms");
+  assert.equal(firms.sensor, "VIIRS");
+  assert.equal(firms.satellite, "NOAA-21");
+  assert.equal(firms.confidenceRaw, "85");
+  assert.equal(firms.confidenceNormalized, 0.85);
+  assert.equal(firms.pixelWidthKm, 1.1);
+  assert.equal(firms.pixelHeightKm, 0.6);
+  assert.equal(firms.effectivePixelAreaKm2, 0.66);
+  assert.equal(firms.detectedAt, "2026-08-01T09:35:00Z");
+  assert.equal(firms.brightTi4K, 355);
+  assert.equal(firms.countryCode, "TR");
+  const viaAcqTimePadded = U.normalizeFireDetection(
+    { latitude: "3.3", longitude: "4.4", acq_date: "2026-08-01", acq_time: "25" },
+    { sourceId: "nasa-firms" },
+  );
+  assert.equal(viaAcqTimePadded.detectedAt, "2026-08-01T00:25:00Z");
+
+  const missing = U.normalizeFireDetection(
+    { longitude: "nan", lat: "35xN", detectedAt: "not-a-date", frpMw: "NaN" },
+    {},
+  );
+  assert.equal(missing.lat, null);
+  assert.equal(missing.lon, null);
+  assert.equal(missing.detectedAt, null);
+  assert.equal(missing.frpMw, null);
+  assert.equal(missing.frpUncertaintyMw, null);
+  assert.equal(missing.confidenceRaw, null);
+  assert.equal(missing.qualityFlags, null);
+  const gR = JSON.stringify({ ...missing, rawProperties: undefined });
+  assert.ok(!gR.includes("NaN"), "no NaN in normalized object");
+  assert.ok(!gR.includes("undefined"), "no undefined in JSON-serialized object");
+
+  const noUnc = U.normalizeFireDetection(
+    { lat: 1, lon: 2, frp: 9 },
+    { sourceId: "nasa-firms" },
+  );
+  assert.equal(noUnc.frpUncertaintyMw, null);
+  assert.equal(noUnc.brightTi4K, null);
+  assert.equal(noUnc.qualityFlags, null);
+  assert.equal(noUnc.detectedAt, null);
+
+  const backward = U.clusterFires([
+    U.normalizeFireDetection({ lat: 39, lon: 35, frp: 70, detectedAt: "2026-08-01T08:00:00Z", acq_time: "0" }, { sourceId: "nasa-firms", source: "NASA FIRMS" }),
+    U.normalizeFireDetection({ lat: 39.01, lon: 35.01, frp: 40, detectedAt: "2026-08-01T10:00:00Z" }, { sourceId: "nasa-firms", source: "NASA FIRMS" }),
+  ]);
+  assert.equal(backward.length, 1);
+  assert.equal(backward[0].maxFrp, 70, "legacy maxFrp preserved from normalized input");
+  assert.equal(backward[0].count, 2);
+  } finally {
+    A.CONFIG.activeCountryCode = prevCountry;
+  }
 });
 
 test("adaptive corridor stays in its documented 10–30 km range", () => {
@@ -755,6 +887,425 @@ test("all local production asset references resolve", () => {
     assert.equal(statSync(icon.src).isFile(), true, icon.src);
 });
 
+test("thermal source registry contracts (config defaults, adapter registration, FIRMS passthrough)", async () => {
+  const TS = A.ThermalSources,
+    registry = TS.registry;
+  assert.ok(registry, "registry exposed");
+  assert.deepEqual(
+    [...registry.list()].map((a) => a.id),
+    ["nasa-firms", "sentinel3a-slstr", "sentinel3b-slstr", "mtg-fci-frp"],
+  );
+  const firms = registry.get("nasa-firms");
+  assert.equal(firms.label, "NASA FIRMS");
+  assert.equal(firms.sensorFamily, "viirs-modis");
+  assert.equal(firms.supportsFrp, true);
+  assert.equal(firms.supportsUncertainty, false);
+  assert.equal(firms.defaultEnabled, true);
+  assert.equal(typeof firms.discover, "function");
+  assert.equal(typeof firms.load, "function");
+  const mtgAdapter = registry.get("mtg-fci-frp");
+  assert.ok(mtgAdapter, "mtg-fci-frp registered after its dedicated commit");
+  assert.equal(mtgAdapter.defaultEnabled, false);
+  assert.equal(registry.isEnabled("mtg-fci-frp"), false);
+
+  const cfg = A.CONFIG.thermalSources;
+  assert.equal(cfg.mode, "SEPARATE_SOURCES");
+  assert.deepEqual(cfg.enabled, {
+    firms: true,
+    sentinel3a: true,
+    sentinel3b: true,
+    mtg: false,
+    msg: false,
+  });
+  assert.equal(A.CONFIG.thermalFusion.enabled, false);
+  assert.deepEqual(A.CONFIG.thermalFusion.association.viirsToSlstr, {
+    maxDistanceKm: 2.5,
+    maxTimeMinutes: 90,
+  });
+  assert.deepEqual(A.CONFIG.thermalFusion.association.viirsToMtg, {
+    maxDistanceKm: 4,
+    maxTimeMinutes: 30,
+  });
+  assert.deepEqual(A.CONFIG.thermalFusion.association.slstrToMtg, {
+    maxDistanceKm: 4,
+    maxTimeMinutes: 45,
+  });
+  const legacy = A.CONFIG.thermal;
+  assert.equal(legacy.mode, "SEPARATE_SOURCES");
+  assert.equal(legacy.fusion.enabled, false);
+  assert.equal(legacy.sources["nasa-firms"].enabled, true);
+  assert.equal(legacy.sources["nasa-firms"].required, true);
+  assert.equal(legacy.sources["sentinel3a-slstr"].featureFlag, true);
+  assert.equal(legacy.sources["sentinel3a-slstr"].enabled, true);
+  assert.equal(legacy.sources["sentinel3b-slstr"].featureFlag, true);
+  assert.equal(legacy.sources["sentinel3b-slstr"].enabled, true);
+  assert.equal(legacy.sources["msg-seviri-frp"].enabled, false);
+  assert.equal(registry.isEnabled("nasa-firms"), true);
+  assert.equal(registry.isEnabled("sentinel3a-slstr"), true);
+  assert.equal(registry.isEnabled("sentinel3b-slstr"), true);
+
+  const fixtures = [
+    { lat: 38.6, lon: 35.2, detectedAt: "2026-08-02T10:00:00Z", frp: 45, product: "VIIRS_NOAA21_NRT", satellite: "NOAA-21", source: "NASA FIRMS" },
+    { lat: 38.6, lon: 35.2, detectedAt: "2026-08-02T10:00:00Z", frp: 55, product: "V_NRT", satellite: "NOAA-21", source: "NASA FIRMS" },
+  ];
+A.FirmsAdapter = {
+    load: async () => fixtures,
+    source: async () => "AUTO",
+    setSource: () => {},
+    isAuto: () => true,
+  };
+  const out = await registry.load("nasa-firms", { bbox: "", countryCode: "TR" });
+  assert.equal(out, fixtures, "passthrough returns the exact FirmsAdapter result");
+
+  const st = TS.state("nasa-firms");
+  assert.equal(st.status, "idle");
+  TS.setLoading("nasa-firms", 1);
+  assert.equal(TS.state("nasa-firms").status, "loading");
+  assert.equal(TS.setResult("nasa-firms", 1, fixtures, 12, "req"), true);
+  assert.equal(TS.state("nasa-firms").status, "ok");
+  assert.equal(TS.state("nasa-firms").count, 2);
+  assert.equal(TS.setResult("nasa-firms", 2, [], 5, "req2"), false, "stale seq ignored");
+  const expectConnected = A.I18n.locale === "en" ? "Connected" : "Bağlı";
+  assert.equal(TS.statusLabel("ok"), expectConnected);
+
+  for (const key of ["idle", "loading", "ok", "empty", "error", "stale"])
+    assert.ok(TS.SOURCE_STATES.includes(key));
+  assert.equal(TS.SOURCE_STATES.includes("warn"), true);
+});
+
+const wfsS3B = JSON.parse(read("tests/fixtures/wfs-s3b.json"));
+
+async function withGetFeature(fn, handler) {
+  const orig = A.EumetviewWfs.getFeature;
+  try {
+    A.EumetviewWfs.getFeature = handler;
+    return await fn();
+  } finally {
+    A.EumetviewWfs.getFeature = orig;
+  }
+}
+
+test("thermal: Sentinel-3 SLSTR adapters normalize GeoJSON to the shared model", async () => {
+  const TS = A.ThermalSources;
+  const s3a = TS.registry.get("sentinel3a-slstr");
+  const s3b = TS.registry.get("sentinel3b-slstr");
+  assert.ok(s3a, "sentinel3a-slstr registered");
+  assert.ok(s3b, "sentinel3b-slstr registered");
+  assert.equal(s3a.sensorFamily, "slstr");
+  assert.equal(s3a.supportsFrp, true);
+  assert.equal(s3a.supportsUncertainty, true);
+  assert.equal(s3a.defaultEnabled, false);
+  assert.equal(
+    TS.registry.isEnabled("sentinel3a-slstr"),
+    true,
+    "enabled by default under SEPARATE_SOURCES",
+  );
+  assert.equal(TS.registry.isEnabled("sentinel3b-slstr"), true);
+
+  const out = await withGetFeature(
+    () =>
+      s3a.load({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async (opts) => {
+      assert.equal(opts.typeNames, "copernicus:sentinel3a_slstr_level2_frp");
+      assert.deepEqual(opts.bbox, bbox);
+      return { features: wfsPage1.features, pages: 1, totalMatched: 2, cql: "", url: "", meta: {} };
+    },
+  );
+  assert.equal(out.length, 2);
+  const d = out[0];
+  assert.equal(d.sourceId, "sentinel3a-slstr");
+  assert.equal(d.satellite, "S3A");
+  assert.equal(d.sensorFamily, "slstr");
+  assert.equal(d.detectedAt, "2026-08-01T06:37:00Z");
+  assert.equal(d.lat, 39.2);
+  assert.equal(d.lon, 38.1);
+  assert.equal(d.frpMw, 22.5);
+  assert.equal(d.frpUncertaintyMw, 2.1);
+  assert.equal(d.confidenceRaw, 87);
+  assert.equal(d.brightnessTemperatureK, 345.1);
+  assert.equal(d.pixelWidthKm, 0.94);
+  assert.equal(d.pixelHeightKm, 1.12);
+  assert.equal(d.qualityFlags, "UsedChannel=F1");
+  assert.equal(d.dayNight, "day");
+  assert.equal(d.countryCode, "TR");
+  assert.equal(out[1].frpMw, 61.2);
+});
+
+test("thermal: SLSTR adapter drops features outside the region and without FRP/geometry", async () => {
+  const s3a = A.ThermalSources.registry.get("sentinel3a-slstr");
+  const outside = {
+    ...wfsPage1.features[0],
+    properties: { ...wfsPage1.features[0].properties, Lat: 30.1, Lon: 10.2 },
+  };
+  const noTime = {
+    ...wfsPage1.features[0],
+    properties: { ...wfsPage1.features[0].properties, time: null, Datetime: null },
+  };
+  const noGeom = {
+    ...wfsPage1.features[0],
+    geometry: null,
+    properties: { ...wfsPage1.features[0].properties, Lat: null, Lon: null },
+  };
+  const out = await withGetFeature(
+    () =>
+      s3a.load({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async () => ({ features: [outside, noTime, noGeom], pages: 1, totalMatched: 3, meta: {} }),
+  );
+  assert.equal(out.length, 0, "all three invalid features filtered out");
+});
+
+test("thermal: SLSTR adapter keeps the best record when duplicates overlap in the window", async () => {
+  const s3b = A.ThermalSources.registry.get("sentinel3b-slstr");
+  const dup = { ...wfsS3B.features[0] };
+  const out = await withGetFeature(
+    () =>
+      s3b.load({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async () => ({ features: [wfsS3B.features[0], dup], pages: 1, totalMatched: 2, meta: {} }),
+  );
+  assert.equal(out.length, 1, "same-source duplicates merged");
+  assert.equal(out[0].satellite, "S3B");
+  assert.equal(out[0].frpMw, 33.3);
+});
+
+test("thermal: loadSlstrGroup runs both satellites in parallel and reports ok", async () => {
+  const TS = A.ThermalSources;
+  const calls = [];
+  const res = await withGetFeature(
+    () =>
+      TS.loadSlstrGroup({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async (opts) => {
+      calls.push(opts.typeNames);
+      return {
+        features: opts.typeNames.includes("3b") ? wfsS3B.features : wfsPage1.features,
+        pages: 1,
+        totalMatched: 2,
+        meta: {},
+      };
+    },
+  );
+  assert.deepEqual(
+    calls.sort(),
+    ["copernicus:sentinel3a_slstr_level2_frp", "copernicus:sentinel3b_slstr_level2_frp"],
+  );
+  assert.equal(res.status, "ok");
+  assert.equal(res.bySource.length, 2);
+  assert.equal(res.merged.length, 3, "2 S3A + 1 S3B merged");
+  assert.equal(TS.state("sentinel3a-slstr").status, "ok");
+  assert.equal(TS.state("sentinel3a-slstr").count, 2);
+  assert.equal(TS.state("sentinel3b-slstr").status, "ok");
+  assert.equal(TS.state("sentinel3b-slstr").count, 1);
+});
+
+test("thermal: loadSlstrGroup warn when one satellite fails, error when both fail", async () => {
+  const TS = A.ThermalSources;
+  for (const id of ["sentinel3a-slstr", "sentinel3b-slstr"])
+    TS.patchState(id, { status: "idle", data: null, lastSuccessfulAt: null, seq: 0 });
+  const warn = await withGetFeature(
+    () =>
+      TS.loadSlstrGroup({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async (opts) => {
+      if (opts.typeNames.includes("3a")) throw new Error("s3a down");
+      return { features: wfsS3B.features, pages: 1, totalMatched: 1, meta: {} };
+    },
+  );
+  assert.equal(warn.status, "warn");
+  assert.equal(warn.merged.length, 1);
+  assert.equal(warn.bySource.length, 2);
+  assert.equal(TS.state("sentinel3a-slstr").status, "error");
+  assert.equal(TS.state("sentinel3b-slstr").status, "ok");
+
+  const bothFail = await withGetFeature(
+    () =>
+      TS.loadSlstrGroup({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async () => {
+      throw new Error("view down");
+    },
+  );
+  assert.equal(bothFail.status, "error");
+  assert.equal(bothFail.merged.length, 0);
+  assert.equal(TS.state("sentinel3a-slstr").status, "error");
+  assert.equal(
+    TS.state("sentinel3b-slstr").status,
+    "stale",
+    "previously-successful source degrades to stale, keeping old data",
+  );
+});
+
+test("thermal: loadSlstrGroup empty when both satellites return no detections", async () => {
+  const TS = A.ThermalSources;
+  const res = await withGetFeature(
+    () =>
+      TS.loadSlstrGroup({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async () => ({ features: [], pages: 1, totalMatched: 0, meta: {} }),
+  );
+  assert.equal(res.status, "empty");
+  assert.equal(res.merged.length, 0);
+  assert.equal(TS.state("sentinel3a-slstr").status, "empty");
+  assert.equal(TS.state("sentinel3b-slstr").status, "empty");
+});
+
+const mtgFixture = {
+  features: [
+    {
+      id: "MTG_anon_2608010700_lod0.01",
+      geometry: { type: "Point", coordinates: [36.2, 39.4] },
+      properties: {
+        Lat: 39.4,
+        Lon: 36.2,
+        FRP: 88.4,
+        FRPerr: 6.6,
+        Confidence: 3,
+        BT_mir_k: 358.2,
+        BT_tir_k: 295.1,
+        SZA: 41.2,
+        VZA: 18.7,
+        Satellite: "MTG-I1",
+        Datetime: "2026-08-01T08:02:33",
+        time: "2026-08-01T07:10:00Z",
+      },
+    },
+  ],
+};
+
+test("thermal: MTG FCI FRP adapter registered behind a feature flag and normalizes its own field set", async () => {
+  const TS = A.ThermalSources;
+  const mtg = TS.registry.get("mtg-fci-frp");
+  assert.ok(mtg, "mtg-fci-frp registered");
+  assert.equal(mtg.sensorFamily, "mtg");
+  assert.equal(mtg.supportsFrp, true);
+  assert.equal(mtg.supportsUncertainty, true);
+  assert.equal(TS.registry.isEnabled("mtg-fci-frp"), false, "feature flag off by default");
+
+  const out = await withGetFeature(
+    () =>
+      mtg.load({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async (opts) => {
+      assert.equal(opts.typeNames, "mtg_fd:frp");
+      return { features: mtgFixture.features, pages: 1, totalMatched: 1, meta: {} };
+    },
+  );
+  assert.equal(out.length, 1);
+  const d = out[0];
+  assert.equal(d.sourceId, "mtg-fci-frp");
+  assert.equal(d.sensorFamily, "mtg");
+  assert.equal(d.satellite, "MTG-I1");
+  assert.equal(d.detectedAt, "2026-08-01T07:10:00Z");
+  assert.equal(d.frpMw, 88.4);
+  assert.equal(d.frpUncertaintyMw, 6.6);
+  assert.equal(d.brightnessTemperatureK, 358.2, "BT_mir_k preferred over BT_tir_k");
+  assert.equal(d.brightTi4K, 358.2);
+  assert.equal(d.confidenceRaw, 3, "MTG confidence is a long, kept raw");
+  assert.equal(d.dayNight, "day");
+  assert.equal(d.countryCode, "TR");
+});
+
+test("thermal: MTG adapter keeps only real WFS features inside the region", async () => {
+  const mtg = A.ThermalSources.registry.get("mtg-fci-frp");
+  const outside = {
+    ...mtgFixture.features[0],
+    properties: { ...mtgFixture.features[0].properties, Lat: 36.1, Lon: 3.2 },
+  };
+  const out = await withGetFeature(
+    () =>
+      mtg.load({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async () => ({ features: [outside], pages: 1, totalMatched: 1, meta: {} }),
+  );
+  assert.equal(out.length, 0);
+});
+
+test("thermal: runtime modes activate alternates while fusion stays config-locked until MULTI_SOURCE", () => {
+  const TS = A.ThermalSources;
+  assert.equal(A.CONFIG.thermalSources.mode, "SEPARATE_SOURCES");
+  assert.equal(A.CONFIG.thermalFusion.enabled, false);
+  assert.equal(A.CONFIG.thermal.mode, "SEPARATE_SOURCES", "legacy alias stays in sync");
+  assert.equal(A.CONFIG.thermal.fusion.enabled, false);
+  assert.deepEqual(TS.THERMAL_MODES, [
+    "FIRMS_ONLY",
+    "SEPARATE_SOURCES",
+    "MULTI_SOURCE",
+  ]);
+  localStorage.removeItem("thermalMode");
+  assert.equal(TS.getMode(), "SEPARATE_SOURCES", "localStorage unset falls back to config");
+  assert.equal(TS.setMode("MULTI_SOURCE"), "MULTI_SOURCE");
+  assert.equal(localStorage.getItem("thermalMode"), "MULTI_SOURCE");
+  assert.equal(
+    A.CONFIG.thermalFusion.enabled,
+    true,
+    "fusion activates at runtime only in MULTI_SOURCE",
+  );
+  assert.equal(TS.setMode("FIRMS_ONLY"), "FIRMS_ONLY");
+  assert.equal(A.CONFIG.thermalFusion.enabled, false, "fusion deactivates outside MULTI_SOURCE");
+  assert.equal(TS.setMode("BOGUS"), "SEPARATE_SOURCES", "invalid mode falls back to config default");
+  assert.equal(A.CONFIG.thermalFusion.enabled, false);
+  TS.setMode("SEPARATE_SOURCES");
+  const appSrc = source.app;
+  assert.ok(
+    /loadThermalSources/.test(appSrc),
+    "orchestrator wired after its dedicated commit",
+  );
+  const fnStart = appSrc.indexOf("async loadThermalSources()");
+  assert.ok(fnStart !== -1, "loadThermalSources method exists");
+  const sliced = appSrc.slice(fnStart);
+  const earlyReturn = sliced.indexOf("getMode() === \"FIRMS_ONLY\"");
+  const firstLoad = sliced.indexOf("loadSlstrGroup");
+  assert.ok(earlyReturn !== -1, "FIRMS_ONLY short-circuits");
+  assert.ok(
+    earlyReturn < firstLoad,
+    "FIRMS_ONLY returns before any alternate-source request",
+  );
+  assert.ok(/layerSentinelSlstr/.test(html), "SLSTR layer control exists");
+  assert.ok(/layerMtgFrp/.test(html), "MTG FRP layer control exists");
+  assert.ok(/layerMultiSensorConf/.test(html), "multi-sensor layer control exists");
+  assert.ok(/thermalModeSelect/.test(html), "settings mode selector exists");
+  assert.ok(/syncThermalModeUI/.test(appSrc), "mode drives UI visibility");
+  assert.ok(/clearThermalAlternates/.test(appSrc), "settings mode selector exists");
+});
+
 test("icon variants have the required PNG dimensions", async () => {
   const expected = [16, 32, 48, 192, 512];
   for (const size of expected) {
@@ -762,6 +1313,757 @@ test("icon variants have the required PNG dimensions", async () => {
     assert.equal(data.readUInt32BE(16), size);
     assert.equal(data.readUInt32BE(20), size);
   }
+});
+
+test("thermal: FIRMS_ONLY plans zero alternate requests and never touches EUMETView", () => {
+  const TS = A.ThermalSources;
+  try {
+    TS.setMode("FIRMS_ONLY");
+    const plan = TS.planThermalRequests({
+      mode: TS.getMode(),
+      sentinel3a: true,
+      sentinel3b: true,
+    });
+    assert.deepEqual(plan, { slstrIds: [], mtg: false }, "no alternate-source query in FIRMS_ONLY");
+  } finally {
+    TS.setMode("SEPARATE_SOURCES");
+  }
+});
+
+test("thermal: SEPARATE_SOURCES plans both SLSTR satellites and keeps MTG behind its flag", () => {
+  const TS = A.ThermalSources;
+  const plan = TS.planThermalRequests({
+    mode: "SEPARATE_SOURCES",
+    sentinel3a: true,
+    sentinel3b: true,
+  });
+  assert.deepEqual(plan.slstrIds, ["sentinel3a-slstr", "sentinel3b-slstr"]);
+  assert.equal(plan.mtg, false, "MTG stays off unless its feature flag is enabled");
+  const multi = TS.planThermalRequests({
+    mode: "MULTI_SOURCE",
+    sentinel3a: true,
+    sentinel3b: true,
+  });
+  assert.deepEqual(multi.slstrIds, ["sentinel3a-slstr", "sentinel3b-slstr"]);
+});
+
+test("thermal: per-source flags restrict SLSTR WFS queries and disabled sensors never query", async () => {
+  const TS = A.ThermalSources;
+  const req = {
+    bbox,
+    countryCode: "TR",
+    startTime: new Date("2026-08-01T00:00:00Z"),
+    endTime: new Date("2026-08-02T00:00:00Z"),
+  };
+  const calls = [];
+  const handler = async (opts) => {
+    calls.push(opts.typeNames);
+    return { features: [], pages: 1, totalMatched: 0, meta: {} };
+  };
+  await withGetFeature(() => TS.loadSlstrGroup(req, ["sentinel3b-slstr"]), handler);
+  assert.deepEqual(calls, ["copernicus:sentinel3b_slstr_level2_frp"], "only the enabled sensor is queried");
+  calls.length = 0;
+  await withGetFeature(() => TS.loadSlstrGroup(req, ["sentinel3a-slstr"]), handler);
+  assert.deepEqual(calls, ["copernicus:sentinel3a_slstr_level2_frp"]);
+  const planB = TS.planThermalRequests({ mode: "SEPARATE_SOURCES", sentinel3a: true, sentinel3b: false });
+  assert.deepEqual(planB.slstrIds, ["sentinel3a-slstr"]);
+  calls.length = 0;
+  await withGetFeature(() => TS.loadSlstrGroup(req, []), handler);
+  assert.deepEqual(calls, [], "no enabled sensor means no WFS request");
+});
+
+test("thermal: time change feeds a new UTC window and identical windows are never re-requested", async () => {
+  const TS = A.ThermalSources;
+  const seen = [];
+  await withGetFeature(
+    () =>
+      TS.loadSlstrGroup(
+        {
+          bbox,
+          countryCode: "TR",
+          startTime: new Date("2026-08-01T00:00:00Z"),
+          endTime: new Date("2026-08-01T12:00:00Z"),
+        },
+        ["sentinel3a-slstr"],
+      ),
+    async (opts) => {
+      seen.push({ from: opts.from, to: opts.to });
+      return { features: [], pages: 1, totalMatched: 0, meta: {} };
+    },
+  );
+  assert.equal(seen.length, 1);
+  assert.equal(seen[0].from.toISOString(), "2026-08-01T00:00:00.000Z");
+  assert.equal(seen[0].to.toISOString(), "2026-08-01T12:00:00.000Z");
+  const k1 = TS.thermalWindowKey("TR", new Date("2026-08-02T10:00:00Z"));
+  assert.equal(k1, TS.thermalWindowKey("TR", new Date("2026-08-02T10:00:00Z")));
+  assert.notEqual(k1, TS.thermalWindowKey("ES", new Date("2026-08-02T10:00:00Z")), "country changes the window");
+  assert.notEqual(k1, TS.thermalWindowKey("TR", new Date("2026-08-03T10:00:00Z")), "time changes the window");
+});
+
+test("thermal: late FIRMS completion recomputes an association previously labeled without FIRMS", () => {
+  const TS = A.ThermalSources;
+  const fire = (lat = 38.6, lon = 35.2) =>
+    normDet({ frpMw: 45, lat, lon });
+  const slstr = normDet({
+    sourceId: "sentinel3a-slstr",
+    sourceName: "Sentinel-3A SLSTR",
+    sensorFamily: "slstr",
+    satellite: "S3A",
+    frpMw: 61.2,
+    detectedAt: "2026-08-02T10:30:00Z",
+  });
+  const pre = TS.associationSources({ fireData: [], slstrData: [slstr], mtgFrpData: [] });
+  const preEvents = Association.associateAcrossSources({ bySource: pre });
+  assert.equal(preEvents.length, 1);
+  assert.equal(preEvents[0].supportingSources.includes("nasa-firms"), false, "no FIRMS key, no FIRMS label");
+  assert.equal(preEvents[0].confirmationLevel, 1);
+  const post = TS.associationSources({ fireData: [fire()], slstrData: [slstr], mtgFrpData: [] });
+  const postEvents = Association.associateAcrossSources({ bySource: post });
+  const merged = postEvents.find((e) => e.observationCount === 2);
+  assert.ok(merged, "late FIRMS data merges on recompute");
+  assert.deepEqual(merged.supportingSources.sort(), ["nasa-firms", "sentinel3a-slstr"]);
+  assert.equal(merged.independentSensorCount, 2);
+  assert.equal(merged.confirmationLevel, 2);
+});
+
+test("thermal: orchestrator status keys never label warn/empty/error as success", () => {
+  const TS = A.ThermalSources;
+  assert.equal(TS.orchestratorStatusKey("ok"), "thermal.orchestrator.slstrOk");
+  assert.equal(TS.orchestratorStatusKey("warn"), "thermal.orchestrator.warn");
+  assert.equal(TS.orchestratorStatusKey("empty"), "thermal.orchestrator.empty");
+  assert.equal(TS.orchestratorStatusKey("error"), "thermal.orchestrator.error");
+  assert.equal(TS.orchestratorStatusKey("loading"), null);
+  const okTxt = I.t("thermal.orchestrator.slstrOk", { a: 1, b: 2 });
+  const warnTxt = I.t("thermal.orchestrator.warn");
+  const emptyTxt = I.t("thermal.orchestrator.empty");
+  const errorTxt = I.t("thermal.orchestrator.error");
+  assert.ok(okTxt);
+  assert.ok(warnTxt);
+  assert.ok(emptyTxt);
+  assert.ok(errorTxt);
+  assert.notEqual(warnTxt, okTxt);
+  assert.notEqual(emptyTxt, okTxt);
+  assert.notEqual(errorTxt, okTxt);
+  assert.ok(source.app.includes("orchestratorStatusKey"), "app drives status text through the mapping");
+});
+
+test("thermal: country change clears alternate layers, data, statuses and the thermal sequence", () => {
+  const appSrc = source.app,
+    mapSrc = source.map;
+  const resetBlock = appSrc.slice(
+    appSrc.indexOf("resetCountryState("),
+    appSrc.indexOf("resetCountryState(") + 900,
+  );
+  for (const token of [
+    "slstrData",
+    "slstrStatus",
+    "mtgFrpData",
+    "multiSensorEvents",
+    "_thermalWindowKey",
+  ])
+    assert.ok(resetBlock.includes(token), `resetCountryState clears ${token}`);
+  const mapBlock = mapSrc.slice(mapSrc.indexOf("resetCountry()"));
+  for (const token of [
+    "slstrLayer.clearLayers",
+    "slstrALayer.clearLayers",
+    "slstrBLayer.clearLayers",
+    "mtgFrpLayer.clearLayers",
+    "multiSensorLayer.clearLayers",
+  ])
+    assert.ok(mapBlock.includes(token), `map.resetCountry clears ${token}`);
+});
+
+test("multi-sensor layer only shows events confirmed by at least two independent families", () => {
+  const eligible = A.MapManager.eligibleMultiSensor;
+  const single = { id: "e1", lat: 38.6, lon: 35.2, independentSensorCount: 1, observationCount: 1 };
+  const dual = { id: "e2", lat: 38.7, lon: 35.3, independentSensorCount: 2, observationCount: 3 };
+  const triple = { id: "e3", lat: 39.1, lon: 40.0, independentSensorCount: 3, observationCount: 5 };
+  const out = eligible([single, dual, triple]);
+  assert.deepEqual(out.map((e) => e.id).sort(), ["e2", "e3"]);
+  assert.equal(eligible([]).length, 0);
+  assert.equal(eligible([single]).length, 0, "single-source events stay on their raw layers");
+});
+
+test("association: multi-sensor FRP is a per-source maximum, never a sum or an average", () => {
+  const events = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [normDet({ frpMw: 45 })],
+      "sentinel3a-slstr": [
+        normDet({
+          sourceId: "sentinel3a-slstr",
+          sourceName: "Sentinel-3A SLSTR",
+          sensorFamily: "slstr",
+          satellite: "S3A",
+          frpMw: 61.2,
+        }),
+      ],
+    },
+  });
+  const merged = events.find((e) => e.observationCount === 2);
+  assert.ok(merged);
+  assert.equal(merged.maxFrpMw, 61.2, "61.2 is max, not 106.2 sum or 53.1 average");
+  assert.equal(merged.maxFrpBySource["nasa-firms"], 45);
+  assert.equal(merged.maxFrpBySource["sentinel3a-slstr"], 61.2);
+});
+
+test("association: 10k synthetic observations associate quickly, deterministically and never over-merge", async () => {
+  function mulberry32(a) {
+    return function () {
+      a |= 0;
+      a = (a + 0x6d2b79f5) | 0;
+      let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+  const make = (seed) => {
+    const rnd = mulberry32(seed);
+    const firms = [];
+    const slstr = [];
+    for (let i = 0; i < 5000; i++) {
+      firms.push(
+        normDet({
+          frpMw: 20 + rnd() * 200,
+          lat: 36.5 + rnd() * 5,
+          lon: 29 + rnd() * 10,
+          detectedAt: `2026-08-02T10:${String(Math.floor(rnd() * 60)).padStart(2, "0")}:00Z`,
+        }),
+      );
+      slstr.push(
+        normDet({
+          sourceId: "sentinel3a-slstr",
+          sourceName: "Sentinel-3A SLSTR",
+          sensorFamily: "slstr",
+          satellite: "S3A",
+          frpMw: 20 + rnd() * 200,
+          lat: 36.5 + rnd() * 5,
+          lon: 29 + rnd() * 8,
+          detectedAt: `2026-08-02T10:${String(Math.floor(rnd() * 60)).padStart(2, "0")}:00Z`,
+        }),
+      );
+    }
+    return {
+      "nasa-firms": firms,
+      "sentinel3a-slstr": slstr,
+    };
+  };
+  const bySource = make(1);
+  const t0 = Date.now();
+  const events = Association.associateAcrossSources({ bySource });
+  const elapsed = Date.now() - t0;
+  assert.ok(events.length > 0, "associator returns events");
+  for (const ev of events) {
+    assert.ok(
+      ev.independentSensorCount === (ev.sensorFamilies || []).length &&
+        ev.independentSensorCount <= 2,
+      "families counted exactly, never invented",
+    );
+    assert.ok(ev.observationCount >= 1);
+  }
+  assert.ok(elapsed < 4000, `10k observations associated in ${elapsed} ms`);
+  const again = Association.associateAcrossSources({ bySource: make(1) });
+  assert.deepEqual(
+    again.map((e) => e.id),
+    events.map((e) => e.id),
+    "indexed association is deterministic for identical input",
+  );
+});
+
+const wfsPage1 = JSON.parse(read("tests/fixtures/wfs-page1.json"));
+const wfsPage2 = JSON.parse(read("tests/fixtures/wfs-page2.json"));
+const wfsEmpty = JSON.parse(read("tests/fixtures/wfs-empty.json"));
+const wfsInvalid = JSON.parse(read("tests/fixtures/wfs-invalid.json"));
+
+const WFS = A.EumetviewWfs;
+const bbox = [25.6, 35.75, 44.9, 42.2];
+const from = "2026-08-01T00:00:00Z";
+const to = "2026-08-02T00:00:00Z";
+
+async function withFetch(fn, handler) {
+  const orig = global.fetch;
+  try {
+    global.fetch = handler;
+    const result = await fn();
+    return result;
+  } finally {
+    if (orig) global.fetch = orig;
+    else delete global.fetch;
+  }
+}
+
+test("EUMETView WFS: CQL builder uses cql_filter with time field and never time=", () => {
+  const cql = WFS.buildCql({ bbox, from, to });
+  assert.equal(cql, "BBOX(geom, 25.6, 35.75, 44.9, 42.2) AND time >= '2026-08-01T00:00:00Z' AND time <= '2026-08-02T00:00:00Z'");
+  const url = WFS.buildUrl({ typeNames: "copernicus:sentinel3a_slstr_level2_frp", bbox, from, to, count: 2000 });
+  assert.ok(url.includes("service=WFS"));
+  assert.ok(url.includes("request=GetFeature"));
+  assert.equal(url.includes("cql_filter"), true);
+  assert.equal(new URL(url).searchParams.get("cql_filter"), cql);
+  assert.equal(url.includes("time="), false, "the WFS time= parameter is never used");
+  assert.ok(url.includes("count=2000"));
+  assert.equal(url.includes("startIndex="), false, "startIndex 0 omitted");
+  assert.equal(new URL(url).searchParams.get("outputFormat"), "application/json");
+});
+
+test("EUMETView WFS: pagination continues after 2000 and stops on short page", async () => {
+  const seen = [];
+  let calls = 0;
+  const res = await withFetch(
+    async () =>
+      WFS.getFeature({
+        typeNames: "copernicus:sentinel3a_slstr_level2_frp",
+        bbox,
+        from,
+        to,
+        count: 2,
+        ttl: 0,
+        onPage: (p) => seen.push(p.page),
+      }),
+    async () => {
+      calls++;
+      const shortPage = {
+        ...wfsPage2,
+        features: wfsPage2.features.slice(0, 1),
+        numberReturned: 1,
+      };
+      return {
+        ok: true,
+        status: 200,
+        async json() {
+          return calls === 1 ? wfsPage1 : shortPage;
+        },
+        async text() {
+          return "";
+        },
+      };
+    },
+  );
+  assert.equal(calls, 2, "two pages requested while page size kept at 2");
+  assert.deepEqual(seen, [1, 2]);
+  assert.equal(res.pages, 2);
+  assert.equal(res.totalMatched, 3);
+  assert.equal(res.features.length, 3, "page-boundary duplicate removed");
+  assert.equal(res.url.includes("startIndex="), false);
+});
+
+test("EUMETView WFS: empty response is a valid empty dataset", async () => {
+  const res = await withFetch(
+    () =>
+      WFS.getFeature({
+        typeNames: "copernicus:sentinel3a_slstr_level2_frp",
+        bbox,
+        from,
+        to,
+        count: 2,
+        ttl: 0,
+      }),
+    async () => ({
+      json: async () => wfsEmpty,
+      text: async () => "{}",
+      status: 200,
+      ok: true,
+    }),
+  );
+  assert.equal(res.features.length, 0);
+  assert.equal(res.pages, 1);
+  assert.equal(WFS.isGeoJsonCollection(wfsInvalid), false);
+});
+
+test("EUMETView WFS: invalid GeoJSON rejected with INVALID_RESPONSE", async () => {
+  await assert.rejects(
+    () =>
+      withFetch(
+        () =>
+          WFS.getFeature({
+            typeNames: "x",
+            bbox,
+            from,
+            to,
+            count: 2,
+            ttl: 0,
+          }),
+        async () => ({
+          json: async () => wfsInvalid,
+          status: 200,
+          ok: true,
+        }),
+      ),
+    /not a GeoJSON FeatureCollection/,
+  );
+});
+
+test("EUMETView WFS: max page guard applies and partial results are reported", async () => {
+  await assert.rejects(
+    () =>
+      withFetch(
+        async () =>
+          WFS.getFeature({
+            typeNames: "copernicus:sentinel3a_slstr_level2_frp",
+            bbox,
+            from,
+            to,
+            count: 2,
+            maxPages: 3,
+            ttl: 0,
+          }),
+        async () => ({
+          json: async () => wfsPage1,
+          status: 200,
+          ok: true,
+        }),
+      ),
+    /max page limit reached/,
+  );
+});
+
+test("EUMETView WFS: HTTP error surfaces as HTTP_ERROR with status", async () => {
+  await assert.rejects(
+    () =>
+      withFetch(
+        () =>
+          WFS.getFeature({
+            typeNames: "x",
+            bbox,
+            from,
+            to,
+            count: 2,
+            ttl: 0,
+          }),
+        async () => ({
+          json: async () => ({}),
+          text: async () => "boom",
+          status: 500,
+          ok: false,
+        }),
+      ),
+    (e) => e.kind === "HTTP_ERROR" && e.status === 500,
+  );
+});
+
+test("EUMETView WFS: aborted signal prevents result application", async () => {
+  const ctrl = new AbortController();
+  let aborted = false;
+  const p = withFetch(
+    () =>
+      WFS.getFeature({
+        typeNames: "x",
+        bbox,
+        from,
+        to,
+        count: 2,
+        ttl: 0,
+        signal: ctrl.signal,
+      }),
+    (_url, opts) =>
+      new Promise((_resolve, reject) => {
+        opts.signal.addEventListener("abort", () => {
+          aborted = true;
+          const e = new Error("The operation was aborted.");
+          e.name = "AbortError";
+          reject(e);
+        });
+      }),
+  );
+  setTimeout(() => ctrl.abort(), 5);
+  await assert.rejects(p, (e) => e.kind === "ABORTED");
+  assert.ok(aborted, "underlying fetch was aborted");
+});
+
+const Association = A.ThermalAssociation;
+
+function normDet(overrides) {
+  return {
+    detectionId: null,
+    sourceId: "nasa-firms",
+    sourceName: "NASA FIRMS",
+    sensorFamily: "viirs-modis",
+    satellite: "NOAA-21",
+    detectedAt: "2026-08-02T10:00:00Z",
+    lat: 38.6,
+    lon: 35.2,
+    frpMw: 45,
+    frpUncertaintyMw: null,
+    countryCode: "TR",
+    ...overrides,
+  };
+}
+
+test("association: deduplicateWithinSource merges identical records keeping the max FRP", () => {
+  const out = Association.deduplicateWithinSource([
+    normDet({ frpMw: 45 }),
+    normDet({ frpMw: 55 }),
+    normDet({ frpMw: 30, lat: 39.5, lon: 36.1 }),
+  ]);
+  assert.equal(out.length, 2);
+  const dup = out.find((d) => d.lat === 38.6);
+  assert.equal(dup.frpMw, 55, "max FRP kept, never summed");
+});
+
+test("association: FIRMS-only dataset yields one event per detection, no cross-source merge", () => {
+  const events = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [
+        normDet({ frpMw: 45 }),
+        normDet({ frpMw: 30, lat: 39.5, lon: 36.1 }),
+      ],
+    },
+  });
+  assert.equal(events.length, 2);
+  for (const ev of events) {
+    assert.equal(ev.observationCount, 1);
+    assert.equal(ev.independentSensorCount, 1);
+    assert.equal(ev.confirmationLevel, 1);
+    assert.deepEqual(ev.sensorFamilies, ["viirs-modis"]);
+    assert.deepEqual(ev.supportingSources, ["nasa-firms"]);
+    assert.equal(ev.maxFrpMw, ev.observations[0].frpMw);
+    assert.deepEqual(ev.maxFrpBySource, {
+      "nasa-firms": ev.observations[0].frpMw,
+    });
+  }
+});
+
+test("association: same event seen by VIIRS and SLSTR merges into one multi-sensor event", () => {
+  const events = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [
+        normDet({ frpMw: 45, detectedAt: "2026-08-02T10:00:00Z" }),
+        normDet({ frpMw: 12, lat: 41.2, lon: 42.8, detectedAt: "2026-08-02T10:00:00Z" }),
+      ],
+      "sentinel3a-slstr": [
+        normDet({
+          sourceId: "sentinel3a-slstr",
+          sourceName: "Sentinel-3A SLSTR",
+          sensorFamily: "slstr",
+          satellite: "S3A",
+          frpMw: 61.2,
+          detectedAt: "2026-08-02T10:30:00Z",
+        }),
+      ],
+    },
+  });
+  assert.equal(events.length, 2, "co-located merged, distant one separate");
+  const merged = events.find((e) => e.observationCount === 2);
+  assert.ok(merged, "merged event exists");
+  assert.deepEqual(merged.supportingSources.sort(), ["nasa-firms", "sentinel3a-slstr"]);
+  assert.deepEqual(merged.sensorFamilies.sort(), ["slstr", "viirs-modis"]);
+  assert.equal(merged.independentSensorCount, 2);
+  assert.equal(merged.confirmationLevel, 2);
+  assert.equal(merged.maxFrpMw, 61.2, "max of finite FRPs, never summed (45+61.2)");
+  assert.deepEqual(merged.maxFrpBySource, {
+    "nasa-firms": 45,
+    "sentinel3a-slstr": 61.2,
+  });
+  assert.deepEqual(merged.supportingPlatforms.sort(), ["NOAA-21", "S3A"]);
+  const single = events.find((e) => e.observationCount === 1);
+  assert.equal(single.confirmationLevel, 1);
+});
+
+test("association: time window limits cross-source merge (90 min VIIRS-SLSTR)", () => {
+  const far = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [normDet({ frpMw: 45, detectedAt: "2026-08-02T10:00:00Z" })],
+      "sentinel3b-slstr": [
+        normDet({
+          sourceId: "sentinel3b-slstr",
+          sensorFamily: "slstr",
+          satellite: "S3B",
+          frpMw: 33.3,
+          detectedAt: "2026-08-02T12:00:00Z",
+        }),
+      ],
+    },
+  });
+  assert.equal(far.length, 2, "120 min apart exceeds the 90 min window");
+  assert.ok(far.every((e) => e.observationCount === 1));
+});
+
+test("association: VIrRS-MTG and SLSTR-MTG rules use their own thresholds", () => {
+  const rules = Association.pairRules();
+  assert.deepEqual(rules.viirsToSlstr, { maxDistanceKm: 2.5, maxTimeMinutes: 90 });
+  assert.deepEqual(rules.viirsToMtg, { maxDistanceKm: 4, maxTimeMinutes: 30 });
+  assert.deepEqual(rules.slstrToMtg, { maxDistanceKm: 4, maxTimeMinutes: 45 });
+  const events = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [normDet({ frpMw: 45, detectedAt: "2026-08-02T10:00:00Z" })],
+      "sentinel3a-slstr": [
+        normDet({
+          sourceId: "sentinel3a-slstr",
+          sensorFamily: "slstr",
+          satellite: "S3A",
+          frpMw: 61.2,
+          detectedAt: "2026-08-02T10:00:00Z",
+        }),
+      ],
+      "mtg-fci-frp": [
+        normDet({
+          sourceId: "mtg-fci-frp",
+          sensorFamily: "mtg",
+          satellite: "MTG-I1",
+          frpMw: 150,
+          detectedAt: "2026-08-02T10:20:00Z",
+        }),
+      ],
+    },
+  });
+  assert.equal(events.length, 1);
+  const ev = events[0];
+  assert.equal(ev.observationCount, 3);
+  assert.equal(ev.independentSensorCount, 3);
+  assert.equal(ev.confirmationLevel, 3);
+  assert.equal(ev.maxFrpMw, 150, "max, never summed");
+  assert.deepEqual(ev.maxFrpBySource, {
+    "nasa-firms": 45,
+    "sentinel3a-slstr": 61.2,
+    "mtg-fci-frp": 150,
+  });
+});
+
+test("association: distance beyond threshold keeps events separate", () => {
+  const events = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [normDet({ frpMw: 45, lat: 38.6, lon: 35.2 })],
+      "sentinel3a-slstr": [
+        normDet({
+          sourceId: "sentinel3a-slstr",
+          sensorFamily: "slstr",
+          satellite: "S3A",
+          frpMw: 61.2,
+          lat: 38.62,
+          lon: 35.3,
+        }),
+      ],
+    },
+  });
+  assert.equal(events.length, 2, "~8 km apart exceeds 2.5 km window");
+});
+
+test("association: empty or absent sources produce no events", () => {
+  assert.deepEqual(Association.associateAcrossSources({ bySource: {} }), []);
+  assert.deepEqual(
+    Association.associateAcrossSources({ bySource: { "nasa-firms": [] } }),
+    [],
+  );
+});
+
+test("association: east-west pair within threshold merges under a latitude-aware spatial grid", () => {
+  const lat = 40;
+  const CELL_DEG = 4 / 111.32;
+  const lonA = (800 + 0.86) * CELL_DEG;
+  const dLon = 3.5 / (111.32 * Math.cos((lat * Math.PI) / 180));
+  const lonB = lonA + dLon;
+  assert.equal(
+    Math.floor(lonB / CELL_DEG) - Math.floor(lonA / CELL_DEG) >= 2,
+    true,
+    "coordinates land in cells two apart under the legacy uniform-degree grid",
+  );
+  const dist = A.Utils.haversineKm({ lat, lon: lonA }, { lat, lon: lonB });
+  assert.ok(dist > 3.2 && dist < 3.8, `east-west offset is ${dist.toFixed(2)} km`);
+  const src = (lon, sourceId, sensorFamily, satellite, frpMw) => ({
+    detectionId: `pair-${lon}-${sourceId}`,
+    sourceId,
+    sourceName: sourceId,
+    sensorFamily,
+    satellite,
+    detectedAt: "2026-08-02T10:00:00Z",
+    lat,
+    lon,
+    frpMw,
+    countryCode: "TR",
+  });
+  const tight = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [src(lonA, "nasa-firms", "viirs-modis", "NOAA-21", 50)],
+      "mtg-fci-frp": [
+        src(lonB, "mtg-fci-frp", "mtg", "MTG-I1", 70),
+      ],
+    },
+  });
+  assert.equal(tight.length, 1, "3.5 km east-west pair at 40N is one association event");
+  assert.equal(tight[0].observationCount, 2);
+  const apart = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [src(lonA, "nasa-firms", "viirs-modis", "NOAA-21", 50)],
+      "mtg-fci-frp": [
+        src(lonA + dLon * 1.6, "mtg-fci-frp", "mtg", "MTG-I1", 70),
+      ],
+    },
+  });
+  assert.equal(apart.length, 2, ">4 km east-west pair stays separate");
+});
+
+test("association: over-merged transitive chains split without losing observations", () => {
+  const lat = 40;
+  const kmToDeg = (k) => k / (111.32 * Math.cos((lat * Math.PI) / 180));
+  const obs = (id, sourceId, sensorFamily, satellite, lonOffset) => ({
+    detectionId: id,
+    sourceId,
+    sourceName: sourceId,
+    sensorFamily,
+    satellite,
+    lat,
+    lon: kmToDeg(lonOffset),
+    detectedAt: "2026-08-02T10:00:00Z",
+    frpMw: 50,
+    countryCode: "TR",
+  });
+  const a = obs("f1", "nasa-firms", "viirs-modis", "NOAA-21", 0);
+  const b = obs("s1", "sentinel3a-slstr", "slstr", "S3A", 2);
+  const c = obs("m1", "mtg-fci-frp", "mtg", "MTG-I1", 4.2);
+  const run = () =>
+    Association.associateAcrossSources({
+      bySource: {
+        "nasa-firms": [a],
+        "sentinel3a-slstr": [b],
+        "mtg-fci-frp": [c],
+      },
+    });
+  const events = run();
+  const allObs = events.flatMap((e) => e.observations);
+  assert.equal(events.length, 2, "valid pair wins the greedy merge, chain stays split");
+  assert.equal(allObs.length, 3, "no observation is dropped by an over-merged chain");
+  assert.equal(
+    new Set(allObs.map((o) => o.detectionId)).size,
+    3,
+    "no detectionId is lost or used twice",
+  );
+  const again = run();
+  assert.deepEqual(
+    again.map((e) => e.id),
+    events.map((e) => e.id),
+    "identical input reproduces the same event ids",
+  );
+  assert.deepEqual(
+    again.map((e) => e.observations.map((o) => o.detectionId)),
+    events.map((e) => e.observations.map((o) => o.detectionId)),
+    "identical input reproduces the same clusters in the same order",
+  );
+});
+
+test("association: three sources mutually within their thresholds form one event", () => {
+  const lat = 40;
+  const kmToDeg = (k) => k / (111.32 * Math.cos((lat * Math.PI) / 180));
+  const obs = (id, sourceId, sensorFamily, satellite, lon) => ({
+    detectionId: id,
+    sourceId,
+    sourceName: sourceId,
+    sensorFamily,
+    satellite,
+    detectedAt: "2026-08-02T10:00:00Z",
+    lat,
+    lon: kmToDeg(lon),
+    frpMw: 50,
+    countryCode: "TR",
+  });
+  const events = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [obs("fA", "nasa-firms", "viirs-modis", "NOAA-21", 0)],
+      "sentinel3a-slstr": [obs("sB", "sentinel3a-slstr", "slstr", "S3A", 2)],
+      "mtg-fci-frp": [obs("mC", "mtg-fci-frp", "mtg", "MTG-I1", 3.6)],
+    },
+  });
+  assert.equal(events.length, 1, "all three sources pairwise in range share one event");
+  assert.equal(events[0].observationCount, 3);
+  assert.equal(events[0].independentSensorCount, 3);
 });
 
 let passed = 0;

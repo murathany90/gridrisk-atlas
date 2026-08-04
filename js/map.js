@@ -212,6 +212,13 @@
   }
 
   class MapManager {
+    static eligibleMultiSensor(events) {
+      return (events || []).filter(
+        (ev) =>
+          (ev.independentSensorCount || 0) >= 2 &&
+          U.insideRegion({ lat: ev.lat, lon: ev.lon }),
+      );
+    }
     constructor() {
       this.map = null;
       this.renderer = null;
@@ -255,6 +262,21 @@
       this.thermalEnvelopeLayer = null;
       this.evolutionLayer = null;
       this._sparkCache = new Map();
+      this.slstrLayer = null;
+      this.slstrALayer = null;
+      this.slstrBLayer = null;
+      this.mtgFrpLayer = null;
+      this.multiSensorLayer = null;
+      this.slstrVisible = false;
+      this.slstrAVisible = false;
+      this.slstrBVisible = false;
+      this.mtgFrpVisible = false;
+      this.multiSensorVisible = false;
+      this.slstrData = [];
+      this.slstrAData = [];
+      this.slstrBData = [];
+      this.mtgFrpData = [];
+      this.multiSensorEvents = [];
     }
     init(onPointClick) {
       this.onPointClick = onPointClick;
@@ -302,6 +324,11 @@
       this.footprintLayer = L.layerGroup([], { pane: "riskPane" });
       this.thermalEnvelopeLayer = L.layerGroup([], { pane: "firePane" });
       this.evolutionLayer = L.layerGroup([], { pane: "riskPane" });
+      this.slstrLayer = L.layerGroup([], { pane: "firePane" });
+      this.slstrALayer = L.layerGroup([], { pane: "firePane" });
+      this.slstrBLayer = L.layerGroup([], { pane: "firePane" });
+      this.mtgFrpLayer = L.layerGroup([], { pane: "firePane" });
+      this.multiSensorLayer = L.layerGroup([], { pane: "firePane" });
       this.map.on("click", (e) => {
         const p = { lat: e.latlng.lat, lon: e.latlng.lng };
         if (U.insideRegion(p)) this.onPointClick?.(p);
@@ -451,6 +478,16 @@
       this.footprintLayer.clearLayers();
       this.thermalEnvelopeLayer.clearLayers();
       this.evolutionLayer.clearLayers();
+      this.slstrLayer.clearLayers();
+      this.slstrALayer.clearLayers();
+      this.slstrBLayer.clearLayers();
+      this.mtgFrpLayer.clearLayers();
+      this.multiSensorLayer.clearLayers();
+      this.slstrData = [];
+      this.slstrAData = [];
+      this.slstrBData = [];
+      this.mtgFrpData = [];
+      this.multiSensorEvents = [];
       for (const layer of this.gridLayers.values())
         if (this.map.hasLayer(layer)) this.map.removeLayer(layer);
       this.gridLayers.clear();
@@ -621,6 +658,169 @@
       if (show) {
         if (!this.map.hasLayer(this.fireLayer)) this.fireLayer.addTo(this.map);
       } else this.map.removeLayer(this.fireLayer);
+    }
+    setSlstrSource(sourceId, data, selectedTime) {
+      const isA = sourceId === "sentinel3a-slstr",
+        layer = isA ? this.slstrALayer : this.slstrBLayer,
+        visKey = isA ? "slstrAVisible" : "slstrBVisible",
+        cacheKey = isA ? "slstrAData" : "slstrBData";
+      this[cacheKey] = (data || []).filter(U.insideRegion.bind(U));
+      layer.clearLayers();
+      const end = new Date(selectedTime || this.currentSelectedTime),
+        start = end.getTime() - 24 * 3600e3;
+      const visible = this[cacheKey].filter((f) => {
+        const t = Date.parse(f.detectedAt);
+        return Number.isFinite(t) && t >= start && t <= end.getTime();
+      });
+      for (const f of visible) {
+        const radius = U.clamp(4 + Math.sqrt(Math.max(0, f.frp || 0)) * 0.8, 4, 14),
+          opacity = U.ageOpacity(f.detectedAt, end),
+          m = new HexagonMarker([f.lat, f.lon], {
+            pane: "firePane",
+            renderer: this.renderer,
+            radius,
+            color: isA ? "#f59e0b" : "#ec4899",
+            weight: 1,
+            opacity,
+            fillColor: U.frpColor(f.frp),
+            fillOpacity: opacity * 0.85,
+          });
+        m.bindTooltip(
+          this.slstrDetectionTooltip(f, isA ? "S3A" : "S3B"),
+          { className: "fire-event-tooltip", direction: "top", offset: L.point(0, -6), opacity: 0.97 },
+        );
+        m.addTo(layer);
+      }
+      if (this[visKey] && !this.map.hasLayer(layer)) layer.addTo(this.map);
+      else if (!this[visKey]) this.map.removeLayer(layer);
+      A.Events.emit("slstrRendered", { sourceId, count: visible.length });
+      return visible.length;
+    }
+    setSlstr(data, selectedTime) {
+      this.slstrData = (data || []).filter(U.insideRegion.bind(U));
+      if (this.slstrVisible && !this.map.hasLayer(this.slstrLayer))
+        this.slstrLayer.addTo(this.map);
+      else if (!this.slstrVisible) this.map.removeLayer(this.slstrLayer);
+    }
+    setMtgFrp(data, selectedTime) {
+      this.mtgFrpData = (data || []).filter(U.insideRegion.bind(U));
+      this.mtgFrpLayer.clearLayers();
+      const end = new Date(selectedTime || this.currentSelectedTime),
+        start = end.getTime() - 24 * 3600e3;
+      for (const f of this.mtgFrpData) {
+        const t = Date.parse(f.detectedAt);
+        if (!Number.isFinite(t) || t < start || t > end.getTime()) continue;
+        const radius = U.clamp(4 + Math.sqrt(Math.max(0, f.frp || 0)) * 0.7, 4, 13),
+          opacity = U.ageOpacity(f.detectedAt, end),
+          m = new CircleMarker([f.lat, f.lon], {
+            pane: "firePane",
+            renderer: this.renderer,
+            radius,
+            color: "#a78bfa",
+            weight: 1,
+            opacity,
+            fillColor: U.frpColor(f.frp),
+            fillOpacity: opacity * 0.8,
+          });
+        m.bindTooltip(
+          `${T("map.mtgFrpLabel")} · ${U.round(f.frp, 1)} MW`,
+          { className: "fire-event-tooltip", direction: "top", offset: L.point(0, -6), opacity: 0.97 },
+        );
+        m.addTo(this.mtgFrpLayer);
+      }
+      if (this.mtgFrpVisible && !this.map.hasLayer(this.mtgFrpLayer))
+        this.mtgFrpLayer.addTo(this.map);
+      else if (!this.mtgFrpVisible) this.map.removeLayer(this.mtgFrpLayer);
+    }
+    setMultiSensor(events, selectedTime) {
+      this.multiSensorEvents = this.constructor.eligibleMultiSensor(events);
+      this.multiSensorLayer.clearLayers();
+      for (const ev of this.multiSensorEvents) {
+        const level = ev.confirmationLevel || 1,
+          radius = U.clamp(6 + ev.observationCount * 2, 8, 26),
+          color =
+            level >= 3 ? "#22c55e" : level === 2 ? "#facc15" : "#f97316";
+        const m = new CircleMarker([ev.lat, ev.lon], {
+          pane: "firePane",
+          renderer: this.renderer,
+          radius,
+          color: "#fff",
+          weight: 2,
+          fillColor: color,
+          fillOpacity: 0.55,
+          opacity: 0.95,
+        });
+        m.bindTooltip(this.multiSensorTooltip(ev), {
+          className: "fire-event-tooltip",
+          direction: "top",
+          offset: L.point(0, -8),
+          opacity: 0.97,
+        });
+        m.addTo(this.multiSensorLayer);
+      }
+      if (this.multiSensorVisible && !this.map.hasLayer(this.multiSensorLayer))
+        this.multiSensorLayer.addTo(this.map);
+      else if (!this.multiSensorVisible)
+        this.map.removeLayer(this.multiSensorLayer);
+    }
+    multiSensorTooltip(ev) {
+      const sourceLabels = {
+        "nasa-firms": "FIRMS",
+        "sentinel3a-slstr": "S3A",
+        "sentinel3b-slstr": "S3B",
+        "mtg-fci-frp": "MTG",
+        "msg-seviri-frp": "MSG",
+      };
+      const perSource = Object.entries(ev.maxFrpBySource || {})
+        .map(
+          ([s, v]) =>
+            `${sourceLabels[s] || s} ${U.round(v, 1)} MW`,
+        );
+      const platforms = (ev.supportingPlatforms || []).join(", ");
+      const frpLine = Number.isFinite(ev.maxFrpMw)
+        ? `<small>${T("map.multiSensorMaxFrp", { frp: U.round(ev.maxFrpMw, 1) })}${perSource.length ? ` · ${perSource.join(" · ")}` : ""}</small>`
+        : "";
+      return `<strong>${T("map.multiSensorLabel")}</strong> · ${T("map.multiSensorSensors", { count: ev.independentSensorCount || 1 })} · ${T("map.multiSensorCount", { count: ev.observationCount || 0 })}<br><small>${T("map.multiSensorPlatforms", { count: (ev.supportingPlatforms || []).length })}${platforms ? `: ${platforms}` : ""}</small>${frpLine ? "<br>" + frpLine : ""}`;
+    }
+    toggleSentinelSlstr(show) {
+      this.slstrVisible = !!show;
+      if (this.slstrVisible && !this.map.hasLayer(this.slstrLayer))
+        this.slstrLayer.addTo(this.map);
+      else if (!this.slstrVisible) this.map.removeLayer(this.slstrLayer);
+      if (this.slstrVisible) {
+        this.slstrALayer.addTo(this.map);
+        this.slstrBLayer.addTo(this.map);
+      } else {
+        this.map.removeLayer(this.slstrALayer);
+        this.map.removeLayer(this.slstrBLayer);
+      }
+    }
+    toggleSentinelSlstrSource(sourceId, show) {
+      const isA = sourceId === "sentinel3a-slstr",
+        layer = isA ? this.slstrALayer : this.slstrBLayer,
+        key = isA ? "slstrAVisible" : "slstrBVisible";
+      this[key] = !!show;
+      if (this[key] && !this.map.hasLayer(layer)) layer.addTo(this.map);
+      else if (!this[key]) this.map.removeLayer(layer);
+    }
+    toggleMtgFrp(show) {
+      this.mtgFrpVisible = !!show;
+      if (this.mtgFrpVisible && !this.map.hasLayer(this.mtgFrpLayer))
+        this.mtgFrpLayer.addTo(this.map);
+      else if (!this.mtgFrpVisible) this.map.removeLayer(this.mtgFrpLayer);
+    }
+    toggleMultiSensor(show) {
+      this.multiSensorVisible = !!show;
+      if (this.multiSensorVisible && !this.map.hasLayer(this.multiSensorLayer))
+        this.multiSensorLayer.addTo(this.map);
+      else if (!this.multiSensorVisible)
+        this.map.removeLayer(this.multiSensorLayer);
+    }
+    slstrDetectionTooltip(f, satellite) {
+      return `<strong>${satellite} · ${T("map.frp")}</strong> ${U.round(
+        f.frp,
+        1,
+      )} MW<br><small>${U.formatTrShortDateTime(new Date(f.detectedAt))}</small>`;
     }
     toggleHeat(show) {
       if (!show) {
