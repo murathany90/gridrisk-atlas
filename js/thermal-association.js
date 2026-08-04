@@ -123,7 +123,11 @@
       ];
       const maxDistKm = Math.max(...limits.map((r) => r.maxDistanceKm));
       const maxTimeMinutes = Math.max(...limits.map((r) => r.maxTimeMinutes));
-      const cellDeg = maxDistKm / 111.32;
+      const refLat =
+        all.reduce((s, x) => s + (Number.isFinite(x.d.lat) ? x.d.lat : 0), 0) / n;
+      const KM_PER_DEG = 111.32;
+      const cosRef = Math.cos((refLat * Math.PI) / 180);
+      const cellSizeKm = maxDistKm;
       const bucketMs = 30 * 60e3;
       const lookback = Math.ceil(maxTimeMinutes / 30);
       const times = all.map((x) =>
@@ -131,7 +135,9 @@
       );
       const grid = new Map();
       const cellKey = (lat, lon) =>
-        `${Math.floor(lat / cellDeg)}:${Math.floor(lon / cellDeg)}`;
+        `${Math.floor((lat * KM_PER_DEG) / cellSizeKm)}:${Math.floor(
+          (lon * KM_PER_DEG * cosRef) / cellSizeKm,
+        )}`;
       const bucketKey = (t) =>
         Number.isFinite(t) ? Math.floor(t / bucketMs) : -Infinity;
       for (let i = 0; i < n; i++) {
@@ -152,8 +158,8 @@
       const offsets = [-1, 0, 1];
       for (let i = 0; i < n; i++) {
         const d = all[i].d,
-          cx = Math.floor(d.lat / cellDeg),
-          cy = Math.floor(d.lon / cellDeg),
+          cx = Math.floor((d.lat * KM_PER_DEG) / cellSizeKm),
+          cy = Math.floor((d.lon * KM_PER_DEG * cosRef) / cellSizeKm),
           b0 = bucketKey(times[i]);
         const candidates = new Set();
         for (const ox of offsets)

@@ -1945,6 +1945,52 @@ test("association: empty or absent sources produce no events", () => {
   );
 });
 
+test("association: east-west pair within threshold merges under a latitude-aware spatial grid", () => {
+  const lat = 40;
+  const CELL_DEG = 4 / 111.32;
+  const lonA = (800 + 0.86) * CELL_DEG;
+  const dLon = 3.5 / (111.32 * Math.cos((lat * Math.PI) / 180));
+  const lonB = lonA + dLon;
+  assert.equal(
+    Math.floor(lonB / CELL_DEG) - Math.floor(lonA / CELL_DEG) >= 2,
+    true,
+    "coordinates land in cells two apart under the legacy uniform-degree grid",
+  );
+  const dist = A.Utils.haversineKm({ lat, lon: lonA }, { lat, lon: lonB });
+  assert.ok(dist > 3.2 && dist < 3.8, `east-west offset is ${dist.toFixed(2)} km`);
+  const src = (lon, sourceId, sensorFamily, satellite, frpMw) => ({
+    detectionId: `pair-${lon}-${sourceId}`,
+    sourceId,
+    sourceName: sourceId,
+    sensorFamily,
+    satellite,
+    detectedAt: "2026-08-02T10:00:00Z",
+    lat,
+    lon,
+    frpMw,
+    countryCode: "TR",
+  });
+  const tight = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [src(lonA, "nasa-firms", "viirs-modis", "NOAA-21", 50)],
+      "mtg-fci-frp": [
+        src(lonB, "mtg-fci-frp", "mtg", "MTG-I1", 70),
+      ],
+    },
+  });
+  assert.equal(tight.length, 1, "3.5 km east-west pair at 40N is one association event");
+  assert.equal(tight[0].observationCount, 2);
+  const apart = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [src(lonA, "nasa-firms", "viirs-modis", "NOAA-21", 50)],
+      "mtg-fci-frp": [
+        src(lonA + dLon * 1.6, "mtg-fci-frp", "mtg", "MTG-I1", 70),
+      ],
+    },
+  });
+  assert.equal(apart.length, 2, ">4 km east-west pair stays separate");
+});
+
 let passed = 0;
 for (const { name, fn } of tests) {
   try {
