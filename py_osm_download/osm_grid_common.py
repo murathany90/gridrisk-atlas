@@ -48,7 +48,7 @@ OUT_FIELDS = (
 )
 LINE_TYPES = {"line", "minor_line", "cable"}
 POWER_TYPES = LINE_TYPES | {"substation"}
-OSM_COUNTRY_CODES = frozenset({"ES", "FR", "PT", "IT"})
+OSM_COUNTRY_CODES = frozenset({"ES", "FR", "PT", "IT", "GR"})
 RETRY_STATUSES = {429, 500, 502, 503, 504}
 
 

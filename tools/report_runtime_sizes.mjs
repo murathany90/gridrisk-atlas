@@ -2,7 +2,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 
-const countries = ['ES', 'FR', 'PT', 'IT'];
+const countries = ['ES', 'FR', 'PT', 'IT', 'GR'];
 const filenames = ['boundary.geojson', 'grid_400.geojson', 'grid_154.geojson', 'substations.geojson', 'manifest.json'];
 const report = { generatedAt: new Date().toISOString(), countries: {} };
 

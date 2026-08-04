@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fetch production PT/IT boundaries from the official Eurostat/GISCO API."""
+"""Fetch production PT/IT/GR boundaries from the official Eurostat/GISCO API."""
 
 from __future__ import annotations
 
@@ -25,6 +25,10 @@ COUNTRIES = {
         "nameTr": "İtalya",
         "coverage": "İtalya ana karası, Sicilya ve Sardinya",
     },
+    "GR": {
+        "nameTr": "Yunanistan",
+        "coverage": "Yunanistan ana karası, Girit ve büyük adalar",
+    },
 }
 
 
@@ -43,11 +47,14 @@ def build_boundaries(payload: dict, output_root: Path) -> list[Path]:
         str(feature.get("properties", {}).get("CNTR_ID")): feature
         for feature in payload.get("features") or []
     }
+    # GISCO uses 'EL' for Greece instead of ISO 3166-1 'GR'
+    GISCO_CODE_MAP = {"GR": "EL"}
     written = []
     for code, config in COUNTRIES.items():
-        source_feature = by_code.get(code)
+        gisco_code = GISCO_CODE_MAP.get(code, code)
+        source_feature = by_code.get(gisco_code)
         if source_feature is None:
-            raise ValueError(f"GISCO response does not contain {code}")
+            raise ValueError(f"GISCO response does not contain {gisco_code} (for {code})")
         geometry = shape(source_feature["geometry"])
         if code == "PT":
             geometry = _portugal_mainland(geometry)

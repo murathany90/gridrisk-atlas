@@ -68,6 +68,11 @@ COUNTRIES = {
         "coverage": "İtalya ana karası, Sicilya ve Sardinya",
         "sources": [ROOT / "italy_osm_power_grid_50kv_plus_full.geojson"],
     },
+    "GR": {
+        "nameTr": "Yunanistan",
+        "coverage": "Yunanistan ana karası, Girit ve büyük adalar",
+        "sources": [ROOT / "greece_osm_power_grid_50kv_plus_full.geojson"],
+    },
 }
 
 
@@ -488,7 +493,7 @@ def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--country",
-        choices=["TR", "ES", "FR", "PT", "IT", "ESFR", "PTIT", "EU", "ALL"],
+        choices=["TR", "ES", "FR", "PT", "IT", "GR", "ESFR", "PTIT", "EU", "ALL"],
         default="EU",
     )
     parser.add_argument("--validate-runtime", action="store_true")
@@ -496,8 +501,8 @@ def main() -> int:
     groups = {
         "ESFR": ["ES", "FR"],
         "PTIT": ["PT", "IT"],
-        "EU": ["ES", "FR", "PT", "IT"],
-        "ALL": ["TR", "ES", "FR", "PT", "IT"],
+        "EU": ["ES", "FR", "PT", "IT", "GR"],
+        "ALL": ["TR", "ES", "FR", "PT", "IT", "GR"],
     }
     country_codes = groups.get(args.country, [args.country])
     manifests = [validate_runtime(code) for code in country_codes] if args.validate_runtime else [build_country(code) for code in country_codes]

@@ -155,8 +155,8 @@ class FakeSession:
 
 class DownloadTests(unittest.TestCase):
     def test_osm_country_registry_and_new_wrappers(self):
-        self.assertEqual(common.OSM_COUNTRY_CODES, frozenset({"ES", "FR", "PT", "IT"}))
-        for filename, code in (("fetch_portugal_osm_full.py", '"PT"'), ("fetch_italy_osm_full.py", '"IT"')):
+        self.assertEqual(common.OSM_COUNTRY_CODES, frozenset({"ES", "FR", "PT", "IT", "GR"}))
+        for filename, code in (("fetch_portugal_osm_full.py", '"PT"'), ("fetch_italy_osm_full.py", '"IT"'), ("fetch_greece_osm_full.py", '"GR"')):
             text = (ROOT / "py_osm_download" / filename).read_text(encoding="utf-8")
             self.assertIn("build_cli_parser", text)
             self.assertIn("run_download", text)
