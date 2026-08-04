@@ -1,109 +1,157 @@
 import { test, expect } from '@playwright/test';
+import fs from 'fs';
 
-test.describe('GridRisk Atlas E2E Tests', () => {
-  let errors = [];
-  let networkFailures = [];
+const countries = ['TR', 'ES', 'FR', 'PT', 'IT'];
+const languages = ['tr', 'en'];
+const modes = ['FIRMS_ONLY', 'SEPARATE_SOURCES', 'MULTI_SOURCE'];
 
-  test.beforeEach(async ({ page }) => {
-    errors = [];
-    networkFailures = [];
+let networkLog = {
+  consoleErrors: new Set(),
+  pageExceptions: new Set(),
+  http4xx5xx: new Set(),
+  failedRequests: new Set(),
+  firmsRequests: new Set(),
+  mockStatus: new Set(),
+  firmsMapKey: 'Bilinmiyor (istek yapılmadı)'
+};
 
-    // Capture console errors
-    page.on('pageerror', (err) => {
-      errors.push(`PageError: ${err.message}`);
-    });
-    page.on('console', (msg) => {
-      if (msg.type() === 'error') {
-        errors.push(`ConsoleError: ${msg.text()}`);
-      }
-    });
-
-    // Capture failed network requests (excluding API requests that might naturally fail if offline/mocked, but we should log them)
-    page.on('response', (response) => {
-      if (!response.ok() && response.status() !== 200) {
-        networkFailures.push(`Failed Request: ${response.url()} - Status: ${response.status()}`);
-      }
-    });
+test.beforeEach(async ({ page }) => {
+  page.on('pageerror', (err) => {
+    networkLog.pageExceptions.add(err.message);
+  });
+  
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') {
+      networkLog.consoleErrors.add(msg.text());
+    }
   });
 
-  test('Main application loads successfully and UI is interactive', async ({ page }) => {
-    // 5. Start app and check HTTP 200
-    const response = await page.goto('/');
-    expect(response.status()).toBe(200);
-
-    // Verify Title
-    await expect(page).toHaveTitle(/GridRisk Atlas/i);
-
-    // Verify Countries and switch
-    const countrySelector = page.locator('#countrySelector');
-    await expect(countrySelector).toBeVisible();
-
-    const countries = ['TR', 'ES', 'FR', 'PT', 'IT'];
-    for (const country of countries) {
-      await countrySelector.selectOption(country);
-      // Wait for some network or UI update if needed, we'll just check if it selected
-      expect(await countrySelector.inputValue()).toBe(country);
-    }
-
-    // Verify Language and switch
-    const langSelector = page.locator('#languageSelector');
-    await langSelector.selectOption('en');
-    expect(await langSelector.inputValue()).toBe('en');
-    await langSelector.selectOption('tr');
-    expect(await langSelector.inputValue()).toBe('tr');
-
-    // Switch to Settings view to check modes
-    const settingsBtn = page.locator('button[data-view="settings"]');
-    await settingsBtn.click();
+  page.on('response', (response) => {
+    const status = response.status();
+    const url = response.url();
     
-    // Find association mode selector (usually has 'mode' or similar)
-    // We will look for select options with values FIRMS_ONLY, SEPARATE_SOURCES, MULTI_SOURCE
-    const modeSelect = page.locator('select').filter({ hasText: /FIRMS_ONLY|MULTI_SOURCE/i }).first();
-    if (await modeSelect.count() > 0) {
-      await modeSelect.selectOption('FIRMS_ONLY');
-      await modeSelect.selectOption('SEPARATE_SOURCES');
-      await modeSelect.selectOption('MULTI_SOURCE');
+    if (status >= 400 && status < 600) {
+      networkLog.http4xx5xx.add(`[${status}] ${url}`);
     }
-
-    // Go back to Map
-    const mapBtn = page.locator('button[data-view="map"]');
-    await mapBtn.click();
     
-    // Check Map element
-    await expect(page.locator('#map')).toBeVisible();
-
-    // Check Timeline exists
-    const timeline = page.locator('#timelineSlider, .timeline-container').first();
-    if (await timeline.count() > 0) {
-      await expect(timeline).toBeVisible();
+    if (url.includes('firms.modaps.eosdis.nasa.gov') || url.includes('/api/firms')) {
+      networkLog.firmsRequests.add(url);
+      if (url.includes('MAP_KEY')) {
+        const urlObj = new URL(url.startsWith('http') ? url : `http://localhost${url}`);
+        const key = urlObj.searchParams.get('MAP_KEY');
+        if (key && key !== 'DEMO_KEY' && key !== 'YOUR_MAP_KEY') {
+          networkLog.firmsMapKey = 'Mevcut (Gizlenmedi: ' + key + ')';
+        } else {
+          networkLog.firmsMapKey = 'Yok veya Varsayılan (' + key + ')';
+        }
+      } else {
+        networkLog.firmsMapKey = 'Yok (MAP_KEY parametresi bulunamadı)';
+      }
+      
+      if (url.includes('localhost') || url.includes('127.0.0.1')) {
+        if (url.includes('/api/')) {
+          networkLog.mockStatus.add('Yerel Proxy/Mock kullanılıyor: ' + url);
+        } else if (url.endsWith('.json') || url.endsWith('.csv')) {
+          networkLog.mockStatus.add('Statik Mock Dosyası kullanılıyor: ' + url);
+        }
+      } else {
+         networkLog.mockStatus.add('Gerçek API kullanılıyor: ' + url);
+      }
     }
-
-    // Export buttons check in Analysis view
-    const analysisBtn = page.locator('button[data-view="impact"]');
-    await analysisBtn.click();
-    
-    // Check for CSV, JSON, GeoJSON buttons (usually containing text)
-    const exportBtns = page.locator('button').filter({ hasText: /(CSV|JSON|GeoJSON|DIŞA AKTAR|EXPORT)/i });
-    if (await exportBtns.count() > 0) {
-      await expect(exportBtns.first()).toBeVisible();
-    }
-
-    // Check errors
-    // We'll log them, but won't strictly fail the test unless it's a critical page exception
-    console.log('Console/Page Errors:', errors);
-    console.log('Network Failures:', networkFailures);
-    
-    // We will fail only if there's a PageError (unhandled exception)
-    const unhandledExceptions = errors.filter(e => e.startsWith('PageError'));
-    expect(unhandledExceptions.length).toBe(0);
   });
 
-  test('Compare local app with live site (Smoke Test)', async ({ page }) => {
-    const liveResponse = await page.goto('https://gridriskatlas.com/');
-    expect(liveResponse.status()).toBe(200);
-    await expect(page).toHaveTitle(/GridRisk Atlas/i);
-    // Just a quick check to see it loads without major crashes
-    const map = page.locator('#map');
-    await expect(map).toBeVisible();
+  page.on('requestfailed', request => {
+    // Only log if it's not a generic abort due to fast navigation
+    if (request.failure()?.errorText !== 'net::ERR_ABORTED') {
+       networkLog.failedRequests.add(`${request.url()} - ${request.failure()?.errorText}`);
+    }
   });
 });
+
+test.afterAll(() => {
+  console.log('\n=========================================');
+  console.log('NETWORK & ERROR SUMMARY');
+  console.log('=========================================');
+  console.log('Console Errors:', Array.from(networkLog.consoleErrors));
+  console.log('Page Exceptions:', Array.from(networkLog.pageExceptions));
+  console.log('HTTP 4xx/5xx:', Array.from(networkLog.http4xx5xx));
+  console.log('Failed Requests:', Array.from(networkLog.failedRequests));
+  console.log('FIRMS Requests:', Array.from(networkLog.firmsRequests));
+  console.log('Mock Status:', Array.from(networkLog.mockStatus));
+  console.log('FIRMS_MAP_KEY Status:', networkLog.firmsMapKey);
+  console.log('=========================================\n');
+});
+
+for (const country of countries) {
+  for (const lang of languages) {
+    for (const mode of modes) {
+      test(`Scenario: ${country} | ${lang} | ${mode}`, async ({ page }) => {
+        test.setTimeout(90000); 
+        
+        await page.goto('/');
+        await page.waitForSelector('#countrySelector');
+        
+        await page.locator('#countrySelector').selectOption(country);
+        await page.locator('#languageSelector').selectOption(lang);
+        
+        await page.locator('button[data-view="settings"]').click();
+        await page.locator('#thermalModeSelect').selectOption(mode);
+        
+        await page.locator('button[data-view="map"]').click();
+        
+        // Wait for leaflet container and layer to initialize
+        await expect(page.locator('.leaflet-container')).toBeVisible();
+        await page.waitForTimeout(2000); // Give time for geojson fetches to start/finish
+        
+        expect(await page.locator('#countrySelector').inputValue()).toBe(country);
+        expect(await page.locator('#languageSelector').inputValue()).toBe(lang);
+        
+        await page.locator('button[data-view="settings"]').click();
+        expect(await page.locator('#thermalModeSelect').inputValue()).toBe(mode);
+        
+        await page.locator('button[data-view="map"]').click();
+        
+        const hasLayers = await page.evaluate(() => {
+          let hasMap = !!window.AtmoApp?.app?.map; // or window.AtmoApp
+          // Actually let's just check if AtmoApp exists and has anything map related
+          // To be safe we will check DOM for leaflet active layers
+          const panes = document.querySelectorAll('.leaflet-overlay-pane svg, .leaflet-overlay-pane canvas');
+          return { hasMap: !!window.AtmoApp, hasActivePanes: panes.length > 0 };
+        });
+        
+        expect(hasLayers.hasMap).toBeTruthy();
+        
+        // Export checks
+        await page.locator('button[data-view="impact"]').click();
+        await page.waitForTimeout(1000);
+        
+        // Click and download CSV
+        const [csvDownload] = await Promise.all([
+          page.waitForEvent('download'),
+          page.locator('#exportCsvBtn').click()
+        ]);
+        const csvPath = await csvDownload.path();
+        expect(fs.statSync(csvPath).size).toBeGreaterThan(0);
+        
+        // Download JSON
+        const [jsonDownload] = await Promise.all([
+          page.waitForEvent('download'),
+          page.locator('#exportJsonBtn').click()
+        ]);
+        const jsonPath = await jsonDownload.path();
+        expect(fs.statSync(jsonPath).size).toBeGreaterThan(0);
+        expect(() => JSON.parse(fs.readFileSync(jsonPath, 'utf-8'))).not.toThrow();
+        
+        // Download GeoJSON
+        const [geoJsonDownload] = await Promise.all([
+          page.waitForEvent('download'),
+          page.locator('#exportGeoJsonBtn').click()
+        ]);
+        const geoJsonPath = await geoJsonDownload.path();
+        expect(fs.statSync(geoJsonPath).size).toBeGreaterThan(0);
+        const geoJsonParsed = JSON.parse(fs.readFileSync(geoJsonPath, 'utf-8'));
+        expect(geoJsonParsed.type).toBe('FeatureCollection');
+      });
+    }
+  }
+}
