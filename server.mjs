@@ -6,7 +6,7 @@ import { gzipSync } from 'node:zlib';
 import { spawn } from 'node:child_process';
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
-const APP_VERSION='3.7.0';
+const APP_VERSION='3.8.0';
 const PREFERRED_PORT=Number(process.env.PORT||8890);
 let ACTIVE_PORT=PREFERRED_PORT;
 const FIRMS_MAP_KEY=process.env.FIRMS_MAP_KEY||'';
@@ -41,7 +41,7 @@ async function firmsProxy(req,res,url){
   for(let attempt=0;attempt<=2;attempt++){
     const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort('timeout'),18000);
     try{
-      const r=await fetch(target,{signal:ctrl.signal,headers:{Accept:'text/csv','User-Agent':'GridRisk-Atlas/3.7.0'}});
+      const r=await fetch(target,{signal:ctrl.signal,headers:{Accept:'text/csv','User-Agent':'GridRisk-Atlas/3.8.0'}});
       if(r.status===429){const retryAfter=Number(r.headers.get('retry-after')||30);clearTimeout(timer);if(attempt<2&&retryAfter<60){await new Promise(r=>setTimeout(r,Math.min(retryAfter*1000,5000)+Math.random()*500));continue;}return send(res,429,JSON.stringify({error:'FIRMS rate limited',retryAfter}),'application/json; charset=utf-8');}
       if(!r.ok&&attempt<2&&r.status>=500){clearTimeout(timer);await new Promise(r=>setTimeout(r,750*(attempt+1)+Math.random()*500));continue;}
       const text=await r.text();if(!r.ok)return send(res,r.status,text||`FIRMS HTTP ${r.status}`);cache.set(key,{text,expires:Date.now()+7*60*1000});return send(res,200,text,'text/csv; charset=utf-8');

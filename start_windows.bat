@@ -1,10 +1,10 @@
 @echo off
 setlocal EnableExtensions
 cd /d "%~dp0"
-title GridRisk Atlas v3.7.0
+title GridRisk Atlas v3.8.0
 cls
 echo ============================================================
-echo  GridRisk Atlas v3.7.0
+echo  GridRisk Atlas v3.8.0
 echo ============================================================
 echo.
 where node >nul 2>&1

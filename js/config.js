@@ -2,7 +2,7 @@
 (function(A){
   A.CONFIG = {
     appName: 'GridRisk Atlas',
-    appVersion: '3.7.0',
+    appVersion: '3.8.0',
     activeCountryCode: 'TR',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
