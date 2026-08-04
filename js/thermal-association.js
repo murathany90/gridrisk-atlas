@@ -68,28 +68,6 @@
     return out;
   }
 
-  function overMerged(members, all, rules) {
-    if (members.length < 2) return false;
-    const byFamily = new Map();
-    for (const m of members) {
-      const f = all[m].family;
-      if (!byFamily.has(f)) byFamily.set(f, []);
-      byFamily.get(f).push(all[m].d);
-    }
-    const fams = [...byFamily.keys()];
-    for (let a = 0; a < fams.length; a++) {
-      for (let b = a + 1; b < fams.length; b++) {
-        const rule = ruleFor(fams[a], fams[b], rules);
-        if (!rule) continue;
-        const A = byFamily.get(fams[a]),
-          B = byFamily.get(fams[b]);
-        for (const x of A)
-          for (const y of B) if (!canAssociate(x, y, rule)) return true;
-      }
-    }
-    return false;
-  }
-
   function associateAcrossSources({ bySource = {}, dedupeFirst = true } = {}) {
     const rules = pairRules();
     const all = [];
@@ -109,11 +87,6 @@
         i = parent[i];
       }
       return i;
-    }
-    function unite(i, j) {
-      const a = find(i),
-        b = find(j);
-      if (a !== b) parent[a] = b;
     }
     if (n > 1) {
       const limits = [
@@ -156,6 +129,7 @@
         list.push(i);
       }
       const offsets = [-1, 0, 1];
+      const edges = [];
       for (let i = 0; i < n; i++) {
         const d = all[i].d,
           cx = Math.floor((d.lat * KM_PER_DEG) / cellSizeKm),
@@ -176,8 +150,49 @@
         for (const j of sorted) {
           if (j <= i) continue;
           const rule = ruleFor(all[i].family, all[j].family, rules);
-          if (canAssociate(d, all[j].d, rule)) unite(i, j);
+          if (!rule) continue;
+          const ta = times[i],
+            tb = times[j];
+          if (!Number.isFinite(ta) || !Number.isFinite(tb)) continue;
+          const dtMs = Math.abs(ta - tb);
+          if (dtMs / 60000 > rule.maxTimeMinutes) continue;
+          const dist = U.haversineKm(
+            { lat: d.lat, lon: d.lon },
+            { lat: all[j].d.lat, lon: all[j].d.lon },
+          );
+          if (!(dist <= rule.maxDistanceKm)) continue;
+          edges.push({ a: i, b: j, dtMs, dist });
         }
+      }
+      edges.sort((e1, e2) => {
+        if (e1.dtMs !== e2.dtMs) return e1.dtMs - e2.dtMs;
+        if (e1.dist !== e2.dist) return e1.dist - e2.dist;
+        const s1 = [all[e1.a].sourceId, all[e1.b].sourceId].sort().join("\u0000");
+        const s2 = [all[e2.a].sourceId, all[e2.b].sourceId].sort().join("\u0000");
+        if (s1 !== s2) return s1 < s2 ? -1 : 1;
+        if (e1.a !== e2.a) return e1.a - e2.a;
+        return e1.b - e2.b;
+      });
+      const members = Array.from({ length: n }, (_, i) => [i]);
+      function clusterValid(xs, ys) {
+        for (const x of xs) {
+          for (const y of ys) {
+            const rule = ruleFor(all[x].family, all[y].family, rules);
+            if (!rule) continue;
+            if (!canAssociate(all[x].d, all[y].d, rule)) return false;
+          }
+        }
+        return true;
+      }
+      for (const e of edges) {
+        const ra = find(e.a),
+          rb = find(e.b);
+        if (ra === rb) continue;
+        if (!clusterValid(members[ra], members[rb])) continue;
+        const big = members[ra].length >= members[rb].length ? ra : rb;
+        const small = big === ra ? rb : ra;
+        for (const m of members[small]) members[big].push(m);
+        parent[small] = big;
       }
     }
     const groups = new Map();
@@ -189,7 +204,6 @@
     let counter = 0;
     const events = [];
     for (const members of groups.values()) {
-      if (overMerged(members, all, rules)) continue;
       const obs = members.map((i) => all[i].d);
       const families = [...new Set(members.map((i) => all[i].family))];
       const sources = [...new Set(members.map((i) => all[i].sourceId))];

@@ -1991,6 +1991,81 @@ test("association: east-west pair within threshold merges under a latitude-aware
   assert.equal(apart.length, 2, ">4 km east-west pair stays separate");
 });
 
+test("association: over-merged transitive chains split without losing observations", () => {
+  const lat = 40;
+  const kmToDeg = (k) => k / (111.32 * Math.cos((lat * Math.PI) / 180));
+  const obs = (id, sourceId, sensorFamily, satellite, lonOffset) => ({
+    detectionId: id,
+    sourceId,
+    sourceName: sourceId,
+    sensorFamily,
+    satellite,
+    lat,
+    lon: kmToDeg(lonOffset),
+    detectedAt: "2026-08-02T10:00:00Z",
+    frpMw: 50,
+    countryCode: "TR",
+  });
+  const a = obs("f1", "nasa-firms", "viirs-modis", "NOAA-21", 0);
+  const b = obs("s1", "sentinel3a-slstr", "slstr", "S3A", 2);
+  const c = obs("m1", "mtg-fci-frp", "mtg", "MTG-I1", 4.2);
+  const run = () =>
+    Association.associateAcrossSources({
+      bySource: {
+        "nasa-firms": [a],
+        "sentinel3a-slstr": [b],
+        "mtg-fci-frp": [c],
+      },
+    });
+  const events = run();
+  const allObs = events.flatMap((e) => e.observations);
+  assert.equal(events.length, 2, "valid pair wins the greedy merge, chain stays split");
+  assert.equal(allObs.length, 3, "no observation is dropped by an over-merged chain");
+  assert.equal(
+    new Set(allObs.map((o) => o.detectionId)).size,
+    3,
+    "no detectionId is lost or used twice",
+  );
+  const again = run();
+  assert.deepEqual(
+    again.map((e) => e.id),
+    events.map((e) => e.id),
+    "identical input reproduces the same event ids",
+  );
+  assert.deepEqual(
+    again.map((e) => e.observations.map((o) => o.detectionId)),
+    events.map((e) => e.observations.map((o) => o.detectionId)),
+    "identical input reproduces the same clusters in the same order",
+  );
+});
+
+test("association: three sources mutually within their thresholds form one event", () => {
+  const lat = 40;
+  const kmToDeg = (k) => k / (111.32 * Math.cos((lat * Math.PI) / 180));
+  const obs = (id, sourceId, sensorFamily, satellite, lon) => ({
+    detectionId: id,
+    sourceId,
+    sourceName: sourceId,
+    sensorFamily,
+    satellite,
+    detectedAt: "2026-08-02T10:00:00Z",
+    lat,
+    lon: kmToDeg(lon),
+    frpMw: 50,
+    countryCode: "TR",
+  });
+  const events = Association.associateAcrossSources({
+    bySource: {
+      "nasa-firms": [obs("fA", "nasa-firms", "viirs-modis", "NOAA-21", 0)],
+      "sentinel3a-slstr": [obs("sB", "sentinel3a-slstr", "slstr", "S3A", 2)],
+      "mtg-fci-frp": [obs("mC", "mtg-fci-frp", "mtg", "MTG-I1", 3.6)],
+    },
+  });
+  assert.equal(events.length, 1, "all three sources pairwise in range share one event");
+  assert.equal(events[0].observationCount, 3);
+  assert.equal(events[0].independentSensorCount, 3);
+});
+
 let passed = 0;
 for (const { name, fn } of tests) {
   try {
