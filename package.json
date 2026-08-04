@@ -1,7 +1,7 @@
 {
   "name": "gridrisk-atlas",
   "version": "3.8.0",
-  "description": "Satellite Wildfire & Grid Risk Intelligence for Türkiye, Spain, France, Portugal and Italy.",
+  "description": "Satellite Wildfire & Grid Risk Intelligence for Türkiye, Spain, France, Portugal, Italy and Greece.",
   "homepage": "https://gridriskatlas.com/",
   "repository": {
     "type": "git",

@@ -9,9 +9,9 @@
 
 > Not: Eski GitHub Pages adresi `https://murathany90.github.io/gridrisk-atlas/` yeni canonical domaine yönlendirilir.
 
-GridRisk Atlas; uydu yangın gözlemlerini, atmosfer modellerini ve gerçek OpenStreetMap iletim şebekesi verisini tek bir karar destek haritasında birleştirir. Türkiye, İspanya, Fransa, Portekiz ve İtalya desteklenir.
+GridRisk Atlas; uydu yangın gözlemlerini, atmosfer modellerini ve gerçek OpenStreetMap iletim şebekesi verisini tek bir karar destek haritasında birleştirir. Türkiye, İspanya, Fransa, Portekiz, İtalya ve Yunanistan desteklenir.
 
-GridRisk Atlas combines satellite fire observations, atmospheric models and real OpenStreetMap transmission-grid data in one decision-support map. It supports Türkiye, Spain, France, Portugal and Italy.
+GridRisk Atlas combines satellite fire observations, atmospheric models and real OpenStreetMap transmission-grid data in one decision-support map. It supports Türkiye, Spain, France, Portugal, Italy and Greece.
 
 ![GridRisk Atlas uygulama ekranı](docs/gridrisk-atlas-screenshot.png)
 
@@ -27,7 +27,7 @@ GridRisk Atlas combines satellite fire observations, atmospheric models and real
 
 ## Özellikler / Features
 
-- Sayfa yenilenmeden çalışan bağımsız ülke ve dil seçicileri; `?country=TR|ES|FR|PT|IT&lang=tr|en` URL durumu.
+- Sayfa yenilenmeden çalışan bağımsız ülke ve dil seçicileri; `?country=TR|ES|FR|PT|IT|GR&lang=tr|en` URL durumu.
 - FIRMS tespitlerini 5 km/6 saat penceresinde olaylara kümeleme ve varsayılan 30 MW FRP filtresi.
 - Çoklu kaynak termal tespit altyapısı: kayıt (registry), EUMETView WFS istemcisi, Sentinel-3A/B SLSTR adapterları ve özellik bayrağı ardında isteğe bağlı MTG FCI FRP kaynağı; kaynaklar arası eşleştirme (association) aynı olayı gösterir ama FRP'leri asla toplamaz.
 - Yangın–hat/TM yakınlığı, FRP, tespit yaşı, varlık sınıfı ve rüzgâr doğrultusunu kullanan operasyonel öncelik skoru.
@@ -44,6 +44,7 @@ GridRisk Atlas combines satellite fire observations, atmospheric models and real
 | `FR` | Fransa   | France   | Metropolitan Fransa ve Korsika / Metropolitan France and Corsica                                           | `Europe/Paris`         |
 | `PT` | Portekiz | Portugal | Ana kara; Azorlar ve Madeira hariç / Mainland; Azores and Madeira excluded                                 | `Europe/Lisbon`        |
 | `IT` | İtalya   | Italy    | Ana kara, Sicilya ve Sardinya / Mainland, Sicily and Sardinia                                              | `Europe/Rome`          |
+| `GR` | Yunanistan| Greece   | Yunanistan ana karası, Girit ve büyük adalar / Mainland Greece, Crete and major islands                    | `Europe/Athens`        |
 
 Dil sayı ve tarih biçimini (`tr-TR` veya `en-GB`), ülke ise saat dilimini belirler. Bu iki seçim birbirinden bağımsızdır.
 
@@ -60,7 +61,7 @@ Dil sayı ve tarih biçimini (`tr-TR` veya `en-GB`), ülke ise saat dilimini bel
 
 ## Şebeke sınıflandırması / Grid classification
 
-Gerçek kaynak gerilimi `actualVoltageKv` alanında korunur. Beş ülke aynı iki analiz sınıfını kullanır:
+Gerçek kaynak gerilimi `actualVoltageKv` alanında korunur. Altı ülke aynı iki analiz sınıfını kullanır:
 
 | Gerçek OSM gerilimi / Actual OSM voltage | Runtime sınıfı / Class             | Harita stili / Map style                     |
 | ---------------------------------------- | ---------------------------------- | -------------------------------------------- |

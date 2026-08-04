@@ -46,6 +46,7 @@ jobs:
           test -f deploy/js/locales/tr.js
           test -f deploy/js/locales/en.js
           test -f deploy/data/countries/IT/manifest.json
+          test -f deploy/data/countries/GR/manifest.json
           grep -q '"start_url": "./?country=TR&lang=tr"' deploy/manifest.webmanifest
           grep -q '"scope": "./"' deploy/manifest.webmanifest
 

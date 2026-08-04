@@ -1,92 +1,79 @@
-import { test, expect } from '@playwright/test';
+﻿import { test, expect } from '@playwright/test';
 import fs from 'fs';
 
 const countries = ['TR', 'ES', 'FR', 'PT', 'IT', 'GR'];
 const languages = ['tr', 'en'];
 const modes = ['FIRMS_ONLY', 'SEPARATE_SOURCES', 'MULTI_SOURCE'];
 
-let networkLog = {
-  consoleErrors: new Set(),
-  pageExceptions: new Set(),
-  http4xx5xx: new Set(),
-  failedRequests: new Set(),
-  firmsRequests: new Set(),
-  mockStatus: new Set(),
-  firmsMapKey: 'Bilinmiyor (istek yapılmadı)'
-};
-
-test.beforeEach(async ({ page }) => {
-  page.on('pageerror', (err) => {
-    networkLog.pageExceptions.add(err.message);
-  });
-  
-  page.on('console', (msg) => {
-    if (msg.type() === 'error') {
-      networkLog.consoleErrors.add(msg.text());
-    }
-  });
-
-  page.on('response', (response) => {
-    const status = response.status();
-    const url = response.url();
-    
-    if (status >= 400 && status < 600) {
-      networkLog.http4xx5xx.add(`[${status}] ${url}`);
-    }
-    
-    if (url.includes('firms.modaps.eosdis.nasa.gov') || url.includes('/api/firms')) {
-      networkLog.firmsRequests.add(url);
-      if (url.includes('MAP_KEY')) {
-        const urlObj = new URL(url.startsWith('http') ? url : `http://localhost${url}`);
-        const key = urlObj.searchParams.get('MAP_KEY');
-        if (key && key !== 'DEMO_KEY' && key !== 'YOUR_MAP_KEY') {
-          networkLog.firmsMapKey = 'Mevcut (Gizlenmedi: ' + key + ')';
-        } else {
-          networkLog.firmsMapKey = 'Yok veya Varsayılan (' + key + ')';
-        }
-      } else {
-        networkLog.firmsMapKey = 'Yok (MAP_KEY parametresi bulunamadı)';
-      }
-      
-      if (url.includes('localhost') || url.includes('127.0.0.1')) {
-        if (url.includes('/api/')) {
-          networkLog.mockStatus.add('Yerel Proxy/Mock kullanılıyor: ' + url);
-        } else if (url.endsWith('.json') || url.endsWith('.csv')) {
-          networkLog.mockStatus.add('Statik Mock Dosyası kullanılıyor: ' + url);
-        }
-      } else {
-         networkLog.mockStatus.add('Gerçek API kullanılıyor: ' + url);
-      }
-    }
-  });
-
-  page.on('requestfailed', request => {
-    // Only log if it's not a generic abort due to fast navigation
-    if (request.failure()?.errorText !== 'net::ERR_ABORTED') {
-       networkLog.failedRequests.add(`${request.url()} - ${request.failure()?.errorText}`);
-    }
-  });
-});
-
-test.afterAll(() => {
-  console.log('\n=========================================');
-  console.log('NETWORK & ERROR SUMMARY');
-  console.log('=========================================');
-  console.log('Console Errors:', Array.from(networkLog.consoleErrors));
-  console.log('Page Exceptions:', Array.from(networkLog.pageExceptions));
-  console.log('HTTP 4xx/5xx:', Array.from(networkLog.http4xx5xx));
-  console.log('Failed Requests:', Array.from(networkLog.failedRequests));
-  console.log('FIRMS Requests:', Array.from(networkLog.firmsRequests));
-  console.log('Mock Status:', Array.from(networkLog.mockStatus));
-  console.log('FIRMS_MAP_KEY Status:', networkLog.firmsMapKey);
-  console.log('=========================================\n');
-});
-
 for (const country of countries) {
   for (const lang of languages) {
     for (const mode of modes) {
       test(`Scenario: ${country} | ${lang} | ${mode}`, async ({ page }) => {
         test.setTimeout(90000); 
+
+        const networkLog = {
+          consoleErrors: new Set(),
+          pageExceptions: new Set(),
+          http4xx5xx: new Set(),
+          failedRequests: new Set(),
+          firmsRequests: new Set(),
+          mockStatus: new Set(),
+          firmsMapKey: 'Bilinmiyor (istek yapılmadı)'
+        };
+
+        page.on('pageerror', (err) => {
+          networkLog.pageExceptions.add(err.message);
+        });
+        
+        page.on('console', (msg) => {
+          if (msg.type() === 'error') {
+            networkLog.consoleErrors.add(msg.text());
+          }
+        });
+
+        page.on('response', (response) => {
+          const status = response.status();
+          const rawUrl = response.url();
+          const urlObj = new URL(rawUrl.startsWith('http') ? rawUrl : `http://localhost${rawUrl}`);
+          const urlPath = urlObj.origin + urlObj.pathname;
+          
+          if (status >= 400 && status < 600) {
+            networkLog.http4xx5xx.add(`[${status}] ${urlPath}`);
+          }
+          
+          if (rawUrl.includes('firms.modaps.eosdis.nasa.gov') || rawUrl.includes('/api/firms')) {
+            networkLog.firmsRequests.add(urlPath);
+            if (rawUrl.includes('MAP_KEY')) {
+              const key = urlObj.searchParams.get('MAP_KEY');
+              if (key && key !== 'DEMO_KEY' && key !== 'YOUR_MAP_KEY') {
+                networkLog.firmsMapKey = 'Mevcut (redacted)';
+              } else {
+                networkLog.firmsMapKey = 'Yok veya Varsayılan';
+              }
+            } else {
+              networkLog.firmsMapKey = 'Yok (MAP_KEY parametresi bulunamadı)';
+            }
+            
+            if (rawUrl.includes('localhost') || rawUrl.includes('127.0.0.1')) {
+              if (rawUrl.includes('/api/')) {
+                networkLog.mockStatus.add('Yerel Proxy/Mock kullanılıyor: ' + urlPath);
+              } else if (rawUrl.endsWith('.json') || rawUrl.endsWith('.csv')) {
+                networkLog.mockStatus.add('Statik Mock Dosyası kullanılıyor: ' + urlPath);
+              }
+            } else {
+               networkLog.mockStatus.add('Gerçek API kullanılıyor: ' + urlPath);
+            }
+          }
+        });
+
+        page.on('requestfailed', request => {
+          const rawUrl = request.url();
+          const urlObj = new URL(rawUrl.startsWith('http') ? rawUrl : `http://localhost${rawUrl}`);
+          const urlPath = urlObj.origin + urlObj.pathname;
+          if (request.failure()?.errorText !== 'net::ERR_ABORTED') {
+             networkLog.failedRequests.add(`${urlPath} - ${request.failure()?.errorText}`);
+          }
+        });
         
         await page.goto('/');
         await page.waitForSelector('#countrySelector');
@@ -101,7 +88,10 @@ for (const country of countries) {
         
         // Wait for leaflet container and layer to initialize
         await expect(page.locator('.leaflet-container')).toBeVisible();
-        await page.waitForTimeout(2000); // Give time for geojson fetches to start/finish
+        await page.waitForFunction(() => {
+          const panes = document.querySelectorAll('.leaflet-overlay-pane svg, .leaflet-overlay-pane canvas');
+          return panes.length > 0;
+        }, { timeout: 60000 });
         
         expect(await page.locator('#countrySelector').inputValue()).toBe(country);
         expect(await page.locator('#languageSelector').inputValue()).toBe(lang);
@@ -112,14 +102,30 @@ for (const country of countries) {
         await page.locator('button[data-view="map"]').click();
         
         const hasLayers = await page.evaluate(() => {
-          let hasMap = !!window.AtmoApp?.app?.map; // or window.AtmoApp
-          // Actually let's just check if AtmoApp exists and has anything map related
-          // To be safe we will check DOM for leaflet active layers
+          let hasMap = !!window.AtmoApp?.app?.map;
           const panes = document.querySelectorAll('.leaflet-overlay-pane svg, .leaflet-overlay-pane canvas');
           return { hasMap: !!window.AtmoApp, hasActivePanes: panes.length > 0 };
         });
         
         expect(hasLayers.hasMap).toBeTruthy();
+        expect(hasLayers.hasActivePanes).toBeTruthy();
+        
+        if (country === 'GR') {
+            await page.waitForFunction(() => {
+                const stats = window.AtmoApp?.app?.grid?.stats()?.counts || {};
+                const lines = (stats['400'] || 0) + (stats['154'] || 0);
+                return lines > 0;
+            }, { timeout: 60000 });
+            
+            const counts = await page.evaluate(() => {
+                const stats = window.AtmoApp?.app?.grid?.stats()?.counts || {};
+                const lines = (stats['400'] || 0) + (stats['154'] || 0);
+                const subs = stats['substations'] || 0;
+                return { lines, subs };
+            });
+            expect(counts.lines).toBeGreaterThan(0);
+            expect(counts.subs).toBeGreaterThan(0);
+        }
         
         // Export checks
         await page.locator('button[data-view="impact"]').click();
@@ -151,6 +157,11 @@ for (const country of countries) {
         expect(fs.statSync(geoJsonPath).size).toBeGreaterThan(0);
         const geoJsonParsed = JSON.parse(fs.readFileSync(geoJsonPath, 'utf-8'));
         expect(geoJsonParsed.type).toBe('FeatureCollection');
+        
+        expect(Array.from(networkLog.consoleErrors), 'Console errors found').toEqual([]);
+        expect(Array.from(networkLog.pageExceptions), 'Page exceptions found').toEqual([]);
+        expect(Array.from(networkLog.http4xx5xx), 'HTTP 4xx/5xx found').toEqual([]);
+        expect(Array.from(networkLog.failedRequests), 'Failed requests found').toEqual([]);
       });
     }
   }

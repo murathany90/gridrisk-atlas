@@ -1,5 +1,5 @@
 {
-  "generatedAt": "2026-08-04T22:20:18.804Z",
+  "generatedAt": "2026-08-04T22:47:17.996Z",
   "countries": {
     "ES": {
       "files": {
@@ -25,14 +25,14 @@
         },
         "manifest.json": {
           "bytes": 1158,
-          "gzipBytes": 646,
-          "brotliBytes": 605
+          "gzipBytes": 642,
+          "brotliBytes": 601
         }
       },
       "totals": {
         "bytes": 13551928,
-        "gzipBytes": 2439754,
-        "brotliBytes": 2408358
+        "gzipBytes": 2439750,
+        "brotliBytes": 2408354
       }
     },
     "FR": {
@@ -59,14 +59,14 @@
         },
         "manifest.json": {
           "bytes": 1160,
-          "gzipBytes": 657,
-          "brotliBytes": 614
+          "gzipBytes": 653,
+          "brotliBytes": 612
         }
       },
       "totals": {
         "bytes": 43689687,
-        "gzipBytes": 6376539,
-        "brotliBytes": 6299860
+        "gzipBytes": 6376535,
+        "brotliBytes": 6299858
       }
     },
     "PT": {
@@ -93,14 +93,14 @@
         },
         "manifest.json": {
           "bytes": 1137,
-          "gzipBytes": 632,
-          "brotliBytes": 591
+          "gzipBytes": 628,
+          "brotliBytes": 588
         }
       },
       "totals": {
         "bytes": 5122513,
-        "gzipBytes": 750754,
-        "brotliBytes": 721792
+        "gzipBytes": 750750,
+        "brotliBytes": 721789
       }
     },
     "IT": {
@@ -127,14 +127,14 @@
         },
         "manifest.json": {
           "bytes": 1126,
-          "gzipBytes": 622,
-          "brotliBytes": 585
+          "gzipBytes": 617,
+          "brotliBytes": 582
         }
       },
       "totals": {
         "bytes": 20927061,
-        "gzipBytes": 3574328,
-        "brotliBytes": 3491371
+        "gzipBytes": 3574323,
+        "brotliBytes": 3491368
       }
     },
     "GR": {
