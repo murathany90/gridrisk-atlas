@@ -5,7 +5,7 @@
 [![CI](https://github.com/murathany90/gridrisk-atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/murathany90/gridrisk-atlas/actions/workflows/ci.yml)
 [![Deploy to GitHub Pages](https://github.com/murathany90/gridrisk-atlas/actions/workflows/pages.yml/badge.svg)](https://github.com/murathany90/gridrisk-atlas/actions/workflows/pages.yml)
 
-> Sürüm / Version: **v3.8.0** · [Canlı demo / Live demo](https://gridriskatlas.com/) · Arayüz / Interface: **Türkçe + English**
+> Sürüm / Version: **v3.9.0** · [Canlı demo / Live demo](https://gridriskatlas.com/) · Arayüz / Interface: **Türkçe + English**
 
 > Not: Eski GitHub Pages adresi `https://murathany90.github.io/gridrisk-atlas/` yeni canonical domaine yönlendirilir.
 
@@ -108,13 +108,13 @@ Termal tespit kaynakları `js/thermal-sources.js` içindeki kayıt (registry) ü
 
 ## Grid verisini üretme ve doğrulama
 
-Commitli beş ülke runtime paketini doğrulamak için:
+Commitli altı ülke runtime paketini doğrulamak için:
 
 ```powershell
 npm run validate:grid
 ```
 
-ES/FR/PT/IT paketlerini ham kaynaklardan yeniden üretmek için:
+ES/FR/PT/IT/GR paketlerini ham kaynaklardan yeniden üretmek için:
 
 ```powershell
 npm run build:grid
@@ -123,7 +123,7 @@ npm run build:grid
 Runtime dizini:
 
 ```text
-data/countries/{TR,ES,FR,PT,IT}/
+data/countries/{TR,ES,FR,PT,IT,GR}/
   boundary.geojson
   grid_400.geojson
   grid_154.geojson
@@ -141,7 +141,7 @@ npm run validate:grid
 git diff --check
 ```
 
-Test paketi iki dil sözlük eşliğini, URL/localStorage önceliğini, locale–timezone ayrımını, beş ülke veri bütünlüğünü, risk algoritması regresyonlarını, güvenli export sözleşmesini, responsive katman yerleşimini, varsayılan katmanları, ikonları ve eski marka/base-path kalıntılarını doğrular.
+Test paketi iki dil sözlük eşliğini, URL/localStorage önceliğini, locale–timezone ayrımını, altı ülke veri bütünlüğünü, risk algoritması regresyonlarını, güvenli export sözleşmesini, responsive katman yerleşimini, varsayılan katmanları, ikonları ve eski marka/base-path kalıntılarını doğrular.
 
 ## Export
 
