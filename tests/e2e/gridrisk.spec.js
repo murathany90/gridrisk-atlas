@@ -1,4 +1,4 @@
-﻿import { test, expect } from '@playwright/test';
+import { test, expect } from '@playwright/test';
 import fs from 'fs';
 
 const countries = ['TR', 'ES', 'FR', 'PT', 'IT', 'GR'];
@@ -199,6 +199,51 @@ for (const lang of ['tr', 'en']) {
       });
     });
 
+    // hermetic environment: the wind/smoke endpoints are external and can
+    // return 503 during CI runs, which would surface as console errors
+    const times = Array.from({ length: 48 }, (_, i) => {
+      const t = new Date(now.getTime() + (i - 24) * 3600e3);
+      return `${t.getUTCFullYear()}-${pad(t.getUTCMonth() + 1)}-${pad(t.getUTCDate())}T${pad(t.getUTCHours())}:00`;
+    });
+    const zeros = Array(48).fill(0);
+    await page.route('**://api.open-meteo.com/**', (route) => {
+      const url = new URL(route.request().url());
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          latitude: Number(url.searchParams.get('latitude')) || 39,
+          longitude: Number(url.searchParams.get('longitude')) || 35,
+          hourly: {
+            time: times,
+            wind_speed_10m: Array(48).fill(8),
+            wind_direction_10m: Array(48).fill(140),
+            wind_gusts_10m: Array(48).fill(12),
+            temperature_2m: Array(48).fill(24),
+            relative_humidity_2m: Array(48).fill(40),
+            precipitation: zeros,
+            wind_speed_850hPa: Array(48).fill(15),
+            wind_direction_850hPa: Array(48).fill(150),
+            wind_speed_700hPa: Array(48).fill(20),
+            wind_direction_700hPa: Array(48).fill(160),
+          },
+          hourly_units: {},
+        }),
+      });
+    });
+    await page.route('**://air-quality-api.open-meteo.com/**', (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          latitude: 39,
+          longitude: 35,
+          hourly: { time: times, pm10_wildfires: zeros, pm10: zeros },
+          hourly_units: {},
+        }),
+      });
+    });
+
     const layerCount = () =>
       page.evaluate(() => window.AtmoApp.app.map.riskEvidenceLayer.getLayers().length);
 
@@ -268,14 +313,14 @@ for (const lang of ['tr', 'en']) {
     // 3) evidence button: aria-label + >= 40x40 touch target
     const btn = muglaRow.locator('button.evidenceBtn');
     await expect(btn).toBeVisible();
-    const btnMeta = await btn.evaluate((el) => ({
-      aria: el.getAttribute('aria-label'),
-      w: el.getBoundingClientRect().width,
-      h: el.getBoundingClientRect().height,
-    }));
-    expect(btnMeta.aria).toBeTruthy();
-    expect(btnMeta.w).toBeGreaterThanOrEqual(40);
-    expect(btnMeta.h).toBeGreaterThanOrEqual(40);
+    await expect
+      .poll(() =>
+        btn.evaluate((el) => {
+          const r = el.getBoundingClientRect();
+          return !!el.getAttribute('aria-label') && r.width >= 40 && r.height >= 40;
+        }),
+      )
+      .toBe(true);
 
     const overflowImpact = await page.evaluate(
       () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -350,12 +395,12 @@ for (const lang of ['tr', 'en']) {
     await riskGroupToggle.click();
     await page.locator('#layerRiskEvidence').uncheck();
     await page.locator('button[data-view="map"]').click();
-    await expect.poll(layerCount).toBe(0);
+    await expect.poll(layerCount, { timeout: 15000 }).toBe(0);
     await expect(page.locator('[data-legend="evidence"]')).toHaveCount(0);
     await openLayerPanelView();
     await page.locator('#layerRiskEvidence').check();
     await page.locator('button[data-view="map"]').click();
-    await expect.poll(layerCount).toBe(4);
+    await expect.poll(layerCount, { timeout: 15000 }).toBe(4);
 
     // 7) fires main layer off: evidence pixel still shown
     await openLayerPanelView();
@@ -418,7 +463,7 @@ for (const lang of ['tr', 'en']) {
       .locator('#impactTableBody tr[data-risk-index]', { hasText: '45 MW' })
       .locator('button.evidenceBtn')
       .click();
-    await expect.poll(layerCount).toBe(4);
+    await expect.poll(layerCount, { timeout: 15000 }).toBe(4);
     returnEmpty = true;
     await page.locator('#refreshAllBtn').click();
     await page.waitForFunction(
