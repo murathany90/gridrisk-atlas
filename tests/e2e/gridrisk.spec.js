@@ -166,3 +166,94 @@ for (const country of countries) {
     }
   }
 }
+
+test('Evidence: TR fires near a grid line surface risk with the raw trigger detection', async ({ page }) => {
+  test.setTimeout(90000);
+
+  const consoleErrors = new Set();
+  const pageExceptions = new Set();
+  page.on('pageerror', (err) => pageExceptions.add(err.message));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.add(msg.text());
+  });
+
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const acqDate = `${now.getUTCFullYear()}-${pad(now.getUTCMonth() + 1)}-${pad(now.getUTCDate())}`;
+  const acqTime = `${pad(now.getUTCHours())}${pad(now.getUTCMinutes())}`;
+  const header = 'latitude,longitude,bright_ti4,bright_ti5,frp,scan,track,acq_date,acq_time,satellite,instrument,confidence,version,daynight';
+  const nearRow = `36.95,28.64,330,310,45,0.375,0.375,${acqDate},${acqTime},NPP,VIIRS,high,2.0,D`;
+  const farRow = `36.20,28.20,335,315,180,0.375,0.375,${acqDate},${acqTime},NPP,VIIRS,high,2.0,D`;
+
+  await page.route('**/firms.modaps.eosdis.nasa.gov/**', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'text/csv',
+      body: [header, nearRow, farRow].join('\n'),
+    }),
+  );
+
+  await page.goto('/');
+  await page.waitForSelector('#countrySelector');
+  await page.evaluate(() => {
+    window.AtmoApp.CONFIG.firmsMapKey = 'E2E_TEST_KEY';
+  });
+  await page.locator('#countrySelector').selectOption('TR');
+  await page.locator('#languageSelector').selectOption('en');
+
+  await page.locator('button[data-view="settings"]').click();
+  await page.locator('#thermalModeSelect').selectOption('FIRMS_ONLY');
+  await page.locator('button[data-view="map"]').click();
+
+  await page.waitForFunction(() => {
+    const impacts = window.AtmoApp?.app?.state?.fireImpacts || [];
+    return impacts.some((a) => a.evidence && a.evidence.triggerDistanceKm < 5);
+  }, { timeout: 60000 });
+
+  const ev = await page.evaluate(() => {
+    const impacts = window.AtmoApp.app.state.fireImpacts;
+    const near = impacts.find((a) => a.evidence && a.evidence.triggerDistanceKm < 5);
+    return near
+      ? { ...near.evidence, eventCount: near.event?.count, minDistanceKm: near.minDistanceKm }
+      : null;
+  });
+  expect(ev).not.toBeNull();
+  expect(ev.triggerFrpMw).toBe(45);
+  expect(ev.triggerSatellite).toBe('NPP');
+  expect(Math.abs(ev.triggerLatitude - 36.95)).toBeLessThan(0.05);
+  expect(ev.selectionRule).toBe('nearest_raw_detection');
+  expect(ev.triggerDistanceKm).toBeGreaterThan(0);
+  expect(ev.triggerDistanceKm).toBeLessThan(25);
+  expect(ev.triggerDistanceKm).toBeCloseTo(ev.minDistanceKm, 2);
+  expect(ev.eventCount).toBeGreaterThan(0);
+
+  const farNeverTrigger = await page.evaluate(() => {
+    const impacts = window.AtmoApp.app.state.fireImpacts;
+    return impacts.every((a) => !a.evidence || a.evidence.triggerFrpMw !== 180);
+  });
+  expect(farNeverTrigger).toBeTruthy();
+
+  await page.locator('button[data-view="impact"]').click();
+  const evidenceRows = page.locator('#impactTableBody tr[data-risk-index]', { has: page.locator('button.evidenceBtn') });
+  await expect(evidenceRows.first()).toBeVisible();
+  await expect(evidenceRows.first()).toContainText('NPP');
+  await expect(evidenceRows.first()).toContainText('45 MW');
+
+  await evidenceRows.first().locator('button.evidenceBtn').click();
+  await expect(page.locator('#detailPanel')).toBeVisible();
+  await expect(page.locator('#detailPanel')).toContainText('Risk Evidence');
+  await expect(page.locator('#detailPanel')).toContainText('nearest_raw_detection');
+
+  await page.locator('button[data-view="impact"]').click();
+  const [csvDownload] = await Promise.all([
+    page.waitForEvent('download'),
+    page.locator('#exportCsvBtn').click(),
+  ]);
+  const csvPath = await csvDownload.path();
+  const csvText = fs.readFileSync(csvPath, 'utf-8');
+  expect(csvText).toContain('triggerDetectionId');
+  expect(csvText).toContain('nearest_raw_detection');
+
+  expect(Array.from(consoleErrors), 'Console errors found').toEqual([]);
+  expect(Array.from(pageExceptions), 'Page exceptions found').toEqual([]);
+});

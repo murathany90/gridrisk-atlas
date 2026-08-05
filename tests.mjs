@@ -2067,6 +2067,443 @@ test("association: three sources mutually within their thresholds form one event
   assert.equal(events[0].independentSensorCount, 3);
 });
 
+function evidenceGrid(lineFeatures) {
+  const gr = new A.GridRepository();
+  gr.setCountry("TR");
+  gr.index("154", { type: "FeatureCollection", features: lineFeatures });
+  return gr;
+}
+function evidenceDet(id, lat, lon, over) {
+  return {
+    lat,
+    lon,
+    detectedAt: over?.detectedAt || "2026-08-05T10:00:00Z",
+    frp: over?.frp !== undefined ? over.frp : 30,
+    confidence: over?.confidence !== undefined ? over.confidence : "high",
+    satellite: over?.satellite || "NOAA-21",
+    instrument: "VIIRS",
+    product: "VIIRS_NOAA21_NRT",
+    dayNight: "D",
+    sourceName: "FIRMS",
+    id,
+  };
+}
+function evidenceEvents(dets) {
+  return U.clusterFires(
+    dets.map((d) =>
+      U.normalizeFireDetection(d, { countryCode: "TR", source: "NASA FIRMS" }),
+    ),
+  );
+}
+const EVIDENCE_LINE = {
+  type: "Feature",
+  geometry: {
+    type: "LineString",
+    coordinates: [
+      [28.65, 36.9],
+      [28.65, 37.0],
+    ],
+  },
+  properties: {
+    countryCode: "TR",
+    gridClass: "154",
+    actualVoltageKv: 154,
+    name: "VERT-154",
+  },
+};
+const EVIDENCE_REF = new Date("2026-08-05T12:00:00Z");
+
+test("evidence: nearest point on a segment is exact, clamped and finite", () => {
+  const a = { lat: 36.9, lon: 28.6 },
+    b = { lat: 37.0, lon: 28.7 };
+  const p = { lat: 36.95, lon: 28.65 },
+    res = U.pointSegmentNearestKm(p, a, b);
+  assert.ok(
+    Math.abs(res.distanceKm - U.pointSegmentKm(p, a, b)) < 1e-9,
+    "distance matches pointSegmentKm exactly",
+  );
+  assert.ok(Number.isFinite(res.lat) && Number.isFinite(res.lon));
+  const beyond = U.pointSegmentNearestKm({ lat: 37.5, lon: 29.0 }, a, b);
+  assert.ok(
+    Math.abs(beyond.lat - b.lat) < 1e-6 && Math.abs(beyond.lon - b.lon) < 1e-6,
+    "clamps to the far endpoint",
+  );
+  const on = U.pointSegmentNearestKm(
+    { lat: 36.95, lon: 28.65 },
+    { lat: 36.95, lon: 28.6 },
+    { lat: 36.95, lon: 28.7 },
+  );
+  assert.ok(on.distanceKm < 1e-9, "point on the segment is distance zero");
+  assert.ok(Math.abs(on.lon - 28.65) < 1e-9);
+});
+
+test("evidence: nearest point comes from the geometry, not the segment midpoint", () => {
+  const gr = evidenceGrid([
+    {
+      type: "Feature",
+      geometry: {
+        type: "MultiLineString",
+        coordinates: [
+          [
+            [28.6, 36.9],
+            [28.62, 36.91],
+          ],
+          [
+            [28.7, 36.95],
+            [28.8, 37.0],
+          ],
+        ],
+      },
+      properties: {
+        countryCode: "TR",
+        gridClass: "154",
+        actualVoltageKv: 154,
+        name: "MULTI-1",
+      },
+    },
+  ]);
+  const out = gr.analyzeEvents(
+    evidenceEvents([
+      evidenceDet("m1", 36.965, 28.715, { frp: 40, confidence: "nominal" }),
+    ]),
+    25,
+    EVIDENCE_REF,
+    [],
+  );
+  assert.equal(out.length, 1);
+  const ev = out[0].evidence;
+  assert.ok(ev, "evidence generated for the nearest segment");
+  assert.ok(
+    ev.nearestLineLongitude > 28.7 && ev.nearestLineLongitude < 28.8,
+    "nearest point lies on the second polyline, not the first",
+  );
+  const mid = U.segmentMidpoint(out[0].nearestLine.feature);
+  assert.ok(
+    Math.abs(ev.nearestLineLatitude - mid.lat) > 1e-4 ||
+      Math.abs(ev.nearestLineLongitude - mid.lon) > 1e-4,
+    "nearest point differs from the raw segment midpoint",
+  );
+});
+
+test("evidence: trigger is the raw detection nearest to the line, not the highest FRP", () => {
+  const gr = evidenceGrid([EVIDENCE_LINE]);
+  const out = gr.analyzeEvents(
+    evidenceEvents([
+      evidenceDet("near", 36.951, 28.64, { frp: 5, confidence: "low" }),
+      evidenceDet("far", 36.97, 28.62, { frp: 180, confidence: "high" }),
+    ]),
+    25,
+    EVIDENCE_REF,
+    [],
+  );
+  const ev = out[0].evidence;
+  assert.ok(ev);
+  assert.equal(ev.triggerDetectionId, "near");
+  assert.equal(ev.selectionRule, "nearest_raw_detection");
+  assert.ok(ev.triggerDistanceKm < 1);
+});
+
+test("evidence: equal distance falls back to higher confidence", () => {
+  const gr = evidenceGrid([EVIDENCE_LINE]);
+  const out = gr.analyzeEvents(
+    evidenceEvents([
+      evidenceDet("lowconf", 36.95, 28.64, { confidence: "low", frp: 10 }),
+      evidenceDet("highconf", 36.95, 28.66, { confidence: "high", frp: 10 }),
+    ]),
+    25,
+    EVIDENCE_REF,
+    [],
+  );
+  assert.equal(out[0].evidence.triggerDetectionId, "highconf");
+});
+
+test("evidence: equal distance and confidence falls back to higher FRP", () => {
+  const gr = evidenceGrid([EVIDENCE_LINE]);
+  const out = gr.analyzeEvents(
+    evidenceEvents([
+      evidenceDet("lowfrp", 36.95, 28.64, { confidence: "high", frp: 10 }),
+      evidenceDet("highfrp", 36.95, 28.66, { confidence: "high", frp: 80 }),
+    ]),
+    25,
+    EVIDENCE_REF,
+    [],
+  );
+  assert.equal(out[0].evidence.triggerDetectionId, "highfrp");
+});
+
+test("evidence: equal distance, confidence and FRP falls back to the newer detection", () => {
+  const gr = evidenceGrid([EVIDENCE_LINE]);
+  const out = gr.analyzeEvents(
+    evidenceEvents([
+      evidenceDet("old", 36.95, 28.64, { frp: 40, detectedAt: "2026-08-05T10:00:00Z" }),
+      evidenceDet("new", 36.95, 28.66, { frp: 40, detectedAt: "2026-08-05T11:00:00Z" }),
+    ]),
+    25,
+    EVIDENCE_REF,
+    [],
+  );
+  assert.equal(out[0].evidence.triggerDetectionId, "new");
+});
+
+test("evidence: full tie breaks on the stable detection id ordering", () => {
+  const gr = evidenceGrid([EVIDENCE_LINE]);
+  const out = gr.analyzeEvents(
+    evidenceEvents([
+      evidenceDet("zid", 36.95, 28.64, {
+        frp: 40,
+        confidence: "high",
+        detectedAt: "2026-08-05T10:00:00Z",
+      }),
+      evidenceDet("aid", 36.95, 28.66, {
+        frp: 40,
+        confidence: "high",
+        detectedAt: "2026-08-05T10:00:00Z",
+      }),
+    ]),
+    25,
+    EVIDENCE_REF,
+    [],
+  );
+  assert.equal(out[0].evidence.triggerDetectionId, "aid");
+});
+
+test("evidence: missing detection id falls back to a stable composite id", () => {
+  const gr = evidenceGrid([EVIDENCE_LINE]);
+  const det = evidenceDet(null, 36.95, 28.64, { frp: 10 });
+  const out = gr.analyzeEvents(evidenceEvents([det]), 25, EVIDENCE_REF, []);
+  const ev = out[0].evidence;
+  assert.ok(ev);
+  assert.equal(ev.triggerDetectionId, null);
+  const out2 = gr.analyzeEvents(
+    evidenceEvents([det, evidenceDet("other", 36.95, 28.66, { frp: 10 })]),
+    25,
+    EVIDENCE_REF,
+    [],
+  );
+  assert.equal(
+    out2[0].evidence.triggerDetectionId,
+    null,
+    "composite id sorts deterministically without an explicit id",
+  );
+  assert.equal(out2[0].evidence.triggerSatellite, "NOAA-21");
+});
+
+test("evidence: null FRP and missing confidence never break selection", () => {
+  const gr = evidenceGrid([EVIDENCE_LINE]);
+  const out = gr.analyzeEvents(
+    evidenceEvents([
+      evidenceDet("nulls", 36.95, 28.64, { frp: null, confidence: null }),
+      evidenceDet("with", 36.95, 28.66, { frp: 12, confidence: "high" }),
+    ]),
+    25,
+    EVIDENCE_REF,
+    [],
+  );
+  assert.equal(out[0].evidence.triggerDetectionId, "with");
+  assert.equal(out[0].evidence.triggerFrpMw, 12);
+});
+
+test("evidence: broken or empty line geometry yields no line, no crash", () => {
+  const gr = evidenceGrid([
+    {
+      type: "Feature",
+      geometry: { type: "LineString", coordinates: [] },
+      properties: { countryCode: "TR", gridClass: "154", actualVoltageKv: 154, name: "EMPTY-1" },
+    },
+    {
+      type: "Feature",
+      geometry: {
+        type: "MultiLineString",
+        coordinates: [[[28.65, 36.9], [NaN, 37.0]]],
+      },
+      properties: { countryCode: "TR", gridClass: "154", actualVoltageKv: 154, name: "BROKEN-1" },
+    },
+  ]);
+  const out = gr.analyzeEvents(
+    evidenceEvents([evidenceDet("b1", 36.95, 28.65, { frp: 10 })]),
+    25,
+    EVIDENCE_REF,
+    [],
+  );
+  assert.equal(out.length, 1);
+  assert.equal(out[0].evidence, null);
+});
+
+test("risk: Mugla fixture keeps the risk formula unchanged and evidence is additive", () => {
+  const gr = evidenceGrid([
+    {
+      type: "Feature",
+      geometry: {
+        type: "LineString",
+        coordinates: [
+          [28.6, 36.9],
+          [28.72, 36.96],
+        ],
+      },
+      properties: {
+        countryCode: "TR",
+        gridClass: "154",
+        actualVoltageKv: 154,
+        name: "KÖYCEĞİZ-154",
+      },
+    },
+  ]);
+  const events = evidenceEvents([
+    evidenceDet("A", 36.95, 28.65, { frp: 60, confidence: "high", detectedAt: "2026-08-05T10:00:00Z" }),
+    evidenceDet("B", 36.98, 28.69, { frp: 50, confidence: "nominal", satellite: "NOAA-20", product: "VIIRS_NOAA20_NRT", detectedAt: "2026-08-05T10:10:00Z" }),
+    evidenceDet("C", 37.0, 28.73, { frp: 45, confidence: "nominal", satellite: "SNPP", product: "VIIRS_SNPP_NRT", detectedAt: "2026-08-05T10:20:00Z" }),
+    evidenceDet("D", 37.02, 28.77, { frp: 55, confidence: "high", detectedAt: "2026-08-05T10:30:00Z" }),
+  ]);
+  const out = gr.analyzeEvents(events, 25, EVIDENCE_REF, []);
+  assert.equal(out.length, 1, "all four detections form one event");
+  const a = out[0],
+    ev = a.evidence;
+  assert.ok(ev, "evidence present");
+  const d = a.minDistanceKm,
+    distanceScore = d <= 0.5 ? 60 : d <= 1 ? 52 : d <= 2 ? 44 : d <= 3 ? 36 : d <= 5 ? 24 : 0,
+    frpScore = Math.min(18, Math.sqrt(Math.max(0, a.event.maxFrp)) * 2),
+    ageScore = a.ageHours <= 3 ? 15 : a.ageHours <= 6 ? 12 : a.ageHours <= 12 ? 8 : a.ageHours <= 24 ? 4 : 1,
+    expected = U.clamp(Math.round(distanceScore + frpScore + ageScore + 7 + 0), 0, 100);
+  assert.equal(a.riskScore, expected, "score formula unchanged with evidence attached");
+  assert.equal(ev.riskScore, a.riskScore);
+  assert.equal(ev.riskLevel, a.riskBand.level);
+  assert.equal(ev.lineId, a.nearestLine.feature.assetKey);
+  assert.equal(ev.eventId, a.event.id);
+  assert.equal(ev.evidenceCount, 4);
+  assert.equal(ev.selectionRule, "nearest_raw_detection");
+  assert.equal(ev.triggerDetectionId, "A", "near member triggers the line risk");
+  assert.ok(ev.triggerDistanceKm < 5, "trigger is close to the line");
+  const centerDist = U.haversineKm(
+    { lat: ev.eventCenterLatitude, lon: ev.eventCenterLongitude },
+    { lat: ev.triggerLatitude, lon: ev.triggerLongitude },
+  );
+  assert.ok(centerDist > 2, "cluster center is far from the trigger pixel");
+  const same = gr.analyzeEvents(events, 25, EVIDENCE_REF, []);
+  assert.deepEqual(same[0].evidence, ev, "evidence selection is deterministic");
+});
+
+test("risk: substation-only events carry no line evidence", () => {
+  const gr = evidenceGrid([]);
+  gr.index("substations", {
+    type: "FeatureCollection",
+    features: [
+      {
+        type: "Feature",
+        geometry: { type: "Point", coordinates: [28.65, 36.95] },
+        properties: { countryCode: "TR", name: "TM-1" },
+      },
+    ],
+  });
+  const out = gr.analyzeEvents(
+    evidenceEvents([evidenceDet("s1", 36.95, 28.65, { frp: 10 })]),
+    25,
+    EVIDENCE_REF,
+    [],
+  );
+  assert.equal(out.length, 1);
+  assert.equal(out[0].evidence, null);
+});
+
+test("evidence: export CSV exposes snake_case columns and GeoJSON risky-line features", () => {
+  const prevCountry = A.CONFIG.activeCountryCode;
+  A.CONFIG.activeCountryCode = "TR";
+  const gr = evidenceGrid([EVIDENCE_LINE]);
+  const out = gr.analyzeEvents(
+    evidenceEvents([evidenceDet("e1", 36.95, 28.64, { frp: 25 })]),
+    25,
+    EVIDENCE_REF,
+    [],
+  );
+  let download;
+  const original = U.download;
+  U.download = (name, type, content) => {
+    download = { name, type, content };
+  };
+  const state = {
+    countryCode: "TR",
+    selectedTime: new Date("2026-08-05T12:00:00Z"),
+    fireData: [],
+    fireEvents: out.map((a) => a.event),
+    fireImpacts: out,
+    smokeData: [],
+    windData: [],
+    surfaceWindData: [],
+  };
+  A.ExportManager.csv(state);
+  for (const col of [
+    "triggerDetectionId",
+    "triggerSource",
+    "triggerSatellite",
+    "triggerInstrument",
+    "triggerProduct",
+    "triggerDetectedAt",
+    "triggerFrpMw",
+    "triggerConfidence",
+    "triggerLatitude",
+    "triggerLongitude",
+    "triggerDistanceKm",
+    "nearestLineLatitude",
+    "nearestLineLongitude",
+    "eventCenterLatitude",
+    "eventCenterLongitude",
+    "evidenceCount",
+    "selectionRule",
+  ])
+    assert.ok(download.content.includes(col), `CSV column ${col}`);
+  assert.ok(download.content.includes("e1"), "CSV row contains the trigger id");
+  A.ExportManager.geojson(state);
+  const gj = JSON.parse(download.content);
+  const risky = gj.features.filter((f) => f.properties.kind === "risky_line_segment");
+  assert.equal(risky.length, 1);
+  assert.equal(risky[0].geometry.type, "LineString");
+  assert.equal(risky[0].properties.triggerDetectionId, "e1");
+  assert.equal(risky[0].properties.triggerFrpMw, 25);
+  assert.equal(risky[0].properties.selectionRule, "nearest_raw_detection");
+  assert.ok(Number.isFinite(risky[0].properties.nearestLineLatitude));
+  const j = A.ExportManager.json(state);
+  assert.ok(download.content.includes('"evidence"'), "JSON dump keeps evidence objects");
+  U.download = original;
+  A.CONFIG.activeCountryCode = prevCountry;
+});
+
+test("evidence: new i18n keys exist in both locales", () => {
+  for (const key of [
+    "layers.riskEvidence",
+    "layers.riskEvidenceHint",
+    "analysis.source",
+    "analysis.evidence",
+    "analysis.showEvidence",
+    "analysis.showEvidenceShort",
+    "detail.riskEvidence",
+    "detail.triggerSource",
+    "detail.triggerSatellite",
+    "detail.triggerInstrument",
+    "detail.triggerTime",
+    "detail.frp",
+    "detail.dayNight",
+    "detail.triggerDistance",
+    "detail.triggerCoords",
+    "detail.nearestLinePoint",
+    "detail.eventCenterCoords",
+    "detail.evidenceCount",
+    "detail.selectionRule",
+    "detail.evidenceSpatialFail",
+    "detail.clusterCenterNote",
+    "map.evidenceTitle",
+    "map.evidencePixel",
+    "map.evidenceLink",
+    "map.evidenceNearest",
+    "map.eventClusterCenter",
+    "map.evidenceTriggerTooltip",
+    "map.evidenceNearestTooltip",
+  ]) {
+    assert.ok(A.I18n.t(key) !== key, `TR has ${key}`);
+    I.locale = "en";
+    assert.ok(A.I18n.t(key) !== key, `EN has ${key}`);
+    I.locale = "tr";
+  }
+});
+
 let passed = 0;
 for (const { name, fn } of tests) {
   try {
