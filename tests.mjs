@@ -2203,6 +2203,50 @@ test("evidence: trigger is the raw detection nearest to the line, not the highes
   assert.ok(ev.triggerDistanceKm < 1);
 });
 
+test("evidence: distance dominates inside a cluster — far high-FRP high-confidence never beats a nearer one", () => {
+  const gr = evidenceGrid([EVIDENCE_LINE]);
+  const out = gr.analyzeEvents(
+    evidenceEvents([
+      evidenceDet("nearLow", 36.95, 28.64, {
+        frp: 2,
+        confidence: "low",
+        detectedAt: "2026-08-05T09:00:00Z",
+      }),
+      evidenceDet("farHigh", 36.948, 28.59, {
+        frp: 500,
+        confidence: "high",
+        detectedAt: "2026-08-05T11:59:00Z",
+      }),
+    ]),
+    25,
+    EVIDENCE_REF,
+    [],
+  );
+  assert.equal(out.length, 1, "both detections form one cluster");
+  const ev = out[0].evidence;
+  assert.equal(ev.triggerDetectionId, "nearLow");
+  assert.ok(ev.triggerDistanceKm < 1);
+  assert.equal(ev.selectionRule, "nearest_raw_detection");
+});
+
+test("evidence: per-line evidence is isolated across separate events", () => {
+  const gr = evidenceGrid([EVIDENCE_LINE]);
+  const out = gr.analyzeEvents(
+    evidenceEvents([
+      evidenceDet("near", 36.95, 28.64, { frp: 5, confidence: "low" }),
+      evidenceDet("far", 36.7318, 28.9989, { frp: 500, confidence: "high" }),
+    ]),
+    25,
+    EVIDENCE_REF,
+    [],
+  );
+  assert.ok(out.length >= 2, "two separate events");
+  const lineRows = out.filter((a) => a.evidence?.lineId);
+  assert.equal(lineRows.length, 1, "only the near event references the line");
+  assert.equal(lineRows[0].evidence.triggerDetectionId, "near");
+  assert.equal(lineRows[0].evidence.triggerFrpMw, 5);
+});
+
 test("evidence: equal distance falls back to higher confidence", () => {
   const gr = evidenceGrid([EVIDENCE_LINE]);
   const out = gr.analyzeEvents(
@@ -2460,10 +2504,39 @@ test("evidence: export CSV exposes snake_case columns and GeoJSON risky-line fea
   assert.equal(risky[0].properties.triggerFrpMw, 25);
   assert.equal(risky[0].properties.selectionRule, "nearest_raw_detection");
   assert.ok(Number.isFinite(risky[0].properties.nearestLineLatitude));
+  assert.equal(
+    risky[0].properties.assetId,
+    out[0].evidence.lineId,
+    "GeoJSON risky segment is associated with the exact analysed line",
+  );
+  assert.equal(risky[0].properties.eventId, out[0].event.id);
+  const lineCoords = [
+    [risky[0].geometry.coordinates[0][0], risky[0].geometry.coordinates[0][1]],
+    [risky[0].geometry.coordinates[1][0], risky[0].geometry.coordinates[1][1]],
+  ];
+  assert.ok(
+    lineCoords.every((c) =>
+      EVIDENCE_LINE.geometry.coordinates.some(
+        (f) => Math.abs(f[0] - c[0]) < 1e-6 && Math.abs(f[1] - c[1]) < 1e-6,
+      ),
+    ),
+    "GeoJSON segment coordinates belong to the EVIDENCE_LINE geometry",
+  );
   const j = A.ExportManager.json(state);
   assert.ok(download.content.includes('"evidence"'), "JSON dump keeps evidence objects");
   U.download = original;
   A.CONFIG.activeCountryCode = prevCountry;
+});
+
+test("export: CSV formula injection is neutralized while real values survive", () => {
+  assert.equal(U.csvEscape("=SUM(A1:A2)"), "'=SUM(A1:A2)");
+  assert.equal(U.csvEscape("+cmd|calc"), "'+cmd|calc");
+  assert.equal(U.csvEscape("@SUM"), "'@SUM");
+  assert.equal(U.csvEscape("-2+3"), "'-2+3");
+  assert.equal(U.csvEscape("36.95,28.64"), '"36.95,28.64"');
+  assert.equal(U.csvEscape('"quoted"'), '"""quoted"""');
+  assert.equal(U.csvEscape("-9.5"), "-9.5", "negative numbers stay numeric");
+  assert.equal(U.csvEscape("45"), "45");
 });
 
 test("evidence: new i18n keys exist in both locales", () => {
