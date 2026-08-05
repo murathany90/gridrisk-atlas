@@ -199,6 +199,13 @@
       const dx=bx-ax,dy=by-ay,den=dx*dx+dy*dy;let t=den?-(ax*dx+ay*dy)/den:0;t=this.clamp(t,0,1);
       const x=ax+t*dx,y=ay+t*dy;return Math.hypot(x,y);
     },
+    pointSegmentNearestKm(p,a,b){
+      const kx=111.320*Math.cos(p.lat*Math.PI/180),ky=110.574;
+      const ax=(a.lon-p.lon)*kx, ay=(a.lat-p.lat)*ky, bx=(b.lon-p.lon)*kx, by=(b.lat-p.lat)*ky;
+      const dx=bx-ax,dy=by-ay,den=dx*dx+dy*dy;let t=den?-(ax*dx+ay*dy)/den:0;t=this.clamp(t,0,1);
+      const x=ax+t*dx,y=ay+t*dy;
+      return {distanceKm:Math.hypot(x,y),lat:p.lat+y/ky,lon:p.lon+x/kx};
+    },
     segmentMidpoint(seg){return{lat:(seg.a.lat+seg.b.lat)/2,lon:(seg.a.lon+seg.b.lon)/2};},
     impactBand(distanceKm){if(!Number.isFinite(distanceKm))return null;const band=C().impactBands.find(b=>distanceKm<=b.maxKm)||{maxKm:Infinity,labelKey:'proximity.low',level:'low'};return{...band,label:A.I18n?.t(band.labelKey)||band.labelKey};},
     adaptiveCorridorDistanceKm(maxFrp,windSpeedKmh){const d=C().downwind;const speed=Number.isFinite(windSpeedKmh)?windSpeedKmh:d.fallbackWindSpeedKmh;const windNorm=this.clamp((speed-d.windMinKmh)/(d.windMaxKmh-d.windMinKmh),0,1);const frp=Math.max(Number(maxFrp)||d.frpMinMw,d.frpMinMw);const frpNorm=this.clamp(Math.log(frp/d.frpMinMw)/Math.log(d.frpMaxMw/d.frpMinMw),0,1);return Math.round(this.clamp(d.minDistanceKm+(d.maxDistanceKm-d.minDistanceKm)*(d.windWeight*windNorm+d.fireWeight*frpNorm),d.minDistanceKm,d.maxDistanceKm));},

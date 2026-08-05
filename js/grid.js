@@ -354,6 +354,64 @@
         ),
       };
     }
+    stableDetectionId(f) {
+      return (
+        f.detectionId ||
+        f.id ||
+        `${f.satellite || ""}|${f.instrument || f.sensor || ""}|${f.product || ""}|${f.detectedAt || ""}|${f.lat ?? ""}|${f.lon ?? ""}`
+      );
+    }
+    buildLineEvidence({ event, score, riskBand, lineKey, memberAnalyses }) {
+      const candidates = [];
+      for (const ma of memberAnalyses) {
+        const line = (ma.assets.lines || []).find((x) => x.key === lineKey);
+        if (!line || !ma.fire) continue;
+        candidates.push({ fire: ma.fire, distanceKm: line.distanceKm, seg: line.feature });
+      }
+      if (!candidates.length) return null;
+      candidates.sort(
+        (x, y) =>
+          x.distanceKm - y.distanceKm ||
+          (U.confidenceWeight(y.fire.confidence) || 0) -
+            (U.confidenceWeight(x.fire.confidence) || 0) ||
+          (Number(y.fire.frp) || 0) - (Number(x.fire.frp) || 0) ||
+          Date.parse(y.fire.detectedAt) - Date.parse(x.fire.detectedAt) ||
+          String(this.stableDetectionId(x.fire)).localeCompare(
+            String(this.stableDetectionId(y.fire)),
+          ),
+      );
+      const c = candidates[0],
+        f = c.fire,
+        nearest = U.pointSegmentNearestKm(
+          { lat: f.lat, lon: f.lon },
+          c.seg.a,
+          c.seg.b,
+        );
+      return {
+        lineId: lineKey,
+        eventId: event.id,
+        riskScore: score,
+        riskLevel: riskBand?.level || "watch",
+        triggerDetectionId: f.detectionId || f.id || null,
+        triggerSource: f.source || f.sourceName || null,
+        triggerSatellite: f.satellite || null,
+        triggerInstrument: f.instrument || f.sensor || null,
+        triggerProduct: f.product || null,
+        triggerDetectedAt: f.detectedAt || null,
+        triggerFrpMw: U.round(f.frp ?? 0, 2),
+        triggerConfidence: f.confidence ?? null,
+        triggerDayNight: f.dayNight || null,
+        triggerLatitude: U.round(f.lat, 6),
+        triggerLongitude: U.round(f.lon, 6),
+        triggerDistanceKm: U.round(c.distanceKm, 3),
+        nearestLineLatitude: U.round(nearest.lat, 6),
+        nearestLineLongitude: U.round(nearest.lon, 6),
+        eventCenterLatitude: U.round(event.lat, 6),
+        eventCenterLongitude: U.round(event.lon, 6),
+        evidenceCount: event.count,
+        selectionRule: "nearest_raw_detection",
+      };
+    }
     analyzeEvents(
       events,
       maxKm = 25,
@@ -476,7 +534,16 @@
             0,
             100,
           ),
-          scoreBand = U.riskScoreBand(score);
+          scoreBand = U.riskScoreBand(score),
+          evidence = nearest?.line
+            ? this.buildLineEvidence({
+                event,
+                score,
+                riskBand: scoreBand,
+                lineKey: nearest.line.feature.assetKey,
+                memberAnalyses,
+              })
+            : null;
         out.push({
           event,
           memberAnalyses,
@@ -501,6 +568,7 @@
           nearestLine: nearest?.line || null,
           nearestSubstation: nearest?.substation || null,
           displayedNearestAsset: nearest?.line || null,
+          evidence,
         });
       }
       return out.sort(
