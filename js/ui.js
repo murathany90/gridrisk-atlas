@@ -548,6 +548,83 @@
       const p = properties || {};
       return p.name || p.ref || p.displayLabel || fallback;
     }
+    evidenceSection(evidence) {
+      const e = evidence || {},
+        spatialOk =
+          Number.isFinite(Number(e.nearestLineLatitude)) &&
+          Number.isFinite(Number(e.nearestLineLongitude)),
+        trig = { lat: Number(e.triggerLatitude), lon: Number(e.triggerLongitude) },
+        center = {
+          lat: Number(e.eventCenterLatitude),
+          lon: Number(e.eventCenterLongitude),
+        },
+        centerDiff =
+          Number.isFinite(trig.lat) && Number.isFinite(center.lat)
+            ? U.haversineKm(center, trig)
+            : null,
+        coords = (lat, lon) =>
+          `${lat != null && Number.isFinite(Number(lat)) ? Number(lat).toFixed(5) : "—"}, ${lon != null && Number.isFinite(Number(lon)) ? Number(lon).toFixed(5) : "—"}`,
+        metrics = [];
+      const metric = (label, value) =>
+        metrics.push(
+          `<div class="metric"><small>${label}</small><strong>${value}</strong></div>`,
+        );
+      metric(
+        T("detail.triggerSource"),
+        e.triggerSource ? U.escapeHtml(e.triggerSource) : "—",
+      );
+      metric(
+        T("detail.triggerSatellite"),
+        e.triggerSatellite ? U.escapeHtml(e.triggerSatellite) : "—",
+      );
+      metric(
+        T("detail.triggerInstrument"),
+        [e.triggerInstrument, e.triggerProduct]
+          .filter(Boolean)
+          .map((x) => U.escapeHtml(x))
+          .join(" · ") || "—",
+      );
+      metric(
+        T("detail.triggerTime"),
+        e.triggerDetectedAt
+          ? U.formatLocal(new Date(e.triggerDetectedAt))
+          : "—",
+      );
+      metric(T("detail.frp"), this.val(e.triggerFrpMw, 1, " MW"));
+      metric(
+        T("detail.confidence"),
+        e.triggerConfidence != null
+          ? U.escapeHtml(String(e.triggerConfidence))
+          : "—",
+      );
+      metric(
+        T("detail.dayNight"),
+        e.triggerDayNight ? U.escapeHtml(String(e.triggerDayNight)) : "—",
+      );
+      metric(
+        T("detail.triggerDistance"),
+        this.val(e.triggerDistanceKm, 2, " km"),
+      );
+      metric(
+        T("detail.triggerCoords"),
+        coords(e.triggerLatitude, e.triggerLongitude),
+      );
+      metric(
+        T("detail.nearestLinePoint"),
+        spatialOk
+          ? coords(e.nearestLineLatitude, e.nearestLineLongitude)
+          : T("detail.evidenceSpatialFail"),
+      );
+      metric(
+        T("detail.eventCenterCoords"),
+        coords(e.eventCenterLatitude, e.eventCenterLongitude),
+      );
+      return `<div class="detailSection"><h3>${T("detail.riskEvidence")}</h3><div class="metricGrid">${metrics.join("")}</div>${
+        centerDiff != null && centerDiff > 2
+          ? `<div class="warningBox">${T("detail.clusterCenterNote")}</div>`
+          : ""
+      }<div class="sourceNote">${T("detail.selectionRule")}: ${U.escapeHtml(e.selectionRule || "—")} · ${T("detail.evidenceCount")}: ${I.formatNumber(Number(e.evidenceCount) || 0)}</div></div>`;
+    }
     renderPointDetail(
       point,
       air,
@@ -558,6 +635,7 @@
       fireEvent,
       gridFeature,
       nearest,
+      riskEvidence,
     ) {
       const v = air?.values || {},
         w = weather?.values || {},
@@ -616,6 +694,9 @@
               .join("")
           : `<div class="emptyState">${T("detail.nearbyEmpty")}</div>`
       }</div>`;
+      const evidenceBlock = riskEvidence
+        ? this.evidenceSection(riskEvidence)
+        : "";
       const badge = T(
         fire || fireEvent
           ? "detail.satelliteObservation"
@@ -625,7 +706,7 @@
       );
       this.openDetail(
         title,
-        `<div><span class="badge ${fire || fireEvent ? "observation" : gridFeature ? "analysis" : "forecast"}">${badge}</span></div>${gridBlock}${eventBlock}${fireBlock}${proximity}${smokeBlock}${weatherBlock}${fireList}`,
+        `<div><span class="badge ${fire || fireEvent ? "observation" : gridFeature ? "analysis" : "forecast"}">${badge}</span></div>${gridBlock}${eventBlock}${fireBlock}${proximity}${evidenceBlock}${smokeBlock}${weatherBlock}${fireList}`,
       );
       this.renderAnalysisSummary(
         point,
@@ -763,17 +844,26 @@
                 wind = a.wind
                   ? `${T(a.downwindAlignment ? "summary.aligned" : "summary.crosswind")} · ${I.formatNumber(U.round(a.wind.speed, 0))} km/h<br><small>${T("summary.corridor", { lines: I.formatNumber(dw.lines.length), substations: I.formatNumber(dw.substations.length) })}</small>`
                   : "—",
-                riskLabel = T(`risk.${a.riskBand.level}`);
-              return `<tr data-risk-index="${i}"><td><span class="riskBadge ${a.riskBand.level}">${a.riskScore} · ${U.escapeHtml(riskLabel)}</span></td><td>${T("summary.detections", { count: I.formatNumber(a.event.count) })}</td><td>${this.val(a.event.maxFrp, 1, " MW")}</td><td>${obj ? T("detail.line") : ""}<br><small>${obj ? U.escapeHtml(this.assetLabel(props)) : T("summary.noLine")}</small></td><td>${this.val(obj?.distanceKm, 2, " km")}</td><td>${obj ? `${U.escapeHtml(props?.displayClass || "—")}<br><small>${U.escapeHtml(U.formatVoltage(props?.actualVoltageKv) || T("common.unknown"))}</small>` : "—"}</td><td>${wind}</td><td>${U.formatLocal(new Date(a.event.latestDetectedAt))}</td></tr>`;
+                riskLabel = T(`risk.${a.riskBand.level}`),
+                evidence = a.evidence;
+              return `<tr data-risk-index="${i}"><td><span class="riskBadge ${a.riskBand.level}">${a.riskScore} · ${U.escapeHtml(riskLabel)}</span></td><td>${T("summary.detections", { count: I.formatNumber(a.event.count) })}</td><td>${this.val(a.event.maxFrp, 1, " MW")}</td><td>${obj ? T("detail.line") : ""}<br><small>${obj ? U.escapeHtml(this.assetLabel(props)) : T("summary.noLine")}</small></td><td>${this.val(obj?.distanceKm, 2, " km")}</td><td>${obj ? `${U.escapeHtml(props?.displayClass || "—")}<br><small>${U.escapeHtml(U.formatVoltage(props?.actualVoltageKv) || T("common.unknown"))}</small>` : "—"}</td><td>${wind}</td><td>${U.formatLocal(new Date(a.event.latestDetectedAt))}</td><td>${evidence ? `${U.escapeHtml(evidence.triggerSource || "—")}<br><small>${U.escapeHtml(evidence.triggerSatellite || "—")}${evidence.triggerFrpMw != null ? ` · ${this.val(evidence.triggerFrpMw, 1, " MW")}` : ""}</small>` : "—"}</td><td>${evidence ? `<button type="button" class="evidenceBtn" data-evidence-btn="${i}" title="${T("analysis.showEvidence")}" aria-label="${T("analysis.showEvidence")}">${T("analysis.showEvidenceShort")}</button>` : "—"}</td></tr>`;
             })
             .join("")
-        : `<tr><td colspan="8">${T("summary.noEvents")}</td></tr>`;
+        : `<tr><td colspan="10">${T("summary.noEvents")}</td></tr>`;
       body
         .querySelectorAll("tr[data-risk-index]")
         .forEach((el) =>
           el.addEventListener("click", () =>
             A.Events.emit("focusRisk", rows[Number(el.dataset.riskIndex)]),
           ),
+        );
+      body
+        .querySelectorAll("button[data-evidence-btn]")
+        .forEach((btn) =>
+          btn.addEventListener("click", (e) => {
+            e.stopPropagation();
+            A.Events.emit("focusRisk", rows[Number(btn.dataset.evidenceBtn)]);
+          }),
         );
       this.renderRiskSummary();
     }

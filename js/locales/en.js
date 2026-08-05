@@ -97,6 +97,9 @@
     "layers.mtgOpacity": "Satellite opacity",
     "layers.impact": "Priority rings + assets at risk",
     "layers.downwind": "Wind-based monitoring corridor",
+    "layers.riskEvidence": "Show risk evidence",
+    "layers.riskEvidenceHint":
+      "Shows the triggering raw thermal detection, the pixel–line link and the nearest point on the line for the selected line.",
     "layers.riskHint":
       "Operational screening only; not an outage probability or smoke trajectory.",
     "layers.mobileTitle": "Layer Controls",
@@ -162,6 +165,10 @@
     "analysis.voltage": "Voltage",
     "analysis.wind": "Wind",
     "analysis.latest": "Latest detection",
+    "analysis.source": "Source",
+    "analysis.evidence": "Evidence",
+    "analysis.showEvidence": "Show risk evidence on map",
+    "analysis.showEvidenceShort": "Show",
     "analysis.tableEmpty":
       "When FIRMS_MAP_KEY is defined as a GitHub Secret, thermal detections are clustered into events and analysed.",
     "analysis.chartTitle": "Selected Location — Wildfire Smoke Time Series",
@@ -288,6 +295,23 @@
     "detail.distanceBand": "Distance band",
     "detail.nearSegment": "Nearby OSM segment",
     "detail.none50": ">50 km / none",
+    "detail.riskEvidence": "Risk Evidence",
+    "detail.triggerDetection": "Triggering raw thermal detection",
+    "detail.triggerSource": "Source",
+    "detail.triggerSatellite": "Satellite",
+    "detail.triggerInstrument": "Sensor / product",
+    "detail.triggerTime": "Detection time",
+    "detail.frp": "FRP",
+    "detail.dayNight": "Day / night",
+    "detail.triggerDistance": "Distance to line",
+    "detail.triggerCoords": "Raw pixel coordinates",
+    "detail.nearestLinePoint": "Nearest point on the line",
+    "detail.eventCenterCoords": "Event / cluster center coordinates",
+    "detail.evidenceCount": "Detections in event",
+    "detail.selectionRule": "Selection rule",
+    "detail.evidenceSpatialFail": "Spatial evidence could not be generated",
+    "detail.clusterCenterNote":
+      "The event marker represents the cluster center. Line risk was calculated from the raw satellite pixel shown above.",
     "detail.proximityNote":
       "The 0.5/1.5/3/5 km bands are for in-app prioritisation, not official safety distances. Segment length is only the nearest OSM line segment, not the full circuit/line length.",
     "detail.smoke": "🌫 Smoke Dispersion — CAMS Model · {time}",
@@ -392,6 +416,13 @@
     "map.gridNote":
       "OpenStreetMap power-grid · ODbL 1.0. The actual OSM voltage is also shown in tooltips.",
     "map.riskTitle": "Fire–Grid Priority Score",
+    "map.evidenceTitle": "Risk Evidence",
+    "map.evidencePixel": "Triggering raw thermal pixel",
+    "map.evidenceLink": "Pixel – line risk link",
+    "map.evidenceNearest": "Nearest point on the line",
+    "map.eventClusterCenter": "Event / cluster center",
+    "map.evidenceTriggerTooltip": "Triggering raw thermal detection",
+    "map.evidenceNearestTooltip": "Nearest point on line: {distance} km",
     "map.substationRisk": "substation within ≤{distance} km (square)",
     "map.riskNote":
       "Lines are highlighted at risk scores of 55+; the nearest substation is shown up to {distance} km independently of risk score. Each substation is deduplicated to its highest-risk event. This is not an outage probability or official safety distance.",

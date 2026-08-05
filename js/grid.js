@@ -371,7 +371,7 @@
       if (!candidates.length) return null;
       candidates.sort(
         (x, y) =>
-          x.distanceKm - y.distanceKm ||
+          U.round(x.distanceKm, 3) - U.round(y.distanceKm, 3) ||
           (U.confidenceWeight(y.fire.confidence) || 0) -
             (U.confidenceWeight(x.fire.confidence) || 0) ||
           (Number(y.fire.frp) || 0) - (Number(x.fire.frp) || 0) ||

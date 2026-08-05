@@ -678,7 +678,20 @@
                       <span class="layerBadge model" data-i18n="badge.model"
                         >MODEL</span
                       ></label
+                    ><label
+                      ><input
+                        id="layerRiskEvidence"
+                        type="checkbox"
+                        checked
+                      />
+                      <span data-i18n="layers.riskEvidence"
+                        >Risk nedenini göster</span
+                      >
+                      <span class="layerBadge model" data-i18n="badge.model"
+                        >MODEL</span
+                      ></label
                     >
+                    <p class="layerHint" data-i18n="layers.riskEvidenceHint"></p>
                     <p class="layerHint" data-i18n="layers.riskHint">
                       Operasyonel ön-elemedir; arıza olasılığı veya duman
                       yörüngesi değildir.
@@ -923,11 +936,17 @@
                         <span data-i18n="analysis.latest">Son tespit</span>
                         <span class="sortArrow"></span>
                       </th>
+                      <th>
+                        <span data-i18n="analysis.source">Kaynak</span>
+                      </th>
+                      <th>
+                        <span data-i18n="analysis.evidence">Kanıt</span>
+                      </th>
                     </tr>
                   </thead>
                   <tbody id="impactTableBody">
                     <tr>
-                      <td colspan="8" data-i18n="analysis.tableEmpty">
+                      <td colspan="10" data-i18n="analysis.tableEmpty">
                         FIRMS MAP_KEY GitHub Secret'da tanımlıysa termal
                         tespitler olaylara kümelenerek analiz edilir.
                       </td>

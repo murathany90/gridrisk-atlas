@@ -2461,3 +2461,60 @@ main {
     border-top: 1px solid #1f3244;
   }
 }
+
+/* Risk evidence: traceable line risk (triggering raw detection) */
+.evidencePixelSample {
+  display: inline-block;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 3px solid #ff7043;
+  background: transparent;
+}
+.evidenceLinkSample {
+  display: inline-block;
+  width: 20px;
+  height: 0;
+  border-top: 2px dashed #ff7043;
+}
+.evidenceNearestSample {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 2.5px solid #0b1a26;
+}
+.evidenceBtn {
+  min-width: 40px;
+  min-height: 40px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: 1px solid #2f80ff;
+  background: #10233a;
+  color: #cfe7f7;
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.evidenceBtn:hover,
+.evidenceBtn:focus-visible {
+  background: #1a3b5c;
+  outline: 2px solid #2f80ff;
+  outline-offset: 1px;
+}
+@media (max-width: 760px) {
+  .evidenceBtn {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .evidenceBtn,
+  .riskTable tr,
+  #legendStack .legendCard {
+    transition: none !important;
+    animation: none !important;
+  }
+}
