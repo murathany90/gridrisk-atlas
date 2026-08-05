@@ -199,6 +199,13 @@
       const dx=bx-ax,dy=by-ay,den=dx*dx+dy*dy;let t=den?-(ax*dx+ay*dy)/den:0;t=this.clamp(t,0,1);
       const x=ax+t*dx,y=ay+t*dy;return Math.hypot(x,y);
     },
+    pointSegmentNearestKm(p,a,b){
+      const kx=111.320*Math.cos(p.lat*Math.PI/180),ky=110.574;
+      const ax=(a.lon-p.lon)*kx, ay=(a.lat-p.lat)*ky, bx=(b.lon-p.lon)*kx, by=(b.lat-p.lat)*ky;
+      const dx=bx-ax,dy=by-ay,den=dx*dx+dy*dy;let t=den?-(ax*dx+ay*dy)/den:0;t=this.clamp(t,0,1);
+      const x=ax+t*dx,y=ay+t*dy;
+      return {distanceKm:Math.hypot(x,y),lat:p.lat+y/ky,lon:p.lon+x/kx};
+    },
     segmentMidpoint(seg){return{lat:(seg.a.lat+seg.b.lat)/2,lon:(seg.a.lon+seg.b.lon)/2};},
     impactBand(distanceKm){if(!Number.isFinite(distanceKm))return null;const band=C().impactBands.find(b=>distanceKm<=b.maxKm)||{maxKm:Infinity,labelKey:'proximity.low',level:'low'};return{...band,label:A.I18n?.t(band.labelKey)||band.labelKey};},
     adaptiveCorridorDistanceKm(maxFrp,windSpeedKmh){const d=C().downwind;const speed=Number.isFinite(windSpeedKmh)?windSpeedKmh:d.fallbackWindSpeedKmh;const windNorm=this.clamp((speed-d.windMinKmh)/(d.windMaxKmh-d.windMinKmh),0,1);const frp=Math.max(Number(maxFrp)||d.frpMinMw,d.frpMinMw);const frpNorm=this.clamp(Math.log(frp/d.frpMinMw)/Math.log(d.frpMaxMw/d.frpMinMw),0,1);return Math.round(this.clamp(d.minDistanceKm+(d.maxDistanceKm-d.minDistanceKm)*(d.windWeight*windNorm+d.fireWeight*frpNorm),d.minDistanceKm,d.maxDistanceKm));},
@@ -291,7 +298,7 @@
       const start=performance.now();try{const res=await fetch(url,{signal:ctrl.signal}),latency=Math.round(performance.now()-start);if(!res.ok){const txt=await res.text().catch(()=> '');const e=new Error(`HTTP ${res.status}`);e.kind=res.status===429?'RATE_LIMIT':res.status===401||res.status===403?'AUTH_REQUIRED':'HTTP_ERROR';e.status=res.status;e.body=txt.slice(0,400);throw e;}const data=await res.text();if(cacheKey&&ttl)A.Cache.set(cacheKey,data,ttl);return{data,meta:{cached:false,latency,status:res.status}};}catch(e){if(e.name==='AbortError'){const er=new Error(A.I18n?.t('error.requestTimeout')||'Request cancelled/timed out');er.kind=ctrl.signal.reason==='timeout'?'TIMEOUT':'ABORTED';throw er;}if(!e.kind)e.kind='NETWORK_OR_CORS_ERROR';throw e;}finally{clearTimeout(timer);if(signal&&onAbort)signal.removeEventListener('abort',onAbort);}
     },
     parseCsv(text){const rows=[];let row=[],field='',q=false;for(let i=0;i<text.length;i++){const ch=text[i],next=text[i+1];if(q){if(ch==='"'&&next==='"'){field+='"';i++;}else if(ch==='"')q=false;else field+=ch;}else if(ch==='"')q=true;else if(ch===','){row.push(field);field='';}else if(ch==='\n'){row.push(field.replace(/\r$/,''));rows.push(row);row=[];field='';}else field+=ch;}if(field.length||row.length){row.push(field.replace(/\r$/,''));rows.push(row);}if(rows.length<2)return[];const h=rows[0].map(x=>x.trim());return rows.slice(1).filter(r=>r.some(Boolean)).map(r=>Object.fromEntries(h.map((k,i)=>[k,r[i]??''])));},
-    csvEscape(v){const s=String(v??'');return /[",\n]/.test(s)?`"${s.replaceAll('"','""')}"`:s;},
+    csvEscape(v){let s=String(v??'');if(/^[=+@]/.test(s)||(/^-/.test(s)&&!Number.isFinite(Number(s))))s=`'${s}`;return /[",\n]/.test(s)?`"${s.replaceAll('"','""')}"`:s;},
     download(name,type,text){const blob=new Blob([text],{type}),url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);},
     frpColor(v){const n=Number(v)||0;return n>=100?'#7f001b':n>=50?'#c51b30':n>=20?'#ef5b3d':n>=5?'#ff9f43':'#ffd166';},
     smokeColor(variable,v){const x=Number(v)||0;if(variable==='pm10_wildfires'){return x>=30?[98,0,117]:x>=15?[152,37,133]:x>=8?[203,71,119]:x>=3?[239,138,98]:x>=1?[254,204,92]:[235,238,242];}if(variable==='wildfire_share'){return x>=75?[92,27,136]:x>=50?[145,39,143]:x>=30?[200,66,126]:x>=15?[238,121,106]:x>=5?[252,183,91]:[236,240,242];}return [220,226,230];},

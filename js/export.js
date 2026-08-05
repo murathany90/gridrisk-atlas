@@ -62,13 +62,31 @@
             "corridorConfidence",
             "affectedLines10km",
             "affectedSubstations10km",
+            "triggerDetectionId",
+            "triggerSource",
+            "triggerSatellite",
+            "triggerInstrument",
+            "triggerProduct",
+            "triggerDetectedAt",
+            "triggerFrpMw",
+            "triggerConfidence",
+            "triggerLatitude",
+            "triggerLongitude",
+            "triggerDistanceKm",
+            "nearestLineLatitude",
+            "nearestLineLongitude",
+            "eventCenterLatitude",
+            "eventCenterLongitude",
+            "evidenceCount",
+            "selectionRule",
           ],
         ];
       for (const a of state.fireImpacts || []) {
         if (a.event?.countryCode !== country.code) continue;
         const obj = a.nearestLine || a.nearest?.line,
           props = obj?.feature?.props || {},
-          level = a.riskBand?.level || "watch";
+          level = a.riskBand?.level || "watch",
+          ev = a.evidence || null;
         rows.push([
           country.code,
           I.countryName(country.code),
@@ -93,6 +111,23 @@
           a.corridorConfidence || "",
           a.affectedLines?.length || 0,
           a.affectedSubstations?.length || 0,
+          ev?.triggerDetectionId ?? "",
+          ev?.triggerSource ?? "",
+          ev?.triggerSatellite ?? "",
+          ev?.triggerInstrument ?? "",
+          ev?.triggerProduct ?? "",
+          ev?.triggerDetectedAt ?? "",
+          ev?.triggerFrpMw ?? "",
+          ev?.triggerConfidence ?? "",
+          ev?.triggerLatitude ?? "",
+          ev?.triggerLongitude ?? "",
+          ev?.triggerDistanceKm ?? "",
+          ev?.nearestLineLatitude ?? "",
+          ev?.nearestLineLongitude ?? "",
+          ev?.eventCenterLatitude ?? "",
+          ev?.eventCenterLongitude ?? "",
+          ev?.evidenceCount ?? "",
+          ev?.selectionRule ?? "",
         ]);
       }
       const text = rows
@@ -165,6 +200,48 @@
               resolutionKm: point.resolutionKm,
             },
           });
+      for (const a of state.fireImpacts || []) {
+        if (a.event?.countryCode !== (state.countryCode || C.activeCountryCode))
+          continue;
+        const l = a.nearestLine || a.nearest?.line,
+          e = a.evidence || null;
+        if (!l) continue;
+        features.push({
+          type: "Feature",
+          geometry: {
+            type: "LineString",
+            coordinates: [
+              [l.feature.a.lon, l.feature.a.lat],
+              [l.feature.b.lon, l.feature.b.lat],
+            ],
+          },
+          properties: {
+            kind: "risky_line_segment",
+            assetId: l.feature.assetKey || "",
+            gridClass: l.feature.gridClass || "",
+            eventId: a.event.id,
+            riskScore: a.riskScore,
+            riskLevel: a.riskBand?.level || "watch",
+            evidenceCount: e?.evidenceCount ?? null,
+            selectionRule: e?.selectionRule ?? null,
+            triggerDetectionId: e?.triggerDetectionId ?? null,
+            triggerSource: e?.triggerSource ?? null,
+            triggerSatellite: e?.triggerSatellite ?? null,
+            triggerInstrument: e?.triggerInstrument ?? null,
+            triggerProduct: e?.triggerProduct ?? null,
+            triggerDetectedAt: e?.triggerDetectedAt ?? null,
+            triggerFrpMw: e?.triggerFrpMw ?? null,
+            triggerConfidence: e?.triggerConfidence ?? null,
+            triggerLatitude: e?.triggerLatitude ?? null,
+            triggerLongitude: e?.triggerLongitude ?? null,
+            triggerDistanceKm: e?.triggerDistanceKm ?? null,
+            nearestLineLatitude: e?.nearestLineLatitude ?? null,
+            nearestLineLongitude: e?.nearestLineLongitude ?? null,
+            eventCenterLatitude: e?.eventCenterLatitude ?? null,
+            eventCenterLongitude: e?.eventCenterLongitude ?? null,
+          },
+        });
+      }
       U.download(
         `${baseName(state)}.geojson`,
         "application/geo+json",

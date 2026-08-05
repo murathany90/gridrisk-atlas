@@ -1,5 +1,24 @@
 # Geliştirme Kaydı — GridRisk Atlas
 
+# v3.10.0 — İzlenebilir Risk Kanıtı: Hattı Tetikleyen Ham Yangın Tespiti
+
+**Branch:** `feature/traceable-grid-risk-evidence`
+
+**Amaç:** Her riskli hat analizinde "hangi tespit neden risklendi" sorusunu veriyle yanıtlamak — olay kümesinin temsilcisi yerine, hatta en yakın **ham tespit** tetikleyici olarak seçilir ve kanıt nesnesi (algı, mesafe, koordinatlar, seçim kuralı) UI/export haritalarında görünür hale gelir.
+
+**Değişiklikler:**
+- **`js/grid.js`** — her riskli hat analizine `evidence` eklendi: `triggerDetectionId` (eksikse kararlı bileşik kimlik `uydu|sensör|ürün|zaman|enlem|boylam`), `triggerSource/Satellite/Instrument/Product`, `triggerDetectedAt`, `triggerFrpMw`, `triggerConfidence`, `triggerDayNight`, `triggerLatitude/Longitude`, `triggerDistanceKm`, `nearestLineLatitude/Longitude`, `eventCenterLatitude/Longitude`, `evidenceCount`, `selectionRule: 'nearest_raw_detection'`. Seçim sırası: hatta en yakın ham tespit → mesafe eşitse yüksek güven → FRP → yeni tespit → kararlı kimlik sıralaması (tam bağ deterministik). `triggerDetectionId` null ise kompozit kimlik türetilir.
+- **`js/map.js`** — risk katmanına kanıt çizimi eklendi: tetikleyici tespit (kırmızı içi boş çember), hattaki en yakın nokta (sarı nokta) ve bunları birleştiren altın kesikli bağlantı çizgisi; araç ipucunda tetikleyici kimlik, mesafe, FRP ve seçim kuralı görünür. Risk katmanı kapatılınca kanıt çizimleri de gizlenir.
+- **`js/ui.js`** — risk tablosuna "Kanıt / Tetikleyici" sütunu (uydu + FRP) ve `Göster` butonu; detay panelinde "Risk Nedeni" bölümü (algı zamanı, FRP, güven, gece/gündüz, tetikleyici mesafesi, koordinatlar, seçim kuralı, kanıt sayısı). Seçili nokta risk kanıtı taşıyorsa panelden gösterilir; risk katmanı/analiz güncellenince senkron kalır.
+- **`js/export.js`** — CSV'ye kanıt sütunları (`triggerDetectionId, triggerSource, triggerSatellite, triggerInstrument, triggerProduct, triggerDetectedAt, triggerFrpMw, triggerConfidence, triggerDayNight, triggerLatitude, triggerLongitude, triggerDistanceKm, nearestLineLatitude, nearestLineLongitude, eventCenterLatitude, eventCenterLongitude, evidenceCount, selectionRule`); JSON dump'a `evidence` nesnesi; GeoJSON riskli hat özelliklerine `evidence.*`.
+- **`js/locales/en.js|tr.js`** — yeni anahtarlar: `detail.riskEvidence`, `detail.triggerDistance`, `detail.selectionRule`, `detail.evidenceCount`, `detail.evidenceSpatialFail`, `detail.clusterCenterNote`, `analysis.showEvidence`, `analysis.showEvidenceShort`, `summary.evidence`, risk tablosu kanıt sütun başlığı, map.js araç ipucu/lejant kanıt satırları.
+- **`css/styles.css`** — tetikleyici çember, en yakın nokta, bağlantı çizgisi, kanıt sütunu ve `evidenceBtn` stilleri.
+- **Sürüm 3.10.0**: `package.json`, `js/config.js`, `index.html` (pill + cache-buster), `server.mjs` (3.8.0 geri sürülen APP_VERSION düzeltildi), `README.md`, sürüm geçmişi.
+
+**Testler:** v3.10.0 bloğu — tetikleyici = hatta en yakın ham tespit (yüksek FRP'li uzak tespit değil), mesafe/güven/FRP/zaman/kimlik tie-break zinciri, eksik kimlikte kararlı kompozit kimlik, null FRP/güven kırılmazlığı, bozuk hat geometrisi toleransı, risk skoru formülü değişmezliği (Mugla fixture), kanıtın CSV/JSON/GeoJSON export'larında görünürlüğü, yeni i18n anahtarları; Playwright e2e: mock FIRMS CSV ile hatta yakın tespitin tabloda kanıt sütunu + detay paneli + export sütunları ile yüzeye çıkması. Toplam **82/82** test + e2e geçti.
+
+---
+
 # v3.5.0 — Türkiye, İspanya ve Fransa Çok Ülkeli Mimari
 
 **Branch:** `feature/multi-country-tr-es-fr`

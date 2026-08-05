@@ -238,6 +238,8 @@
       this.surfaceWindData = [];
       this.riskLayer = null;
       this.riskAssetLayer = null;
+      this.riskEvidenceLayer = null;
+      this.lastRiskEvidence = null;
       this.downwindLayer = null;
       this.windVectorLayer = null;
       this.lastWindVector = null;
@@ -306,6 +308,9 @@
       this.windLayer = L.layerGroup([], { pane: "windPane" });
       this.riskLayer = L.layerGroup([], { pane: "riskPane" }).addTo(this.map);
       this.riskAssetLayer = L.layerGroup([], { pane: "riskPane" }).addTo(
+        this.map,
+      );
+      this.riskEvidenceLayer = L.layerGroup([], { pane: "riskPane" }).addTo(
         this.map,
       );
       this.downwindLayer = L.layerGroup([], { pane: "riskPane" });
@@ -473,6 +478,8 @@
       this.windLayer.clearLayers();
       this.riskLayer.clearLayers();
       this.riskAssetLayer.clearLayers();
+      this.riskEvidenceLayer.clearLayers();
+      this.lastRiskEvidence = null;
       this.downwindLayer.clearLayers();
       this.windVectorLayer.clearLayers();
       this.footprintLayer.clearLayers();
@@ -1957,6 +1964,102 @@
           `${C.riskScoreBands.map((b) => `<div class="legendLine"><i class="dot" style="background:${U.riskColor(b.level)}"></i><span>${b.min}+ · ${T(`risk.${b.level}`)}</span></div>`).join("")}<div class="legendLine"><span class="substationSquare substation-risk" style="display:inline-block"></span><span>${T("map.substationRisk", { distance: C.substationRiskDisplayDistanceKm })}</span></div><div class="sourceNote">${T("map.riskNote", { distance: C.substationRiskDisplayDistanceKm })}</div>`,
         );
     }
+    showRiskEvidence(evidence) {
+      this.lastRiskEvidence = evidence || null;
+      this.riskEvidenceLayer.clearLayers();
+      document.querySelector('[data-legend="evidence"]')?.remove();
+      if (!evidence) return;
+      const c = U.riskColor(evidence.riskLevel || "watch"),
+        trigger = {
+          lat: Number(evidence.triggerLatitude),
+          lon: Number(evidence.triggerLongitude),
+        },
+        nearest = {
+          lat: Number(evidence.nearestLineLatitude),
+          lon: Number(evidence.nearestLineLongitude),
+        };
+      if (
+        !Number.isFinite(trigger.lat) ||
+        !Number.isFinite(trigger.lon) ||
+        !Number.isFinite(nearest.lat) ||
+        !Number.isFinite(nearest.lon)
+      ) {
+        this.makeLegend(
+          "evidence",
+          T("map.evidenceTitle"),
+          `<div class="sourceNote">${T("detail.evidenceSpatialFail")}</div>`,
+        );
+        return;
+      }
+      L.circleMarker([trigger.lat, trigger.lon], {
+        pane: "riskPane",
+        renderer: this.renderer,
+        radius: 11,
+        color: c,
+        weight: 3,
+        fill: false,
+        opacity: 1,
+        interactive: true,
+      })
+        .bindTooltip(T("map.evidenceTriggerTooltip"), { sticky: true })
+        .addTo(this.riskEvidenceLayer);
+      L.circleMarker([trigger.lat, trigger.lon], {
+        pane: "riskPane",
+        renderer: this.renderer,
+        radius: 3.5,
+        color: c,
+        weight: 1,
+        fill: true,
+        fillColor: c,
+        fillOpacity: 0.95,
+        opacity: 1,
+        interactive: false,
+      }).addTo(this.riskEvidenceLayer);
+      L.polyline(
+        [
+          [trigger.lat, trigger.lon],
+          [nearest.lat, nearest.lon],
+        ],
+        {
+          pane: "riskPane",
+          renderer: this.renderer,
+          color: c,
+          weight: 2,
+          opacity: 0.9,
+          dashArray: "2 7",
+          interactive: false,
+        },
+      ).addTo(this.riskEvidenceLayer);
+      L.circleMarker([nearest.lat, nearest.lon], {
+        pane: "riskPane",
+        renderer: this.renderer,
+        radius: 6,
+        color: "#0b1a26",
+        weight: 2.5,
+        fill: true,
+        fillColor: "#ffffff",
+        fillOpacity: 1,
+        opacity: 1,
+        interactive: true,
+      })
+        .bindTooltip(
+          T("map.evidenceNearestTooltip", {
+            distance: U.round(evidence.triggerDistanceKm, 2),
+          }),
+          { sticky: true },
+        )
+        .addTo(this.riskEvidenceLayer);
+      this.makeLegend(
+        "evidence",
+        T("map.evidenceTitle"),
+        `<div class="legendLine"><span class="evidencePixelSample"></span><span>${T("map.evidencePixel")}</span></div><div class="legendLine"><span class="evidenceLinkSample"></span><span>${T("map.evidenceLink")}</span></div><div class="legendLine"><span class="evidenceNearestSample"></span><span>${T("map.evidenceNearest")}</span></div><div class="legendLine"><span class="dot" style="background:${c}"></span><span>${T("map.eventClusterCenter")}</span></div><div class="sourceNote">${T("detail.clusterCenterNote")}</div>`,
+      );
+    }
+    clearRiskEvidence() {
+      this.lastRiskEvidence = null;
+      this.riskEvidenceLayer.clearLayers();
+      document.querySelector('[data-legend="evidence"]')?.remove();
+    }
     refreshLocalizedContent() {
       if (!this.map || !this.fireLayer) return;
       this.renderFires(this.currentSelectedTime);
@@ -1964,6 +2067,7 @@
       this.updateGridLegend();
       if (this.lastRiskVisible)
         this.setFireImpacts(this.lastRiskAnalyses, true);
+      if (this.lastRiskEvidence) this.showRiskEvidence(this.lastRiskEvidence);
       if (this.lastDownwindVisible)
         this.setDownwindCorridors(this.lastDownwindAnalyses, true);
       if (this.lastWindVector) {

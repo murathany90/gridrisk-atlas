@@ -97,6 +97,9 @@
     "layers.mtgOpacity": "Uydu görünürlüğü",
     "layers.impact": "Öncelik halkaları + riskli varlık",
     "layers.downwind": "Rüzgâr bazlı izleme koridoru",
+    "layers.riskEvidence": "Risk nedenini göster",
+    "layers.riskEvidenceHint":
+      "Seçili hat için tetikleyen ham termal tespiti, piksel–hat bağlantısını ve hatta en yakın noktayı haritada gösterir.",
     "layers.riskHint":
       "Operasyonel ön-elemedir; arıza olasılığı veya duman yörüngesi değildir.",
     "layers.mobileTitle": "Katman Kontrolleri",
@@ -163,6 +166,10 @@
     "analysis.voltage": "Gerilim",
     "analysis.wind": "Rüzgâr",
     "analysis.latest": "Son tespit",
+    "analysis.source": "Kaynak",
+    "analysis.evidence": "Kanıt",
+    "analysis.showEvidence": "Risk nedenini haritada göster",
+    "analysis.showEvidenceShort": "Göster",
     "analysis.tableEmpty":
       "FIRMS MAP_KEY GitHub Secret’da tanımlıysa termal tespitler olaylara kümelenerek analiz edilir.",
     "analysis.chartTitle": "Seçili Konum — Yangın Dumanı Zaman Serisi",
@@ -289,6 +296,23 @@
     "detail.distanceBand": "Mesafe bandı",
     "detail.nearSegment": "Yakın OSM segmenti",
     "detail.none50": ">50 km / yok",
+    "detail.riskEvidence": "Risk Nedeni",
+    "detail.triggerDetection": "Tetikleyen ham termal tespit",
+    "detail.triggerSource": "Kaynak",
+    "detail.triggerSatellite": "Uydu",
+    "detail.triggerInstrument": "Sensör / ürün",
+    "detail.triggerTime": "Tespit zamanı",
+    "detail.frp": "FRP",
+    "detail.dayNight": "Gündüz / gece",
+    "detail.triggerDistance": "Hatta uzaklık",
+    "detail.triggerCoords": "Ham piksel koordinatı",
+    "detail.nearestLinePoint": "Hat üzerindeki en yakın nokta",
+    "detail.eventCenterCoords": "Olay / küme merkezi koordinatı",
+    "detail.evidenceCount": "Olaydaki tespit",
+    "detail.selectionRule": "Seçim kuralı",
+    "detail.evidenceSpatialFail": "Konumsal kanıt oluşturulamadı",
+    "detail.clusterCenterNote":
+      "Haritadaki olay simgesi küme merkezidir. Hat riski yukarıdaki ham uydu pikseline göre hesaplanmıştır.",
     "detail.proximityNote":
       "0.5/1.5/3/5 km bantları uygulama içi önceliklendirme içindir; resmî güvenlik mesafesi değildir. Segment uzunluğu yalnız en yakın OSM çizgi parçasıdır, tüm devre/hat uzunluğu değildir.",
     "detail.smoke": "🌫 Duman Yayılımı — CAMS Modeli · {time}",
@@ -393,6 +417,13 @@
     "map.gridNote":
       "OpenStreetMap power-grid · ODbL 1.0. Gerçek OSM gerilimi tooltipte ayrıca gösterilir.",
     "map.riskTitle": "Yangın–Şebeke Öncelik Skoru",
+    "map.evidenceTitle": "Risk Kanıtı",
+    "map.evidencePixel": "Tetikleyen ham termal piksel",
+    "map.evidenceLink": "Piksel – hat risk bağlantısı",
+    "map.evidenceNearest": "Hat üzerindeki en yakın nokta",
+    "map.eventClusterCenter": "Olay / küme merkezi",
+    "map.evidenceTriggerTooltip": "Tetikleyen ham termal tespit",
+    "map.evidenceNearestTooltip": "Hatta en yakın nokta: {distance} km",
     "map.substationRisk": "≤{distance} km trafo merkezi (kare)",
     "map.riskNote":
       "Hat vurgusu 55+ risk skorunda; en yakın TM işareti ise risk skorundan bağımsız olarak en fazla {distance} km’de gösterilir. Aynı TM en yüksek riskli olaya göre tekilleştirilir. Arıza olasılığı veya resmî güvenlik mesafesi değildir.",

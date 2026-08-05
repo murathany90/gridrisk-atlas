@@ -31,6 +31,7 @@
         firesEnabled: true,
         heatEnabled: false,
         impactEnabled: true,
+        riskEvidenceEnabled: true,
         downwindEnabled: true,
         gridMaster: true,
         selectedPoint: null,
@@ -78,6 +79,7 @@
           lon: a.event.lon,
           fire: a.event.representative,
           fireEvent: a.event,
+          riskEvidence: a.evidence,
         });
       });
       A.Events.on("basemapStatus", (x) =>
@@ -217,6 +219,11 @@
       this.map.frpThreshold = this.state.frpThreshold;
       const cel = document.getElementById("frpCount");
       if (cel) cel.textContent = T("ui.eventsOnly", { count: "—" });
+      const evidencePref = localStorage.getItem("riskEvidence");
+      if (evidencePref !== null)
+        this.state.riskEvidenceEnabled = evidencePref !== "0";
+      const evidenceCb = document.getElementById("layerRiskEvidence");
+      if (evidenceCb) evidenceCb.checked = this.state.riskEvidenceEnabled;
     }
     bindUI() {
       document
@@ -237,6 +244,20 @@
         this.state.firesEnabled = e.target.checked;
         this.map.toggleFires(e.target.checked);
       });
+      document
+        .getElementById("layerRiskEvidence")
+        ?.addEventListener("change", (e) => {
+          this.state.riskEvidenceEnabled = e.target.checked;
+          localStorage.setItem(
+            "riskEvidence",
+            e.target.checked ? "1" : "0",
+          );
+          if (this.state.riskEvidenceEnabled)
+            this.map.showRiskEvidence(
+              this.state.selectedPoint?.riskEvidence || null,
+            );
+          else this.map.clearRiskEvidence();
+        });
       document
         .getElementById("layerSentinelSlstr")
         .addEventListener("change", (e) => {
@@ -983,6 +1004,22 @@
       );
       this.ui.renderImpact(this.state.fireImpacts);
       this.ui.renderExportSummary(this.state);
+      this.syncSelectedRiskEvidence();
+    }
+    syncSelectedRiskEvidence() {
+      const sp = this.state.selectedPoint;
+      if (!sp) return;
+      let ev = sp.riskEvidence || null;
+      if (
+        ev &&
+        !(this.state.fireImpacts || []).some(
+          (a) => a.evidence?.lineId === ev.lineId,
+        )
+      )
+        ev = null;
+      this.state.selectedPoint = { ...sp, riskEvidence: ev };
+      if (this.state.riskEvidenceEnabled) this.map.showRiskEvidence(ev);
+      else this.map.clearRiskEvidence();
     }
     async selectPoint(p, silent = false) {
       if (!U.insideRegion(p)) {
@@ -996,13 +1033,30 @@
         return;
       }
       p = { ...p, lat: Number(p.lat), lon: Number(p.lon) };
+      let riskEvidence = p.riskEvidence || null;
+      if (!riskEvidence && p.gridFeature?.kind === "line") {
+        const key = this.grid.assetKey(
+          p.gridFeature.properties || {},
+          `line-${p.gridFeature.group || ""}`,
+        );
+        const rows = (this.state.fireImpacts || []).filter(
+          (a) => a.evidence?.lineId === key,
+        );
+        if (rows.length)
+          riskEvidence = rows.sort(
+            (x, y) => (y.riskScore || 0) - (x.riskScore || 0),
+          )[0].evidence;
+      }
       this.state.selectedPoint = {
         lat: p.lat,
         lon: p.lon,
         fire: p.fire,
         fireEvent: p.fireEvent,
         gridFeature: p.gridFeature,
+        riskEvidence,
       };
+      if (this.state.riskEvidenceEnabled) this.map.showRiskEvidence(riskEvidence);
+      else this.map.clearRiskEvidence();
       this.controllers.detail?.abort();
       const ctrl = new AbortController();
       this.controllers.detail = ctrl;
@@ -1078,6 +1132,7 @@
           p.fireEvent,
           p.gridFeature,
           nearest,
+          riskEvidence,
         );
         if (weather) {
           const lvl = C.windLevels[this.state.windLevel] || C.windLevels["10m"];

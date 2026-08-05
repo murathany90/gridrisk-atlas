@@ -2,7 +2,7 @@ window.AtmoApp = window.AtmoApp || {};
 (function(A){
   A.CONFIG = {
     appName: 'GridRisk Atlas',
-    appVersion: '3.9.0',
+    appVersion: '3.10.0',
     activeCountryCode: 'TR',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
