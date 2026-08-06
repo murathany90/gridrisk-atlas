@@ -10,7 +10,7 @@ const APP_VERSION='3.10.0';
 const PREFERRED_PORT=Number(process.env.PORT||8890);
 let ACTIVE_PORT=PREFERRED_PORT;
 const FIRMS_MAP_KEY=process.env.FIRMS_MAP_KEY||'';
-const COUNTRY_BOUNDS={TR:{west:25.6,south:35.75,east:44.9,north:42.2},ES:{west:-9.3,south:36,east:4.35,north:43.8},FR:{west:-5.14,south:41.36,east:9.57,north:51.1},PT:{west:-9.52,south:36.96,east:-6.18,north:42.16},IT:{west:6.62,south:35.49,east:18.52,north:47.1}};
+const COUNTRY_BOUNDS={TR:{west:25.6,south:35.75,east:44.9,north:42.2},ES:{west:-9.3,south:36,east:4.35,north:43.8},FR:{west:-5.14,south:41.36,east:9.57,north:51.1},PT:{west:-9.52,south:36.96,east:-6.18,north:42.16},IT:{west:6.62,south:35.49,east:18.52,north:47.1},GR:{west:19.373345,south:34.802874,east:29.643806,north:41.748741}};
 const cache=new Map();
 const mime={'.html':'text/html; charset=utf-8','.js':'application/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.json':'application/json; charset=utf-8','.webmanifest':'application/manifest+json; charset=utf-8','.geojson':'application/geo+json; charset=utf-8','.md':'text/markdown; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.jpg':'image/jpeg'};
 const allowedSources=new Set(['VIIRS_NOAA21_NRT','VIIRS_NOAA20_NRT','VIIRS_SNPP_NRT','MODIS_NRT']);
@@ -41,7 +41,7 @@ async function firmsProxy(req,res,url){
   for(let attempt=0;attempt<=2;attempt++){
     const ctrl=new AbortController(),timer=setTimeout(()=>ctrl.abort('timeout'),18000);
     try{
-      const r=await fetch(target,{signal:ctrl.signal,headers:{Accept:'text/csv','User-Agent':'GridRisk-Atlas/3.8.0'}});
+      const r=await fetch(target,{signal:ctrl.signal,headers:{Accept:'text/csv','User-Agent':`GridRisk-Atlas/${APP_VERSION}`}});
       if(r.status===429){const retryAfter=Number(r.headers.get('retry-after')||30);clearTimeout(timer);if(attempt<2&&retryAfter<60){await new Promise(r=>setTimeout(r,Math.min(retryAfter*1000,5000)+Math.random()*500));continue;}return send(res,429,JSON.stringify({error:'FIRMS rate limited',retryAfter}),'application/json; charset=utf-8');}
       if(!r.ok&&attempt<2&&r.status>=500){clearTimeout(timer);await new Promise(r=>setTimeout(r,750*(attempt+1)+Math.random()*500));continue;}
       const text=await r.text();if(!r.ok)return send(res,r.status,text||`FIRMS HTTP ${r.status}`);cache.set(key,{text,expires:Date.now()+7*60*1000});return send(res,200,text,'text/csv; charset=utf-8');

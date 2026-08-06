@@ -6,7 +6,7 @@
     "app.subtitle": "Satellite Wildfire & Grid Risk Intelligence",
     "app.title": "GridRisk Atlas — Satellite Wildfire & Grid Risk Intelligence",
     "app.description":
-      "GridRisk Atlas provides satellite wildfire intelligence and power-grid risk monitoring for Türkiye, Spain, France, Portugal and Italy.",
+      "GridRisk Atlas provides satellite wildfire intelligence and power-grid risk monitoring for Türkiye, Spain, France, Portugal, Italy and Greece.",
     "app.homeAria": "Return to the GridRisk Atlas map",
     "language.label": "Language:",
     "language.selectAria": "Select interface language",
@@ -571,7 +571,7 @@
     "info.effisBody":
       "EFFIS provides the meteorological Fire Weather Index layer and NRT algorithmic burnt-area polygons.",
     "info.osmCoverage":
-      "Real 50–550 kV OSM voltages for Türkiye, Spain, France, Portugal and Italy are normalised into two shared risk classes. The source is licensed under ODbL 1.0.",
+      "Real 50–550 kV OSM voltages for Türkiye, Spain, France, Portugal, Italy and Greece are normalised into two shared risk classes. The source is licensed under ODbL 1.0.",
     "info.gridTitle": "Transmission lines and substations",
     "info.gridBody":
       "Actual 50–550 kV OSM voltages are normalised to shared 400/154 kV risk classes; raw voltage remains visible in tooltips.",
@@ -605,7 +605,7 @@
       "Fire Weather Index and NRT algorithmic burnt-area WMS layers.",
     "info.sourceOsm": "Power=line and power=substation data under ODbL 1.0.",
     "info.contributors":
-      "Thank you to every OpenStreetMap volunteer who contributed to mapping the power-grid data for all five countries.",
+      "Thank you to every OpenStreetMap volunteer who contributed to mapping the power-grid data for all six countries.",
     "info.project": "Project",
     "info.github": "GitHub source code",
     "info.githubBody": "Source code, issues and release history.",

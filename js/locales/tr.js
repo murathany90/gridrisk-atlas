@@ -6,7 +6,7 @@
     "app.subtitle": "Satellite Wildfire & Grid Risk Intelligence",
     "app.title": "GridRisk Atlas — Satellite Wildfire & Grid Risk Intelligence",
     "app.description":
-      "GridRisk Atlas, Türkiye, İspanya, Fransa, Portekiz ve İtalya için uydu yangın istihbaratı ve elektrik şebekesi risk izlemesi sağlar.",
+      "GridRisk Atlas, Türkiye, İspanya, Fransa, Portekiz, İtalya ve Yunanistan için uydu yangın istihbaratı ve elektrik şebekesi risk izlemesi sağlar.",
     "app.homeAria": "GridRisk Atlas haritasına dön",
     "language.label": "Dil:",
     "language.selectAria": "Arayüz dilini seçin",
@@ -571,7 +571,7 @@
     "info.effisBody":
       "EFFIS; meteorolojik Fire Weather Index katmanı ile NRT algoritmik yanmış alan poligonlarını sağlar.",
     "info.osmCoverage":
-      "Türkiye, İspanya, Fransa, Portekiz ve İtalya için 50–550 kV gerçek OSM gerilimleri iki ortak risk sınıfına normalize edilir. Kaynak ODbL 1.0 lisanslıdır.",
+      "Türkiye, İspanya, Fransa, Portekiz, İtalya ve Yunanistan için 50–550 kV gerçek OSM gerilimleri iki ortak risk sınıfına normalize edilir. Kaynak ODbL 1.0 lisanslıdır.",
     "info.gridTitle": "İletim hatları ve trafo merkezleri",
     "info.gridBody":
       "50–550 kV gerçek OSM gerilimleri 400/154 kV ortak risk sınıflarına normalize edilir; ham gerilim tooltipte korunur.",
@@ -606,7 +606,7 @@
     "info.sourceOsm":
       "Power=line ve power=substation verileri; ODbL 1.0 lisansı.",
     "info.contributors":
-      "Beş ülkenin şebeke verisinin haritalanmasına katkıda bulunan tüm OpenStreetMap gönüllülerine teşekkürler.",
+      "Altı ülkenin şebeke verisinin haritalanmasına katkıda bulunan tüm OpenStreetMap gönüllülerine teşekkürler.",
     "info.project": "Proje",
     "info.github": "GitHub kaynak kodu",
     "info.githubBody": "Kaynak kod, issue ve sürüm kayıtları.",

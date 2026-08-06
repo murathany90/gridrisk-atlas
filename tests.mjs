@@ -1,6 +1,7 @@
 import { readFileSync, readdirSync, statSync } from "fs";
 import { strict as assert } from "assert";
 import vm from "vm";
+import { spawn } from "node:child_process";
 
 const read = (path) => readFileSync(path, "utf8");
 const html = read("index.html");
@@ -2576,6 +2577,46 @@ test("evidence: new i18n keys exist in both locales", () => {
     I.locale = "tr";
   }
 });
+
+{
+  const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+  tests.push({
+    name: "server: GR /api/firms bbox validation",
+    fn: async () => {
+      const port = 8900 + Math.floor(Math.random() * 900);
+      const child = spawn(process.execPath, ["server.mjs"], {
+        env: { ...process.env, PORT: String(port), FIRMS_MAP_KEY: "test_key", AUTO_OPEN: "0" },
+        stdio: "ignore",
+      });
+      const base = `http://127.0.0.1:${port}`;
+      try {
+        let ready = false;
+        for (let i = 0; i < 50; i++) {
+          try {
+            const health = await fetch(`${base}/api/health`);
+            if (health.ok) {
+              ready = true;
+              break;
+            }
+          } catch {}
+          await sleep(200);
+        }
+        assert.ok(ready, "server started within 10s");
+        const inBounds = await fetch(`${base}/api/firms?country=GR&bbox=21.5,35.5,26.5,39.5&source=VIIRS_NOAA21_NRT&days=2`);
+        const inText = await inBounds.text();
+        assert.ok(!inText.includes("bbox must stay inside"), "GR in-bounds bbox must pass local validation");
+        const outBounds = await fetch(`${base}/api/firms?country=GR&bbox=21.5,35.5,30,39.5&source=VIIRS_NOAA21_NRT&days=2`);
+        assert.equal(outBounds.status, 400, "GR out-of-bounds bbox must be rejected");
+        const outText = await outBounds.text();
+        assert.ok(outText.includes("bbox must stay inside"), "400 body names the bbox rule");
+        const trOnly = await fetch(`${base}/api/firms?country=GR&bbox=27.5,37,41,40&source=VIIRS_NOAA21_NRT&days=2`);
+        assert.equal(trOnly.status, 400, "TR-only bbox must be rejected for GR");
+      } finally {
+        child.kill();
+      }
+    },
+  });
+}
 
 let passed = 0;
 for (const { name, fn } of tests) {

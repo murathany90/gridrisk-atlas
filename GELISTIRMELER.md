@@ -15,7 +15,7 @@
 - **`css/styles.css`** — tetikleyici çember, en yakın nokta, bağlantı çizgisi, kanıt sütunu ve `evidenceBtn` stilleri.
 - **Sürüm 3.10.0**: `package.json`, `js/config.js`, `index.html` (pill + cache-buster), `server.mjs` (3.8.0 geri sürülen APP_VERSION düzeltildi), `README.md`, sürüm geçmişi.
 
-**Testler:** v3.10.0 bloğu — tetikleyici = hatta en yakın ham tespit (yüksek FRP'li uzak tespit değil), mesafe/güven/FRP/zaman/kimlik tie-break zinciri, eksik kimlikte kararlı kompozit kimlik, null FRP/güven kırılmazlığı, bozuk hat geometrisi toleransı, risk skoru formülü değişmezliği (Mugla fixture), kanıtın CSV/JSON/GeoJSON export'larında görünürlüğü, yeni i18n anahtarları; Playwright e2e: mock FIRMS CSV ile hatta yakın tespitin tabloda kanıt sütunu + detay paneli + export sütunları ile yüzeye çıkması. Toplam **82/82** test + e2e geçti.
+**Testler:** v3.10.0 bloğu — tetikleyici = hatta en yakın ham tespit (yüksek FRP'li uzak tespit değil), mesafe/güven/FRP/zaman/kimlik tie-break zinciri, eksik kimlikte kararlı kompozit kimlik, null FRP/güven kırılmazlığı, bozuk hat geometrisi toleransı, risk skoru formülü değişmezliği (Mugla fixture), kanıtın CSV/JSON/GeoJSON export'larında görünürlüğü, yeni i18n anahtarları; Playwright e2e: mock FIRMS CSV ile hatta yakın tespitin tabloda kanıt sütunu + detay paneli + export sütunları ile yüzeye çıkması. Toplam **85/85** Node test + **28/28** Python test + Playwright **76/76** (Desktop Chrome + Mobile) geçti.
 
 ---
 
