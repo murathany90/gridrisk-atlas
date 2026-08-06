@@ -737,6 +737,75 @@ main {
 .status-idle {
   background: #71869a;
 }
+.roleChips {
+  display: inline-flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 3px;
+}
+.chip {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  background: #223244;
+  color: #c9d6e3;
+  white-space: nowrap;
+}
+.chipRisk {
+  background: #331f13;
+  color: #ffd9a0;
+}
+.sourceCard {
+  border: 1px solid #223244;
+  border-radius: 8px;
+  margin-bottom: 8px;
+  background: #16202c;
+}
+.sourceCard summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px;
+  cursor: pointer;
+  list-style: none;
+  font-size: 12px;
+  font-weight: 600;
+}
+.sourceCard summary::-webkit-details-marker {
+  display: none;
+}
+.sourceCard summary::before {
+  content: "▸";
+  color: #71869a;
+}
+.sourceCard[open] summary::before {
+  content: "▾";
+}
+.sourceCardName {
+  flex: 1;
+  min-width: 0;
+}
+.sourceCardBody {
+  padding: 0 10px 10px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 12px;
+  font-size: 11px;
+}
+.sourceCardBody div {
+  min-width: 0;
+}
+.sourceCardBody small {
+  display: block;
+  color: #71869a;
+  font-size: 9px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+.sourceCardBody strong {
+  font-weight: 500;
+  word-break: break-word;
+}
 .riskBadge {
   display: inline-block;
   padding: 3px 6px;

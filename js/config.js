@@ -44,7 +44,7 @@ window.AtmoApp = window.AtmoApp || {};
         firms: true,
         sentinel3a: true,
         sentinel3b: true,
-        mtg: false,
+        mtg: true,
         msg: false
       },
       meta: {

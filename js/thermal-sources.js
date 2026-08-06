@@ -4,9 +4,197 @@
     I = A.I18n,
     T = (key, params) => I.t(key, params);
 
-  const SOURCE_STATES = ["idle", "loading", "ok", "empty", "warn", "error", "stale"];
+  const SOURCE_STATES = ["disabled", "idle", "loading", "ok", "empty", "partial", "warn", "stale", "unavailable", "error"];
 
   const THERMAL_MODES = ["FIRMS_ONLY", "SEPARATE_SOURCES", "MULTI_SOURCE"];
+
+  function defaultMetrics() {
+    return {
+      rawCount: null,
+      validCount: null,
+      deduplicatedCount: null,
+      thresholdCount: null,
+      visibleCount: null,
+      confirmedEventCount: null,
+      latestObservationAt: null,
+    };
+  }
+
+  function computeThermalMetrics(detections, opts = {}) {
+    const list = Array.isArray(detections) ? detections : [];
+    const threshold =
+      opts.frpThreshold != null ? opts.frpThreshold : C.frpThreshold != null ? C.frpThreshold : 30;
+    const metrics = defaultMetrics();
+    if (!list.length) return metrics;
+    metrics.deduplicatedCount = list.length;
+    metrics.thresholdCount = list.filter(
+      (d) => d && d.frp != null && Number(d.frp) >= threshold,
+    ).length;
+    if (opts.visibleWindow != null) {
+      const end = opts.visibleWindow instanceof Date ? opts.visibleWindow.getTime() : Number(opts.visibleWindow);
+      if (Number.isFinite(end)) {
+        const start = end - 24 * 3600e3;
+        metrics.visibleCount = list.filter((d) => {
+          const t = d && d.detectedAt ? Date.parse(d.detectedAt) : NaN;
+          return Number.isFinite(t) && t >= start && t <= end;
+        }).length;
+      }
+    }
+    let latest = null;
+    for (const d of list) {
+      const t = d && d.detectedAt ? Date.parse(d.detectedAt) : NaN;
+      if (Number.isFinite(t) && (latest == null || t > Date.parse(latest)))
+        latest = d.detectedAt;
+    }
+    metrics.latestObservationAt = latest;
+    return metrics;
+  }
+
+  function computeMultiSensorMetrics(events = []) {
+    const list = Array.isArray(events) ? events : [];
+    const metrics = defaultMetrics();
+    metrics.deduplicatedCount = list.length ? list.length : null;
+    const confirmedByProduct = {};
+    const confirmedBySource = {};
+    const allFamilies = new Set();
+    let latest = null;
+    for (const e of list) {
+      const families = Array.isArray(e.sensorFamilies) ? e.sensorFamilies : [];
+      for (const f of families) allFamilies.add(f);
+      const prods = new Set(
+        (Array.isArray(e.observations) ? e.observations : [])
+          .map((d) => d && d.product)
+          .filter(Boolean),
+      );
+      for (const p of prods) confirmedByProduct[p] = (confirmedByProduct[p] || 0) + 1;
+      const srcs = Array.isArray(e.supportingSources) ? e.supportingSources : [];
+      for (const s of srcs) confirmedBySource[s] = (confirmedBySource[s] || 0) + 1;
+      if (e.detectedAt && (latest == null || new Date(e.detectedAt) > new Date(latest)))
+        latest = e.detectedAt;
+    }
+    metrics.confirmedEventCount = list.length ? list.length : null;
+    metrics.latestObservationAt = latest;
+    return {
+      metrics,
+      totalMatchedEvents: list.length,
+      twoFamilyEvents: list.filter((e) => (e.sensorFamilies || []).length === 2).length,
+      threePlusFamilyEvents: list.filter((e) => (e.sensorFamilies || []).length >= 3).length,
+      familiesUsed: [...allFamilies].sort(),
+      confirmedByProduct,
+      confirmedBySource,
+    };
+  }
+
+  const THERMAL_ROW_DEFS = [
+    { id: "viirs-noaa21", sourceId: "nasa-firms", product: "VIIRS_NOAA21_NRT", labelKey: "thermal.source.noaa21", familyKey: "thermal.family.viirs", riskRoleKey: "thermal.role.primary" },
+    { id: "viirs-noaa20", sourceId: "nasa-firms", product: "VIIRS_NOAA20_NRT", labelKey: "thermal.source.noaa20", familyKey: "thermal.family.viirs", riskRoleKey: "thermal.role.primary" },
+    { id: "viirs-snpp", sourceId: "nasa-firms", product: "VIIRS_SNPP_NRT", labelKey: "thermal.source.snpp", familyKey: "thermal.family.viirs", riskRoleKey: "thermal.role.primary" },
+    { id: "modis", sourceId: "nasa-firms", product: "MODIS_NRT", labelKey: "thermal.source.modis", familyKey: "thermal.family.modis", riskRoleKey: "thermal.role.verification", manualOnly: true },
+    { id: "sentinel3a-slstr", sourceId: "sentinel3a-slstr", labelKey: "thermal.source.sentinel3a", familyKey: "thermal.family.slstr", riskRoleKey: "thermal.role.verification" },
+    { id: "sentinel3b-slstr", sourceId: "sentinel3b-slstr", labelKey: "thermal.source.sentinel3b", familyKey: "thermal.family.slstr", riskRoleKey: "thermal.role.verification" },
+    { id: "mtg-fci-frp", sourceId: "mtg-fci-frp", labelKey: "thermal.source.mtg", familyKey: "thermal.family.fci", riskRoleKey: "thermal.role.temporal" },
+    { id: "multi-sensor", sourceId: "multi-sensor", labelKey: "thermal.source.multisensor", familyKey: "thermal.family.derived", riskRoleKey: "thermal.role.derived" },
+  ];
+
+  function thermalRows() {
+    const mode = getThermalMode();
+    const frpThreshold =
+      (A.app && A.app.state && A.app.state.frpThreshold != null
+        ? A.app.state.frpThreshold
+        : C.frpThreshold) ?? 30;
+    const firmsSourceRaw =
+      A.FirmsAdapter && typeof A.FirmsAdapter.source === "function"
+        ? A.FirmsAdapter.source()
+        : null;
+    const firmsSource = typeof firmsSourceRaw === "string" && firmsSourceRaw ? firmsSourceRaw : "AUTO";
+    const firmsState = registry._state.get("nasa-firms") || initialState();
+    const firmsLoading = firmsState.status === "loading";
+    const msState = registry._state.get("multi-sensor") || initialState();
+    const msRaw = msState.metrics || {};
+    const msSummary = {
+      totalMatchedEvents: msRaw.totalMatchedEvents ?? 0,
+      twoFamilyEvents: msRaw.twoFamilyEvents ?? 0,
+      threePlusFamilyEvents: msRaw.threePlusFamilyEvents ?? 0,
+      familiesUsed: msRaw.familiesUsed || [],
+      confirmedByProduct: msRaw.confirmedByProduct || {},
+      confirmedBySource: msRaw.confirmedBySource || {},
+    };
+    return THERMAL_ROW_DEFS.map((def) => {
+      if (def.product) {
+        const product = def.product;
+        const p = (firmsState.products && firmsState.products[product]) || null;
+        let status = "idle";
+        let note = null;
+        let metrics = defaultMetrics();
+        if (def.manualOnly && firmsSource !== "MODIS_NRT") {
+          status = "disabled";
+          note = T("thermal.note.modisManual");
+        } else if (!def.manualOnly && firmsSource !== "AUTO" && firmsSource !== product) {
+          status = "disabled";
+          note = T("thermal.note.notInManualSource", { source: firmsSource });
+        } else if (firmsLoading) {
+          status = "loading";
+        } else if (p) {
+          status = p.status;
+          metrics = p.metrics || defaultMetrics();
+        } else if (def.manualOnly) {
+          status = "idle";
+          note = T("thermal.note.modisManual");
+        }
+        if (status === "ok" && !def.manualOnly && firmsSource === "AUTO")
+          note = T("thermal.note.autoLoaded");
+        metrics.confirmedEventCount = msSummary.confirmedByProduct[product] ?? null;
+        return {
+          ...def,
+          status,
+          note,
+          metrics,
+          count: p ? p.count : null,
+          latency: p ? p.latency : null,
+          lastSuccessfulAt: p ? p.lastSuccessfulAt : firmsState.lastSuccessfulAt,
+          error: p ? p.error : null,
+        };
+      }
+      if (def.id === "multi-sensor") {
+        let status = msState.status;
+        if (mode !== "MULTI_SOURCE") status = "disabled";
+        const metrics = {
+          rawCount: null,
+          validCount: null,
+          deduplicatedCount: msSummary.totalMatchedEvents ? msSummary.totalMatchedEvents : null,
+          thresholdCount: null,
+          visibleCount: null,
+          confirmedEventCount: msSummary.totalMatchedEvents ? msSummary.totalMatchedEvents : null,
+          latestObservationAt: msState.metrics ? msState.metrics.latestObservationAt : null,
+        };
+        const note =
+          status === "ok" || status === "empty"
+            ? T("thermal.note.multisensor", {
+                total: I.formatNumber(msSummary.totalMatchedEvents),
+                two: I.formatNumber(msSummary.twoFamilyEvents),
+                three: I.formatNumber(msSummary.threePlusFamilyEvents),
+                families: msSummary.familiesUsed.length
+                  ? msSummary.familiesUsed.join(", ")
+                  : "—",
+              })
+            : status === "disabled"
+              ? T("thermal.note.multisensorDisabled")
+              : null;
+        return { ...def, status, note, metrics, count: msState.count, lastSuccessfulAt: msState.lastSuccessfulAt, error: msState.error };
+      }
+      const st = registry._state.get(def.sourceId) || initialState();
+      let status = st.status;
+      if (mode === "FIRMS_ONLY") status = "disabled";
+      if (def.id === "mtg-fci-frp" && !registry.isEnabled("mtg-fci-frp"))
+        status = "disabled";
+      const metrics = {
+        ...defaultMetrics(),
+        ...(st.metrics || {}),
+      };
+      metrics.confirmedEventCount = msSummary.confirmedBySource[def.sourceId] ?? null;
+      return { ...def, status, note: null, metrics, count: st.count, latency: st.latency, lastSuccessfulAt: st.lastSuccessfulAt, error: st.error };
+    });
+  }
 
   function defaultThermalMode() {
     return C.thermalSources?.mode || "FIRMS_ONLY";
@@ -31,6 +219,11 @@
       localStorage.setItem("thermalMode", next);
     } catch (e) {}
     if (C.thermalFusion) C.thermalFusion.enabled = next === "MULTI_SOURCE";
+    if (A.app && A.app.ui && typeof A.app.ui.renderThermalSources === "function") {
+      try {
+        A.app.ui.renderThermalSources();
+      } catch (_) {}
+    }
     return next;
   }
 
@@ -83,7 +276,7 @@
   }
 
   function initialState() {
-    return { status: "idle", data: null, error: null, lastSuccessfulAt: null, latency: null, count: 0, seq: 0 };
+    return { status: "idle", data: null, error: null, lastSuccessfulAt: null, latency: null, count: 0, seq: 0, metrics: defaultMetrics(), products: null, note: null, lastErrorAt: null };
   }
 
   class ThermalSourceRegistry {
@@ -139,22 +332,40 @@
   function patchState(sourceId, patch) {
     if (!registry._state.has(sourceId)) registry._state.set(sourceId, initialState());
     Object.assign(registry._state.get(sourceId), patch);
+    if (A.app && A.app.ui && typeof A.app.ui.renderThermalSources === "function") {
+      try {
+        A.app.ui.renderThermalSources();
+      } catch (_) {}
+    }
   }
   function setLoading(sourceId, seq) {
     patchState(sourceId, { status: "loading", seq, error: null });
   }
-  function setResult(sourceId, seq, data, latency, requestKey) {
+  function setResult(sourceId, seq, data, latency, requestKey, opts = {}) {
     if (seq !== registry._state.get(sourceId)?.seq) return false;
-    const cfg = C.thermal?.sources?.[sourceId];
+    const list = Array.isArray(data) ? data : [];
+    const threshold =
+      (A.app && A.app.state && A.app.state.frpThreshold != null
+        ? A.app.state.frpThreshold
+        : C.frpThreshold) ?? 30;
+    const metrics = computeThermalMetrics(list, {
+      frpThreshold: threshold,
+      visibleWindow: opts.visibleWindow,
+    });
+    if (list.metrics && typeof list.metrics === "object")
+      Object.assign(metrics, list.metrics);
     const now = new Date();
     patchState(sourceId, {
-      status: data && data.length ? "ok" : "empty",
-      data,
+      status: list.length ? "ok" : "empty",
+      data: list,
       error: null,
       lastSuccessfulAt: now.toISOString(),
       latency,
-      count: data ? data.length : 0,
+      count: list.length,
       lastRequestKey: requestKey,
+      metrics,
+      note: opts.note != null ? opts.note : null,
+      lastErrorAt: null,
     });
     return true;
   }
@@ -262,7 +473,12 @@
           if (!U.insideRegion(d)) continue;
           out.push(d);
         }
-        return U.deduplicateDetections(out);
+        const deduped = U.deduplicateDetections(out);
+        Object.defineProperty(deduped, "metrics", {
+          value: { rawCount: out.length, validCount: out.length },
+          enumerable: false,
+        });
+        return deduped;
       },
     };
     return adapter;
@@ -321,24 +537,29 @@
         signal,
         cacheKey: `mtg-fci-frp:${countryCode || C.activeCountryCode}:${from.toISOString()}:${to.toISOString()}`,
       });
-      const out = [];
-      for (const f of result.features || []) {
-        const raw = mtgFeatureToRaw(f);
-        if (!raw) continue;
-        const d = U.normalizeFireDetection(raw, {
-          sourceId: "mtg-fci-frp",
-          source: mtgFrpAdapter.label,
-          product: "MTG FCI FRP",
-          sensor: "FCI",
-          sensorFamily: "mtg",
-          satellite: raw.Satellite || "MTG-I1",
-          countryCode: countryCode || C.activeCountryCode,
+        const out = [];
+        for (const f of result.features || []) {
+          const raw = mtgFeatureToRaw(f);
+          if (!raw) continue;
+          const d = U.normalizeFireDetection(raw, {
+            sourceId: "mtg-fci-frp",
+            source: mtgFrpAdapter.label,
+            product: "MTG FCI FRP",
+            sensor: "FCI",
+            sensorFamily: "mtg",
+            satellite: raw.Satellite || "MTG-I1",
+            countryCode: countryCode || C.activeCountryCode,
+          });
+          if (!d || !d.lat || !d.lon || !d.detectedAt) continue;
+          if (!U.insideRegion(d)) continue;
+          out.push(d);
+        }
+        const deduped = U.deduplicateDetections(out);
+        Object.defineProperty(deduped, "metrics", {
+          value: { rawCount: out.length, validCount: out.length },
+          enumerable: false,
         });
-        if (!d || !d.lat || !d.lon || !d.detectedAt) continue;
-        if (!U.insideRegion(d)) continue;
-        out.push(d);
-      }
-      return out;
+        return deduped;
     },
   };
   registry.register(mtgFrpAdapter);
@@ -365,7 +586,7 @@
             endTime: request.endTime,
             signal: request.signal,
           });
-          const ok = setResult(id, groupSeq, data, request.latency, request.requestKey);
+          const ok = setResult(id, groupSeq, data, request.latency, request.requestKey, { visibleWindow: request.endTime });
           bySource[id] = { id, status: data && data.length ? "ok" : "empty", data: data || [], error: null };
           return ok ? bySource[id] : null;
         } catch (e) {
@@ -394,7 +615,8 @@
     registry,
     SOURCE_STATES,
     THERMAL_MODES,
-    defaultMode: defaultThermalMode,
+    THERMAL_ROW_DEFS,
+    defaultThermalMode: defaultThermalMode,
     getMode: getThermalMode,
     setMode: setThermalMode,
     planThermalRequests,
@@ -410,15 +632,22 @@
     setError,
     patchState,
     loadSlstrGroup,
+    defaultMetrics,
+    computeThermalMetrics,
+    computeMultiSensorMetrics,
+    thermalRows,
     statusLabel: (status) =>
       ({
+        disabled: T("thermal.status.disabled"),
         idle: T("thermal.status.idle"),
         loading: T("thermal.status.loading"),
         ok: T("thermal.status.ok"),
         empty: T("thermal.status.empty"),
+        partial: T("thermal.status.partial"),
         warn: T("thermal.status.warn"),
-        error: T("thermal.status.error"),
         stale: T("thermal.status.stale"),
+        unavailable: T("thermal.status.unavailable"),
+        error: T("thermal.status.error"),
       })[status] || T("thermal.status.idle"),
   };
 })(window.AtmoApp);

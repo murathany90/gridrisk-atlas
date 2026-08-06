@@ -1058,7 +1058,9 @@
             </article>
             <article class="card wide">
               <div class="cardHeader">
-                <h2 data-i18n="settings.servicesTitle">Veri Kaynağı Durumu</h2>
+                <h2 data-i18n="settings.thermalSourcesTitle"
+                  >Termal ve FRP Kaynakları</h2
+                >
                 <button
                   id="healthCheckBtn"
                   class="tinyBtn"
@@ -1066,6 +1068,35 @@
                 >
                   Bağlantıları Test Et
                 </button>
+              </div>
+              <div class="tableWrap">
+                <table class="statusTable">
+                  <thead>
+                    <tr>
+                      <th data-i18n="settings.source">Kaynak</th>
+                      <th data-i18n="settings.status">Durum</th>
+                      <th data-i18n="settings.latestObs">Son gözlem</th>
+                      <th data-i18n="settings.deduplicated"
+                        >Tekilleştirilmiş</th
+                      >
+                      <th data-i18n="settings.threshold">Eşik üstü</th>
+                      <th data-i18n="settings.confirmedEvents"
+                        >Doğrulanan olay</th
+                      >
+                      <th data-i18n="settings.note">Not</th>
+                    </tr>
+                  </thead>
+                    <tbody id="thermalSourcesBody"></tbody>
+                  </table>
+                  <div id="thermalCards"></div>
+              </div>
+              <p class="hint" data-i18n="settings.thermalPlanned"></p>
+            </article>
+            <article class="card wide">
+              <div class="cardHeader">
+                <h2 data-i18n="settings.supportingTitle"
+                  >Destekleyici Servisler</h2
+                >
               </div>
               <div class="tableWrap">
                 <table class="statusTable">

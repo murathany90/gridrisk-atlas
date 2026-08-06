@@ -332,26 +332,54 @@
     },
   };
 
-  function parseFirmsRow(r, source, key, bbox) {
-    const parsed = U.normalizeFireDetection(r, {
-      sourceId: "nasa-firms",
-      source: "NASA FIRMS",
-      product: source,
-      satellite: r.satellite || "",
-      sensor: r.instrument || source,
-      countryCode: C.activeCountryCode,
-    });
-    if (!parsed.lat || !parsed.lon || !U.insideRegion(parsed)) return null;
-    if (!parsed.detectedAt) return null;
-    return parsed;
-  }
-
   const VIIRS_PRODUCTS = [
     "VIIRS_NOAA21_NRT",
     "VIIRS_NOAA20_NRT",
     "VIIRS_SNPP_NRT",
   ];
   const MODIS_PRODUCT = "MODIS_NRT";
+
+  function frpThresholdValue() {
+    return (A.app && A.app.state && A.app.state.frpThreshold != null
+      ? A.app.state.frpThreshold
+      : C.frpThreshold) ?? 30;
+  }
+
+  function visibleCountOf(list, end) {
+    if (end == null) return null;
+    const endMs = end instanceof Date ? end.getTime() : new Date(end).getTime();
+    if (!Number.isFinite(endMs)) return null;
+    const start = endMs - 24 * 3600e3;
+    const out = (list || []).filter((d) => {
+      const t = d && d.detectedAt ? Date.parse(d.detectedAt) : NaN;
+      return Number.isFinite(t) && t >= start && t <= endMs;
+    }).length;
+    return out;
+  }
+
+  function productMetrics(list, visibleWindow) {
+    const deduped = U.deduplicateDetections(list || []);
+    const threshold = frpThresholdValue();
+    const metrics = {
+      rawCount: null,
+      validCount: null,
+      deduplicatedCount: deduped.length ? deduped.length : null,
+      thresholdCount: deduped.length
+        ? deduped.filter((d) => d.frp != null && Number(d.frp) >= threshold).length
+        : null,
+      visibleCount: visibleCountOf(deduped, visibleWindow),
+      confirmedEventCount: null,
+      latestObservationAt: null,
+    };
+    let latest = null;
+    for (const d of deduped) {
+      const t = d && d.detectedAt ? Date.parse(d.detectedAt) : NaN;
+      if (Number.isFinite(t) && (latest == null || t > Date.parse(latest)))
+        latest = d.detectedAt;
+    }
+    metrics.latestObservationAt = latest;
+    return metrics;
+  }
 
   A.FirmsAdapter = {
     source() {
@@ -373,13 +401,24 @@
       });
       const rows = U.parseCsv(data),
         out = [];
+      let raw = 0;
       for (const r of rows) {
-        const parsed = parseFirmsRow(r, source, key, bbox);
-        if (parsed) out.push(parsed);
+        const normalized = U.normalizeFireDetection(r, {
+          sourceId: "nasa-firms",
+          source: "NASA FIRMS",
+          product: source,
+          satellite: r.satellite || "",
+          sensor: r.instrument || source,
+          countryCode: C.activeCountryCode,
+        });
+        if (!normalized.lat || !normalized.lon || !normalized.detectedAt) continue;
+        raw++;
+        if (!U.insideRegion(normalized)) continue;
+        out.push(normalized);
       }
-      return { data: out, meta };
+      return { data: out, meta, counts: { raw, valid: out.length } };
     },
-    async loadAll(signal) {
+    async loadAll(signal, opts = {}) {
       const bbox = U.regionBboxString(),
         days = 2,
         key = C.firmsMapKey;
@@ -387,9 +426,22 @@
         const e = new Error(T("api.mapKeyMissing"));
         e.kind = "AUTH_REQUIRED";
         report("firms", { state: "warn", note: T("api.mapKeyMissing") });
+        if (A.ThermalSources)
+          A.ThermalSources.patchState("nasa-firms", {
+            status: "unavailable",
+            error: "AUTH_REQUIRED",
+            products: null,
+            metrics: A.ThermalSources.defaultMetrics(),
+            note: T("api.mapKeyMissing"),
+          });
         throw e;
       }
       const started = performance.now();
+      if (A.ThermalSources)
+        A.ThermalSources.patchState("nasa-firms", {
+          status: "loading",
+          error: null,
+        });
       const sources = VIIRS_PRODUCTS;
       const results = await Promise.allSettled(
         sources.map((s) => {
@@ -414,19 +466,66 @@
       if (signal?.aborted) {
         const e = new Error("Request aborted");
         e.kind = "ABORTED";
+        if (A.ThermalSources)
+          A.ThermalSources.patchState("nasa-firms", {
+            status: "error",
+            error: "ABORTED",
+          });
         throw e;
       }
       const all = [];
       let successCount = 0;
-      for (const r of results) {
+      const products = {};
+      for (let i = 0; i < results.length; i++) {
+        const source = sources[i],
+          r = results[i];
         if (r.status === "fulfilled") {
           all.push(...r.value.data);
           successCount++;
+          products[source] = {
+            status: r.value.data.length ? "ok" : "empty",
+            count: r.value.data.length,
+            rawCount: r.value.counts ? r.value.counts.raw : null,
+            validCount: r.value.counts ? r.value.counts.valid : null,
+            metrics: productMetrics(r.value.data, opts.visibleWindow),
+            latency: r.value.meta ? r.value.meta.latency : null,
+            lastSuccessfulAt: new Date().toISOString(),
+            error: null,
+          };
+        } else {
+          products[source] = {
+            status: "error",
+            count: null,
+            rawCount: null,
+            validCount: null,
+            metrics: (A.ThermalSources ? A.ThermalSources.defaultMetrics() : null),
+            latency: null,
+            lastSuccessfulAt: null,
+            error: String((r.reason && (r.reason.kind || r.reason.message)) || r.reason || "unknown"),
+          };
         }
       }
       const deduped = U.deduplicateDetections(all);
       const full = successCount === sources.length,
         fail = successCount === 0;
+      const totalStatus = full ? "ok" : fail ? "error" : "warn";
+      if (A.ThermalSources)
+        A.ThermalSources.patchState("nasa-firms", {
+          status: totalStatus,
+          data: deduped,
+          error: null,
+          lastSuccessfulAt: new Date().toISOString(),
+          latency: Math.round(performance.now() - started),
+          count: deduped.length,
+          products,
+          metrics: {
+            ...productMetrics(all, opts.visibleWindow),
+            rawCount: all.length,
+            validCount: all.length,
+          },
+          note: null,
+          lastErrorAt: null,
+        });
       report("firms", {
         state: full ? "ok" : fail ? "error" : "warn",
         latency: Math.round(performance.now() - started),
@@ -441,7 +540,7 @@
       });
       return deduped;
     },
-    async load(signal) {
+    async load(signal, opts = {}) {
       const bbox = U.regionBboxString(),
         days = 2,
         key = C.firmsMapKey;
@@ -449,43 +548,105 @@
         const e = new Error(T("api.mapKeyMissing"));
         e.kind = "AUTH_REQUIRED";
         report("firms", { state: "warn", note: T("api.mapKeyMissing") });
+        if (A.ThermalSources)
+          A.ThermalSources.patchState("nasa-firms", {
+            status: "unavailable",
+            error: "AUTH_REQUIRED",
+            products: null,
+            metrics: A.ThermalSources.defaultMetrics(),
+            note: T("api.mapKeyMissing"),
+          });
         throw e;
       }
-      if (this.isAuto()) return this.loadAll(signal);
+      if (this.isAuto()) return this.loadAll(signal, opts);
       const source = this.source(),
         started = performance.now();
+      if (A.ThermalSources)
+        A.ThermalSources.patchState("nasa-firms", {
+          status: "loading",
+          error: null,
+        });
       try {
-        const { data, meta } = await U.fetchText(
+        const { data, meta, counts } = await U.fetchText(
           `${C.firmsBase}/${encodeURIComponent(key)}/${source}/${bbox}/${days}`,
           {
             signal,
             cacheKey: `firms:${C.activeCountryCode}:${source}:${bbox}`,
             ttl: C.cacheTtl.firms,
           },
-        );
-        const rows = U.parseCsv(data),
-          out = [];
-        for (const r of rows) {
-          const parsed = parseFirmsRow(r, source, key, bbox);
-          if (parsed) out.push(parsed);
-        }
+        ).then(async (r) => {
+          const out = { ...r };
+          const rows = U.parseCsv(out.data);
+          const parsed = [];
+          let raw = 0;
+          for (const row of rows) {
+            const normalized = U.normalizeFireDetection(row, {
+              sourceId: "nasa-firms",
+              source: "NASA FIRMS",
+              product: source,
+              satellite: row.satellite || "",
+              sensor: row.instrument || source,
+              countryCode: C.activeCountryCode,
+            });
+            if (!normalized.lat || !normalized.lon || !normalized.detectedAt) continue;
+            raw++;
+            if (!U.insideRegion(normalized)) continue;
+            parsed.push(normalized);
+          }
+          out.data = parsed;
+          out.counts = { raw, valid: parsed.length };
+          return out;
+        });
+        const products = {
+          [source]: {
+            status: data.length ? "ok" : "empty",
+            count: data.length,
+            rawCount: counts ? counts.raw : null,
+            validCount: counts ? counts.valid : null,
+            metrics: productMetrics(data, opts.visibleWindow),
+            latency: meta ? meta.latency : null,
+            lastSuccessfulAt: new Date().toISOString(),
+            error: null,
+          },
+        };
+        if (A.ThermalSources)
+          A.ThermalSources.patchState("nasa-firms", {
+            status: data.length ? "ok" : "empty",
+            data,
+            error: null,
+            lastSuccessfulAt: new Date().toISOString(),
+            latency: Math.round(performance.now() - started),
+            count: data.length,
+            products,
+            metrics: productMetrics(data, opts.visibleWindow),
+            note: T("thermal.note.modisManual"),
+            lastErrorAt: null,
+          });
         report("firms", {
           state: "ok",
           latency: Math.round(performance.now() - started),
           cached: meta.cached,
-          count: out.length,
+          count: data.length,
           note: T("api.firmsManual", {
             source,
             country: I.countryName(C.activeCountryCode),
           }),
         });
-        return out;
+        return data;
       } catch (e) {
-        if (e.kind !== "ABORTED")
+        if (e.kind !== "ABORTED") {
           report("firms", {
             state: e.kind === "AUTH_REQUIRED" ? "warn" : "error",
             note: e.kind || e.message,
           });
+          if (A.ThermalSources)
+            A.ThermalSources.patchState("nasa-firms", {
+              status: e.kind === "AUTH_REQUIRED" ? "unavailable" : "error",
+              error: e.kind || String(e.message || e),
+              products: null,
+              metrics: A.ThermalSources.defaultMetrics(),
+            });
+        }
         throw e;
       }
     },

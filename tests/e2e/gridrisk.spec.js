@@ -75,6 +75,10 @@ for (const country of countries) {
           }
         });
         
+        // hermetic environment: EFFIS WMS tiles are external and can return
+        // ERR_HTTP2_PROTOCOL_ERROR during CI runs, which would surface as console errors
+        await mockEffisTiles(page);
+        
         await page.goto('/');
         await page.waitForSelector('#countrySelector');
         
@@ -246,6 +250,10 @@ for (const lang of ['tr', 'en']) {
 
     const layerCount = () =>
       page.evaluate(() => window.AtmoApp.app.map.riskEvidenceLayer.getLayers().length);
+
+    // hermetic environment: EFFIS WMS tiles are external and can return
+    // ERR_HTTP2_PROTOCOL_ERROR during CI runs, which would surface as console errors
+    await mockEffisTiles(page);
 
     await page.goto('/');
     await page.waitForSelector('#countrySelector');
@@ -495,3 +503,220 @@ for (const lang of ['tr', 'en']) {
     expect(Array.from(pageExceptions), 'Page exceptions found').toEqual([]);
   });
 }
+
+const emptyWfs = { type: 'FeatureCollection', features: [], totalMatched: 0, numberReturned: 0 };
+
+async function mockOpenMeteo(page) {
+  const times = Array.from({ length: 48 }, (_, i) => {
+    const t = new Date(Date.now() + (i - 24) * 3600e3);
+    return `${t.getUTCFullYear()}-${String(t.getUTCMonth() + 1).padStart(2, '0')}-${String(t.getUTCDate()).padStart(2, '0')}T${String(t.getUTCHours()).padStart(2, '0')}:00`;
+  });
+  const zeros = Array(48).fill(0);
+  await page.route('**://api.open-meteo.com/**', (route) => {
+    const url = new URL(route.request().url());
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        latitude: Number(url.searchParams.get('latitude')) || 39,
+        longitude: Number(url.searchParams.get('longitude')) || 35,
+        hourly: {
+          time: times,
+          wind_speed_10m: Array(48).fill(8),
+          wind_direction_10m: Array(48).fill(140),
+          wind_gusts_10m: Array(48).fill(12),
+          temperature_2m: Array(48).fill(24),
+          relative_humidity_2m: Array(48).fill(40),
+          precipitation: zeros,
+          wind_speed_850hPa: Array(48).fill(15),
+          wind_direction_850hPa: Array(48).fill(150),
+          wind_speed_700hPa: Array(48).fill(20),
+          wind_direction_700hPa: Array(48).fill(160),
+        },
+        hourly_units: {},
+      }),
+    });
+  });
+  await page.route('**://air-quality-api.open-meteo.com/**', (route) => {
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        latitude: 39,
+        longitude: 35,
+        hourly: { time: times, pm10_wildfires: zeros, pm10: zeros },
+        hourly_units: {},
+      }),
+    });
+  });
+}
+
+async function mockEffisTiles(page) {
+  const png = Buffer.from(
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+    'base64',
+  );
+  await page.route('**://maps.effis.emergency.copernicus.eu/**', (route) => {
+    route.fulfill({ status: 200, contentType: 'image/png', body: png });
+  });
+}
+
+async function thermalSourceInfo(page, name) {
+  return page.evaluate((n) => {
+    const tbody = document.getElementById('thermalSourcesBody');
+    if (tbody && tbody.querySelector('tr')) {
+      const tr = Array.from(tbody.querySelectorAll('tr')).find(
+        (r) => r.firstElementChild && r.firstElementChild.textContent.includes(n),
+      );
+      if (!tr) return null;
+      const tds = Array.from(tr.querySelectorAll('td'));
+      return {
+        kind: 'row',
+        status: tds[1] ? tds[1].textContent.trim() : '',
+        note: tds.length > 1 ? tds[tds.length - 1].textContent.trim() : '',
+      };
+    }
+    const card = Array.from(document.querySelectorAll('.sourceCard')).find((c) =>
+      c.querySelector('summary').textContent.includes(n),
+    );
+    if (!card) return null;
+    return {
+      kind: 'card',
+      status: (card.querySelector('summary').lastChild?.textContent || '').trim(),
+      note: (card.querySelector('.sourceCardBody')?.textContent || '').trim(),
+    };
+  }, name);
+}
+
+test('Thermal source status table shows all planned sources', async ({ page }) => {
+  test.setTimeout(90000);
+  const consoleErrors = new Set();
+  const pageExceptions = new Set();
+  page.on('pageerror', (err) => pageExceptions.add(err.message));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.add(msg.text());
+  });
+  let wfsCalls = 0;
+  await page.route('**://view.eumetsat.int/**request=GetFeature*', (route) => {
+    wfsCalls++;
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify(emptyWfs),
+    });
+  });
+  await mockOpenMeteo(page);
+  await mockEffisTiles(page);
+
+  await page.goto('/');
+  await page.waitForSelector('#countrySelector');
+  await page.locator('#countrySelector').selectOption('TR');
+  await page.locator('#languageSelector').selectOption('en');
+  await page.locator('button[data-view="settings"]').click();
+
+  const labels = await page.evaluate(() => {
+    const tbody = document.getElementById('thermalSourcesBody');
+    if (tbody && tbody.querySelector('tr')) {
+      return Array.from(tbody.querySelectorAll('tr')).map(
+        (r) => r.firstElementChild.textContent,
+      );
+    }
+    return Array.from(document.querySelectorAll('.sourceCard')).map((c) =>
+      c.querySelector('summary').textContent,
+    );
+  });
+  expect(labels.length).toBe(8);
+  expect(labels.join('|')).toContain('VIIRS NOAA-21');
+  expect(labels.join('|')).toContain('VIIRS NOAA-20');
+  expect(labels.join('|')).toContain('VIIRS Suomi-NPP');
+  expect(labels.join('|')).toContain('MODIS Terra/Aqua');
+  expect(labels.join('|')).toContain('Sentinel-3A SLSTR');
+  expect(labels.join('|')).toContain('Sentinel-3B SLSTR');
+  expect(labels.join('|')).toContain('MTG FCI FRP');
+  expect(labels.join('|')).toContain('Multi-sensor result');
+
+  await expect.poll(() => thermalSourceInfo(page, 'MTG FCI FRP'), { timeout: 30000 }).toMatchObject({
+    status: 'No data',
+  });
+  await expect.poll(() => thermalSourceInfo(page, 'MODIS Terra/Aqua'), { timeout: 30000 }).toMatchObject({
+    status: 'Disabled',
+  });
+  const modisInfo = await thermalSourceInfo(page, 'MODIS Terra/Aqua');
+  expect(modisInfo.kind === 'card' ? modisInfo.note : modisInfo.note).toContain(
+    'Manual selection',
+  );
+  await expect.poll(() => thermalSourceInfo(page, 'Multi-sensor result'), { timeout: 30000 }).toMatchObject({
+    status: 'Disabled',
+  });
+  expect(wfsCalls).toBeGreaterThanOrEqual(1);
+  expect(Array.from(consoleErrors), 'Console errors found').toEqual([]);
+  expect(Array.from(pageExceptions), 'Page exceptions found').toEqual([]);
+});
+
+test('MTG stays disabled in FIRMS_ONLY and never queries EUMETView', async ({ page }) => {
+  test.setTimeout(90000);
+  const consoleErrors = new Set();
+  const pageExceptions = new Set();
+  page.on('pageerror', (err) => pageExceptions.add(err.message));
+  page.on('console', (msg) => {
+    if (msg.type() === 'error') consoleErrors.add(msg.text());
+  });
+  let wfsRequests = 0;
+  page.on('request', (req) => {
+    if (req.url().includes('request=GetFeature')) wfsRequests++;
+  });
+  await mockEffisTiles(page);
+
+  await page.goto('/');
+  await page.waitForSelector('#countrySelector');
+  await page.locator('#languageSelector').selectOption('en');
+  await page.locator('button[data-view="settings"]').click();
+  await page.locator('#thermalModeSelect').selectOption('FIRMS_ONLY');
+  await page.locator('button[data-view="map"]').click();
+  await expect(page.locator('.leaflet-container')).toBeVisible();
+  await page.locator('button[data-view="settings"]').click();
+
+  await expect.poll(() => thermalSourceInfo(page, 'MTG FCI FRP'), { timeout: 30000 }).toMatchObject({
+    status: 'Disabled',
+  });
+  await expect.poll(() => thermalSourceInfo(page, 'Multi-sensor result'), { timeout: 30000 }).toMatchObject({
+    status: 'Disabled',
+  });
+  await page.waitForTimeout(1500);
+  expect(wfsRequests).toBe(0);
+  expect(Array.from(consoleErrors), 'Console errors found').toEqual([]);
+  expect(Array.from(pageExceptions), 'Page exceptions found').toEqual([]);
+});
+
+test('Service status table keeps supporting services without NASA FIRMS', async ({ page }) => {
+  test.setTimeout(90000);
+  await page.goto('/');
+  await page.waitForSelector('#countrySelector');
+  await page.locator('#languageSelector').selectOption('en');
+  await page.locator('button[data-view="settings"]').click();
+  const supportingRows = page.locator('#serviceStatusBody tr');
+  await expect(supportingRows.first()).toBeVisible();
+  expect(await supportingRows.count()).toBeGreaterThanOrEqual(5);
+  const supportingText = await supportingRows.allTextContents();
+  expect(supportingText.join('|')).not.toContain('NASA FIRMS');
+  expect(supportingText.join('|')).toContain('Basemap');
+  await expect.poll(() => thermalSourceInfo(page, 'VIIRS NOAA-21'), { timeout: 30000 }).toBeTruthy();
+});
+
+test.describe('mobile viewport', () => {
+  test.use({ viewport: { width: 390, height: 844 } });
+  test('Thermal source cards render on mobile', async ({ page }) => {
+    test.setTimeout(90000);
+    await page.goto('/');
+    await page.waitForSelector('#countrySelector');
+    await page.locator('#languageSelector').selectOption('en');
+    await page.locator('button[data-view="settings"]').click();
+    expect(await page.locator('#thermalSourcesBody tr').count()).toBe(0);
+    const cards = page.locator('#thermalCards .sourceCard');
+    await expect(cards.first()).toBeVisible();
+    expect(await cards.count()).toBe(8);
+    await expect(cards.first().locator('summary')).toContainText('VIIRS NOAA-21');
+    const modisCard = page.locator('#thermalCards .sourceCard', { hasText: 'MODIS Terra/Aqua' });
+    await expect(modisCard.locator('summary')).toContainText('Disabled');
+  });
+});
