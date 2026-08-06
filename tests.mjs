@@ -1001,14 +1001,14 @@ test("thermal: computeThermalMetrics computes deduplicated/threshold/visible/lat
   assert.equal(outsideWindow.visibleCount, 0, "no detections in window");
   const empty = TS.computeThermalMetrics([], { frpThreshold: 30 });
   assert.deepEqual(empty, {
-    rawCount: null,
-    validCount: null,
-    deduplicatedCount: null,
-    thresholdCount: null,
-    visibleCount: null,
+    rawCount: 0,
+    validCount: 0,
+    deduplicatedCount: 0,
+    thresholdCount: 0,
+    visibleCount: 0,
     confirmedEventCount: null,
     latestObservationAt: null,
-  });
+  }, "successful empty results show 0 for known counters, null for unknown");
   const noWindow = TS.computeThermalMetrics(detections.slice(0, 1));
   assert.equal(noWindow.visibleCount, null, "visibleCount stays null without window");
 });
@@ -1022,7 +1022,7 @@ test("thermal: empty vs error vs disabled row statuses stay distinct", () => {
       status: "empty",
       data: [],
       lastSuccessfulAt: new Date().toISOString(),
-      metrics: TS.defaultMetrics(),
+      metrics: { ...TS.defaultMetrics(), rawCount: 0, validCount: 0, deduplicatedCount: 0, thresholdCount: 0, visibleCount: 0 },
     });
     TS.patchState("sentinel3b-slstr", {
       status: "error",
@@ -1033,13 +1033,15 @@ test("thermal: empty vs error vs disabled row statuses stay distinct", () => {
       status: "ok",
       products: {
         VIIRS_NOAA21_NRT: { status: "ok", count: 7, metrics: { ...TS.defaultMetrics(), deduplicatedCount: 7, thresholdCount: 2, latestObservationAt: "2026-08-02T10:00:00Z" } },
-        VIIRS_NOAA20_NRT: { status: "empty", count: 0, metrics: { ...TS.defaultMetrics(), deduplicatedCount: null, latestObservationAt: null } },
+        VIIRS_NOAA20_NRT: { status: "empty", count: 0, metrics: { ...TS.defaultMetrics(), deduplicatedCount: 0, thresholdCount: 0, visibleCount: 0, latestObservationAt: null } },
         VIIRS_SNPP_NRT: { status: "error", error: "timeout", metrics: TS.defaultMetrics() },
       },
     });
     const rows = {};
     for (const r of TS.thermalRows()) rows[r.id] = r;
     assert.equal(rows["sentinel3a-slstr"].status, "empty", "empty is not an error");
+    assert.equal(rows["sentinel3a-slstr"].metrics.deduplicatedCount, 0, "empty success shows 0");
+    assert.equal(rows["sentinel3a-slstr"].metrics.latestObservationAt, null, "unknown metric stays null");
     assert.equal(rows["sentinel3b-slstr"].status, "error");
     assert.equal(rows["mtg-fci-frp"].status !== "disabled", true, "mtg enabled after probe");
     assert.equal(rows["viirs-noaa21"].status, "ok");
@@ -1047,6 +1049,8 @@ test("thermal: empty vs error vs disabled row statuses stay distinct", () => {
     assert.equal(rows["viirs-snpp"].status, "error");
     assert.equal(rows["viirs-noaa21"].metrics.deduplicatedCount, 7);
     assert.equal(rows["viirs-noaa21"].metrics.thresholdCount, 2);
+    assert.equal(rows["viirs-noaa20"].metrics.deduplicatedCount, 0, "successful empty product shows 0, not null");
+    assert.equal(rows["viirs-noaa20"].metrics.latestObservationAt, null, "unknown metric stays null");
     assert.equal(rows["modis"].status, "disabled", "MODIS manual-only is disabled under AUTO");
     assert.equal(rows["modis"].note.includes("Manuel"), true, "MODIS shows Manual selection note");
     TS.setMode("FIRMS_ONLY");
@@ -1131,9 +1135,14 @@ test("thermal: MTG adapter normalizes a mock GetFeature response to the shared m
               Datetime: "2026-08-01T12:10:00Z",
             },
           },
+          {
+            id: "mtg-3",
+            geometry: null,
+            properties: { FRP: 77, time: "2026-08-01T12:20:00Z" },
+          },
         ],
         pages: 1,
-        totalMatched: 2,
+        totalMatched: 3,
         meta: {},
       };
     },
@@ -1151,8 +1160,9 @@ test("thermal: MTG adapter normalizes a mock GetFeature response to the shared m
   assert.equal(d.lat, 39.1);
   assert.equal(d.lon, 35.2);
   assert.equal(out[1].detectedAt, "2026-08-01T12:10:00Z", "Datetime fallback");
-  assert.equal(out.metrics.rawCount, 2, "raw metrics attached by adapter");
-  assert.equal(out.metrics.validCount, 2);
+  assert.equal(out.metrics.rawCount, 3, "rawCount is result.features.length");
+  assert.equal(out.metrics.validCount, 2, "validCount after normalize + country filter");
+  assert.equal(out.metrics.deduplicatedCount, 2, "deduplicatedCount is deduped.length");
 });
 
 test("thermal: multi-sensor metrics count families and per-product confirmations", () => {
@@ -1173,6 +1183,11 @@ test("thermal: multi-sensor metrics count families and per-product confirmations
   assert.equal(ms.confirmedBySource["sentinel3a-slstr"], 1);
   assert.equal(ms.metrics.deduplicatedCount, 2);
   assert.equal(ms.metrics.latestObservationAt, "2026-08-02T10:10:00Z");
+  const msEmpty = TS.computeMultiSensorMetrics([]);
+  assert.equal(msEmpty.totalMatchedEvents, 0);
+  assert.equal(msEmpty.metrics.deduplicatedCount, 0, "empty multi-sensor shows 0 events");
+  assert.equal(msEmpty.metrics.confirmedEventCount, 0, "empty multi-sensor shows 0 confirmed");
+  assert.equal(msEmpty.metrics.latestObservationAt, null);
 });
 
 test("thermal: MTG and multi-sensor map markers use the L. prefix", () => {

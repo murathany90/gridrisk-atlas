@@ -25,7 +25,14 @@
     const threshold =
       opts.frpThreshold != null ? opts.frpThreshold : C.frpThreshold != null ? C.frpThreshold : 30;
     const metrics = defaultMetrics();
-    if (!list.length) return metrics;
+    if (!list.length) {
+      metrics.rawCount = 0;
+      metrics.validCount = 0;
+      metrics.deduplicatedCount = 0;
+      metrics.thresholdCount = 0;
+      metrics.visibleCount = 0;
+      return metrics;
+    }
     metrics.deduplicatedCount = list.length;
     metrics.thresholdCount = list.filter(
       (d) => d && d.frp != null && Number(d.frp) >= threshold,
@@ -53,7 +60,7 @@
   function computeMultiSensorMetrics(events = []) {
     const list = Array.isArray(events) ? events : [];
     const metrics = defaultMetrics();
-    metrics.deduplicatedCount = list.length ? list.length : null;
+    metrics.deduplicatedCount = list.length ? list.length : 0;
     const confirmedByProduct = {};
     const confirmedBySource = {};
     const allFamilies = new Set();
@@ -72,7 +79,7 @@
       if (e.detectedAt && (latest == null || new Date(e.detectedAt) > new Date(latest)))
         latest = e.detectedAt;
     }
-    metrics.confirmedEventCount = list.length ? list.length : null;
+    metrics.confirmedEventCount = list.length ? list.length : 0;
     metrics.latestObservationAt = latest;
     return {
       metrics,
@@ -161,10 +168,10 @@
         const metrics = {
           rawCount: null,
           validCount: null,
-          deduplicatedCount: msSummary.totalMatchedEvents ? msSummary.totalMatchedEvents : null,
+          deduplicatedCount: msSummary.totalMatchedEvents,
           thresholdCount: null,
           visibleCount: null,
-          confirmedEventCount: msSummary.totalMatchedEvents ? msSummary.totalMatchedEvents : null,
+          confirmedEventCount: msSummary.totalMatchedEvents,
           latestObservationAt: msState.metrics ? msState.metrics.latestObservationAt : null,
         };
         const note =
@@ -537,8 +544,9 @@
         signal,
         cacheKey: `mtg-fci-frp:${countryCode || C.activeCountryCode}:${from.toISOString()}:${to.toISOString()}`,
       });
+        const features = result.features || [];
         const out = [];
-        for (const f of result.features || []) {
+        for (const f of features) {
           const raw = mtgFeatureToRaw(f);
           if (!raw) continue;
           const d = U.normalizeFireDetection(raw, {
@@ -556,7 +564,11 @@
         }
         const deduped = U.deduplicateDetections(out);
         Object.defineProperty(deduped, "metrics", {
-          value: { rawCount: out.length, validCount: out.length },
+          value: {
+            rawCount: features.length,
+            validCount: out.length,
+            deduplicatedCount: deduped.length,
+          },
           enumerable: false,
         });
         return deduped;

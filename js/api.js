@@ -363,10 +363,10 @@
     const metrics = {
       rawCount: null,
       validCount: null,
-      deduplicatedCount: deduped.length ? deduped.length : null,
+      deduplicatedCount: deduped.length ? deduped.length : 0,
       thresholdCount: deduped.length
         ? deduped.filter((d) => d.frp != null && Number(d.frp) >= threshold).length
-        : null,
+        : 0,
       visibleCount: visibleCountOf(deduped, visibleWindow),
       confirmedEventCount: null,
       latestObservationAt: null,

@@ -199,12 +199,17 @@ async function main() {
     const gfUrl = `${BASE}?service=WFS&version=${VERSION}&request=GetFeature&typeNames=${encodeURIComponent(selected.name)}&outputFormat=application/json&count=20&cql_filter=${encodeURIComponent(`BBOX(geom, ${BBOX}) AND time >= '${a.from}' AND time <= '${a.to}'`)}`;
     const gf = await httpGet(gfUrl);
     let features = null;
+    let numberMatched = null;
+    let numberReturned = null;
     let parseError = null;
     if (gf.ok) {
       try {
         const data = JSON.parse(gf.text);
-        if (data && data.type === "FeatureCollection") features = data.features || [];
-        else parseError = "yanıt FeatureCollection değil";
+        if (data && data.type === "FeatureCollection") {
+          features = data.features || [];
+          numberMatched = data.numberMatched != null ? data.numberMatched : null;
+          numberReturned = data.numberReturned != null ? data.numberReturned : null;
+        } else parseError = "yanıt FeatureCollection değil";
       } catch {
         parseError = "yanıt JSON değil";
       }
@@ -216,7 +221,9 @@ async function main() {
       httpStatus: gf.status,
       cors: gf.cors,
       ok: gf.ok,
-      featureCount: features ? features.length : null,
+      totalMatched: numberMatched != null ? numberMatched : null,
+      returnedCount: numberReturned != null ? numberReturned : (features ? features.length : null),
+      pageFeatureCount: features ? features.length : null,
       newestObservation: features ? newestObservation(features) : null,
       fields: features ? fieldPresence(features) : null,
       parseError,
@@ -230,7 +237,7 @@ async function main() {
 
   const g = chosen || getFeatureResults[0] || {};
   const ok =
-    g.ok && g.featureCount != null && (g.featureCount > 0 || g.parseError == null) &&
+    g.ok && g.returnedCount != null && (g.returnedCount > 0 || g.parseError == null) &&
     !!(g.fields && g.fields.hasFrp && (g.fields.hasLatLon || g.fields.hasGeometry) && g.fields.hasTime);
   report.ok = ok;
   if (!ok) {
