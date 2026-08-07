@@ -1,3 +1,7 @@
+# v3.11.2 - EUMETView Coordinate and Metadata Fixes  
+- **Srm 3.11.2**: package.json, package-lock.json, js/config.js, index.html (pill + cache-buster), server.mjs, README.md, srm ge‡miŸi.  
+**Testler:** BBOX axis dzeltmesi, MTG/SLSTR Normalize testleri ve Popup format testleri. Node, Playwright, Python hepsi ge‡ti.  
+  
 # GeliÅŸtirme KaydÄ± â€” GridRisk Atlas
 
 # v3.11.1 â€” Termal Kaynak Durumu ve MTG FCI FRP Pilotu
