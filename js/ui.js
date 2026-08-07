@@ -411,33 +411,86 @@
     }
     renderServices() {
       const body = document.getElementById("serviceStatusBody");
-      if (!body) return;
-      const stateKey = {
-        ok: "service.connected",
-        error: "service.error",
-        "no-frame": "service.noFrame",
-        backfill: "service.backfill",
-        loading: "service.loading",
-        warn: "service.warn",
-        idle: "service.idle",
-      };
-      body.innerHTML = Object.entries(this.services)
-        .map(([, s]) => {
-          const cls =
-              s.state === "ok"
-                ? "status-ok"
-                : s.state === "error"
-                  ? "status-bad"
-                  : s.state === "no-frame" ||
-                      s.state === "warn" ||
-                      s.state === "backfill"
-                    ? "status-warn"
-                    : "status-idle",
-            label = T(stateKey[s.state] || "service.idle"),
-            name = s.nameKey ? T(s.nameKey) : s.name;
-          return `<tr><td>${U.escapeHtml(name)}</td><td><span class="statusDot ${cls}"></span>${label}</td><td>${s.last ? U.formatLocal(s.last) : "—"}</td><td>${s.latency != null ? (s.latency === 0 ? T("service.cache") : s.latency + " ms") : "—"}</td><td>${s.count == null ? "—" : I.formatNumber(s.count)}</td><td>${U.escapeHtml(s.note || "")}</td></tr>`;
+      if (body) {
+        const stateKey = {
+          ok: "service.connected",
+          error: "service.error",
+          "no-frame": "service.noFrame",
+          backfill: "service.backfill",
+          loading: "service.loading",
+          warn: "service.warn",
+          idle: "service.idle",
+        };
+        body.innerHTML = Object.entries(this.services)
+          .filter(([id]) => id !== "firms")
+          .map(([, s]) => {
+            const cls =
+                s.state === "ok"
+                  ? "status-ok"
+                  : s.state === "error"
+                    ? "status-bad"
+                    : s.state === "no-frame" ||
+                        s.state === "warn" ||
+                        s.state === "backfill"
+                      ? "status-warn"
+                      : "status-idle",
+              label = T(stateKey[s.state] || "service.idle"),
+              name = s.nameKey ? T(s.nameKey) : s.name;
+            return `<tr><td>${U.escapeHtml(name)}</td><td><span class="statusDot ${cls}"></span>${label}</td><td>${s.last ? U.formatLocal(s.last) : "—"}</td><td>${s.latency != null ? (s.latency === 0 ? T("service.cache") : s.latency + " ms") : "—"}</td><td>${s.count == null ? "—" : I.formatNumber(s.count)}</td><td>${U.escapeHtml(s.note || "")}</td></tr>`;
+          })
+          .join("");
+      }
+      this.renderThermalSources();
+    }
+    renderThermalSources() {
+      const body = document.getElementById("thermalSourcesBody");
+      if (!body || !A.ThermalSources) return;
+      const rows = A.ThermalSources.thermalRows();
+      if (this.isMobileMap()) {
+        body.innerHTML = "";
+        const cards = document.getElementById("thermalCards");
+        if (cards) cards.innerHTML = rows.map((r) => this.thermalCardHtml(r)).join("");
+        return;
+      }
+      const fmt = (v) => (v == null ? "—" : I.formatNumber(v)),
+        fmtObs = (v) => (v ? U.formatLocal(new Date(v)) : "—");
+      const cardsEl = document.getElementById("thermalCards");
+      if (cardsEl) cardsEl.innerHTML = "";
+      body.innerHTML = rows
+        .map((r) => {
+          const cls = this.thermalStatusClass(r.status);
+          return `<tr><td><strong>${U.escapeHtml(T(r.labelKey))}</strong><span class="roleChips"><span class="chip">${U.escapeHtml(T(r.familyKey))}</span><span class="chip chipRisk">${U.escapeHtml(T(r.riskRoleKey))}</span></span></td><td><span class="statusDot ${cls}"></span>${U.escapeHtml(A.ThermalSources.statusLabel(r.status))}</td><td>${fmtObs(r.metrics.latestObservationAt)}</td><td>${fmt(r.metrics.deduplicatedCount)}</td><td>${fmt(r.metrics.thresholdCount)}</td><td>${fmt(r.metrics.confirmedEventCount)}</td><td>${U.escapeHtml(r.note || "")}</td></tr>`;
         })
         .join("");
+    }
+    thermalStatusClass(status) {
+      return status === "ok"
+        ? "status-ok"
+        : status === "error"
+          ? "status-bad"
+          : ["warn", "partial", "stale", "unavailable"].includes(status)
+            ? "status-warn"
+            : "status-idle";
+    }
+    thermalCardHtml(r) {
+      const cls = this.thermalStatusClass(r.status),
+        fmt = (v) => (v == null ? "—" : I.formatNumber(v)),
+        fmtObs = (v) => (v ? U.formatLocal(new Date(v)) : "—");
+      const rows = [
+        ["settings.role", T(r.familyKey)],
+        ["settings.riskRole", T(r.riskRoleKey)],
+        ["settings.latestObs", fmtObs(r.metrics.latestObservationAt)],
+        ["settings.deduplicated", fmt(r.metrics.deduplicatedCount)],
+        ["settings.threshold", fmt(r.metrics.thresholdCount)],
+        ["settings.confirmedEvents", fmt(r.metrics.confirmedEventCount)],
+        ["settings.note", r.note || "—"],
+      ]
+        .map(
+          ([k, v]) =>
+            `<div><small>${U.escapeHtml(T(k))}</small><strong>${U.escapeHtml(v)}</strong></div>`,
+        )
+        .join("");
+      return `<details class="sourceCard"><summary><span class="sourceCardName">${U.escapeHtml(T(r.labelKey))}</span><span class="statusDot ${cls}"></span>${U.escapeHtml(A.ThermalSources.statusLabel(r.status))}</summary><div class="sourceCardBody">${rows}</div></details>`;
     }
     setTime(date) {
       document.getElementById("selectedTimeLocal").textContent =

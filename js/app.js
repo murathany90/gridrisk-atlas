@@ -157,6 +157,21 @@
         multiSensorEvents: [],
       });
       this._thermalWindowKey = null;
+      if (A.ThermalSources) {
+        const altIds = ["sentinel3a-slstr", "sentinel3b-slstr", "mtg-fci-frp", "multi-sensor"];
+        for (const id of altIds) {
+          const nextSeq = (A.ThermalSources.state(id).seq || 0) + 1;
+          A.ThermalSources.patchState(id, {
+            status: "idle",
+            data: [],
+            error: null,
+            count: 0,
+            seq: nextSeq,
+            metrics: A.ThermalSources.defaultMetrics(),
+            lastErrorAt: null,
+          });
+        }
+      }
       const statusEl = document.getElementById("sentinelSlstrStatus");
       if (statusEl) statusEl.textContent = T("thermal.orchestrator.none");
       this.ui.renderImpact([]);
@@ -749,7 +764,9 @@
       const seq = ++this.reqSeq.firms,
         countryCode = this.state.countryCode;
       try {
-        const data = await A.FirmsAdapter.load(ctrl.signal);
+        const data = await A.FirmsAdapter.load(ctrl.signal, {
+          visibleWindow: this.state.selectedTime,
+        });
         if (seq !== this.reqSeq.firms || countryCode !== this.state.countryCode)
           return;
         this.state.fireData = data.filter(
@@ -813,13 +830,14 @@
             .load("mtg-fci-frp", request)
             .then(
               (data) => {
-                TS.setResult(
-                  "mtg-fci-frp",
-                  seq,
-                  data || [],
-                  request.latency,
-                  request.requestKey,
-                );
+          TS.setResult(
+            "mtg-fci-frp",
+            seq,
+            data || [],
+            request.latency,
+            request.requestKey,
+            { visibleWindow: this.state.selectedTime },
+          );
                 return {
                   group: "mtg",
                   result: {
@@ -898,6 +916,27 @@
       });
       const events = A.ThermalAssociation.associateAcrossSources({ bySource });
       this.state.multiSensorEvents = events;
+      const ms = A.ThermalSources.computeMultiSensorMetrics(events);
+      A.ThermalSources.patchState("multi-sensor", {
+        status: events.length ? "ok" : "empty",
+        data: events,
+        error: null,
+        lastSuccessfulAt: events.length
+          ? new Date().toISOString()
+          : (A.ThermalSources.state("multi-sensor").lastSuccessfulAt ?? null),
+        latency: null,
+        count: events.length,
+        metrics: {
+          ...ms.metrics,
+          totalMatchedEvents: ms.totalMatchedEvents,
+          twoFamilyEvents: ms.twoFamilyEvents,
+          threePlusFamilyEvents: ms.threePlusFamilyEvents,
+          familiesUsed: ms.familiesUsed,
+          confirmedByProduct: ms.confirmedByProduct,
+          confirmedBySource: ms.confirmedBySource,
+        },
+        lastErrorAt: null,
+      });
       this.map.setMultiSensor(events, this.state.selectedTime);
       if (this.state.multiSensorEnabled) this.map.toggleMultiSensor(true);
     }
@@ -966,6 +1005,14 @@
       this.state.slstrStatus = "idle";
       this.state.mtgFrpData = [];
       this.state.multiSensorEvents = [];
+      A.ThermalSources.patchState("multi-sensor", {
+        status: "disabled",
+        data: [],
+        error: null,
+        count: 0,
+        metrics: A.ThermalSources.defaultMetrics(),
+        lastErrorAt: null,
+      });
       if (this.map) {
         this.map.setSlstr([], this.state.selectedTime);
         this.map.setSlstrSource("sentinel3a-slstr", [], this.state.selectedTime);

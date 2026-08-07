@@ -908,7 +908,7 @@ test("thermal source registry contracts (config defaults, adapter registration, 
   const mtgAdapter = registry.get("mtg-fci-frp");
   assert.ok(mtgAdapter, "mtg-fci-frp registered after its dedicated commit");
   assert.equal(mtgAdapter.defaultEnabled, false);
-  assert.equal(registry.isEnabled("mtg-fci-frp"), false);
+  assert.equal(registry.isEnabled("mtg-fci-frp"), true, "MTG enabled after successful EUMETView probe");
 
   const cfg = A.CONFIG.thermalSources;
   assert.equal(cfg.mode, "SEPARATE_SOURCES");
@@ -916,7 +916,7 @@ test("thermal source registry contracts (config defaults, adapter registration, 
     firms: true,
     sentinel3a: true,
     sentinel3b: true,
-    mtg: false,
+    mtg: true,
     msg: false,
   });
   assert.equal(A.CONFIG.thermalFusion.enabled, false);
@@ -973,6 +973,274 @@ A.FirmsAdapter = {
   for (const key of ["idle", "loading", "ok", "empty", "error", "stale"])
     assert.ok(TS.SOURCE_STATES.includes(key));
   assert.equal(TS.SOURCE_STATES.includes("warn"), true);
+  for (const key of ["disabled", "partial", "unavailable"])
+    assert.ok(TS.SOURCE_STATES.includes(key), `SOURCE_STATES includes ${key}`);
+});
+
+test("thermal: computeThermalMetrics computes deduplicated/threshold/visible/latest counts", () => {
+  const TS = A.ThermalSources;
+  const detections = [
+    { lat: 39, lon: 35, frp: 45, detectedAt: "2026-08-02T08:00:00Z" },
+    { lat: 39.1, lon: 35.1, frp: 12, detectedAt: "2026-08-02T09:00:00Z" },
+    { lat: 39.2, lon: 35.2, frp: null, detectedAt: "2026-08-02T10:00:00Z" },
+    { lat: 39.3, lon: 35.3, frp: 90, detectedAt: "2026-08-02T11:00:00Z" },
+    { lat: 39.4, lon: 35.4, frp: 31, detectedAt: "2026-08-02T23:00:00Z" },
+  ];
+  const m = TS.computeThermalMetrics(detections, {
+    frpThreshold: 30,
+    visibleWindow: new Date("2026-08-03T00:00:00Z"),
+  });
+  assert.equal(m.deduplicatedCount, 5);
+  assert.equal(m.thresholdCount, 3, "frp >= 30 counted; null frp ignored");
+  assert.equal(m.visibleCount, 5, "all within the 24h visible window");
+  assert.equal(m.latestObservationAt, "2026-08-02T23:00:00Z");
+  const outsideWindow = TS.computeThermalMetrics(detections.slice(0, 2), {
+    frpThreshold: 30,
+    visibleWindow: new Date("2026-08-10T00:00:00Z"),
+  });
+  assert.equal(outsideWindow.visibleCount, 0, "no detections in window");
+  const empty = TS.computeThermalMetrics([], { frpThreshold: 30 });
+  assert.deepEqual(empty, {
+    rawCount: 0,
+    validCount: 0,
+    deduplicatedCount: 0,
+    thresholdCount: 0,
+    visibleCount: 0,
+    confirmedEventCount: null,
+    latestObservationAt: null,
+  }, "successful empty results show 0 for known counters, null for unknown");
+  const noWindow = TS.computeThermalMetrics(detections.slice(0, 1));
+  assert.equal(noWindow.visibleCount, null, "visibleCount stays null without window");
+});
+
+test("thermal: empty vs error vs disabled row statuses stay distinct", () => {
+  const TS = A.ThermalSources;
+  const prevMode = TS.getMode();
+  TS.setMode("SEPARATE_SOURCES");
+  try {
+    TS.patchState("sentinel3a-slstr", {
+      status: "empty",
+      data: [],
+      lastSuccessfulAt: new Date().toISOString(),
+      metrics: { ...TS.defaultMetrics(), rawCount: 0, validCount: 0, deduplicatedCount: 0, thresholdCount: 0, visibleCount: 0 },
+    });
+    TS.patchState("sentinel3b-slstr", {
+      status: "error",
+      error: "HTTP 500",
+      metrics: TS.defaultMetrics(),
+    });
+    TS.patchState("nasa-firms", {
+      status: "ok",
+      products: {
+        VIIRS_NOAA21_NRT: { status: "ok", count: 7, metrics: { ...TS.defaultMetrics(), deduplicatedCount: 7, thresholdCount: 2, latestObservationAt: "2026-08-02T10:00:00Z" } },
+        VIIRS_NOAA20_NRT: { status: "empty", count: 0, metrics: { ...TS.defaultMetrics(), deduplicatedCount: 0, thresholdCount: 0, visibleCount: 0, latestObservationAt: null } },
+        VIIRS_SNPP_NRT: { status: "error", error: "timeout", metrics: TS.defaultMetrics() },
+      },
+    });
+    const rows = {};
+    for (const r of TS.thermalRows()) rows[r.id] = r;
+    assert.equal(rows["sentinel3a-slstr"].status, "empty", "empty is not an error");
+    assert.equal(rows["sentinel3a-slstr"].metrics.deduplicatedCount, 0, "empty success shows 0");
+    assert.equal(rows["sentinel3a-slstr"].metrics.latestObservationAt, null, "unknown metric stays null");
+    assert.equal(rows["sentinel3b-slstr"].status, "error");
+    assert.equal(rows["mtg-fci-frp"].status !== "disabled", true, "mtg enabled after probe");
+    assert.equal(rows["viirs-noaa21"].status, "ok");
+    assert.equal(rows["viirs-noaa20"].status, "empty", "zero records are empty, not error");
+    assert.equal(rows["viirs-snpp"].status, "error");
+    assert.equal(rows["viirs-noaa21"].metrics.deduplicatedCount, 7);
+    assert.equal(rows["viirs-noaa21"].metrics.thresholdCount, 2);
+    assert.equal(rows["viirs-noaa20"].metrics.deduplicatedCount, 0, "successful empty product shows 0, not null");
+    assert.equal(rows["viirs-noaa20"].metrics.latestObservationAt, null, "unknown metric stays null");
+    assert.equal(rows["modis"].status, "disabled", "MODIS manual-only is disabled under AUTO");
+    assert.equal(rows["modis"].note.includes("Manuel"), true, "MODIS shows Manual selection note");
+    TS.setMode("FIRMS_ONLY");
+    const rowsFirmsOnly = {};
+    for (const r of TS.thermalRows()) rowsFirmsOnly[r.id] = r;
+    assert.equal(rowsFirmsOnly["sentinel3a-slstr"].status, "disabled");
+    assert.equal(rowsFirmsOnly["mtg-fci-frp"].status, "disabled");
+    assert.equal(rowsFirmsOnly["multi-sensor"].status, "disabled");
+  } finally {
+    TS.setMode(prevMode);
+  }
+});
+
+test("thermal: MODIS role follows the selected firms source", () => {
+  const TS = A.ThermalSources;
+  const prevSource = A.FirmsAdapter.source;
+  try {
+    A.FirmsAdapter.source = () => "AUTO";
+    let rows = {};
+    for (const r of TS.thermalRows()) rows[r.id] = r;
+    assert.equal(
+      rows.modis.riskRoleKey,
+      "thermal.role.verificationManual",
+      "AUTO keeps MODIS in the manual verification role",
+    );
+    A.FirmsAdapter.source = () => "MODIS_NRT";
+    rows = {};
+    for (const r of TS.thermalRows()) rows[r.id] = r;
+    assert.equal(
+      rows.modis.riskRoleKey,
+      "thermal.role.primaryManual",
+      "MODIS_NRT elevates MODIS to the manual primary role",
+    );
+    assert.equal(rows["viirs-noaa21"].riskRoleKey, "thermal.role.primary", "VIIRS role unchanged");
+    assert.equal(rows["sentinel3a-slstr"].riskRoleKey, "thermal.role.verification", "SLSTR role unchanged");
+  } finally {
+    A.FirmsAdapter.source = prevSource;
+  }
+  const tr = read("js/locales/tr.js");
+  const en = read("js/locales/en.js");
+  for (const key of ["thermal.role.primaryManual", "thermal.role.verificationManual"]) {
+    assert.ok(tr.includes(key), `${key} exists in tr.js`);
+    assert.ok(en.includes(key), `${key} exists in en.js`);
+  }
+  const v = A.I18n.t("thermal.role.verificationManual");
+  assert.equal(
+    v,
+    A.I18n.locale === "en" ? "Verification · Manual selection" : "Doğrulama · Manuel seçim",
+  );
+  const p = A.I18n.t("thermal.role.primaryManual");
+  assert.equal(
+    p,
+    A.I18n.locale === "en" ? "Primary risk · Manual source" : "Ana risk · Manuel kaynak",
+  );
+});
+
+test("thermal: status table rows list VIIRS products, MODIS, S3A, S3B, MTG and multi-sensor", () => {
+  const TS = A.ThermalSources;
+  const rows = TS.thermalRows();
+  const ids = rows.map((r) => r.id);
+  assert.deepEqual(ids, [
+    "viirs-noaa21",
+    "viirs-noaa20",
+    "viirs-snpp",
+    "modis",
+    "sentinel3a-slstr",
+    "sentinel3b-slstr",
+    "mtg-fci-frp",
+    "multi-sensor",
+  ]);
+  assert.ok(rows.every((r) => r.labelKey && r.familyKey && r.riskRoleKey), "every row has label/family/risk role keys");
+  const byId = {};
+  for (const r of rows) byId[r.id] = r;
+  assert.equal(byId["viirs-noaa21"].riskRoleKey, "thermal.role.primary");
+  assert.equal(byId["viirs-snpp"].riskRoleKey, "thermal.role.primary");
+  assert.equal(byId["sentinel3a-slstr"].riskRoleKey, "thermal.role.verification");
+  assert.equal(byId["sentinel3b-slstr"].riskRoleKey, "thermal.role.verification");
+  assert.equal(byId["mtg-fci-frp"].riskRoleKey, "thermal.role.temporal");
+  assert.equal(byId["multi-sensor"].riskRoleKey, "thermal.role.derived");
+  assert.equal(byId["modis"].riskRoleKey, "thermal.role.verificationManual", "MODIS role under AUTO");
+  assert.equal(A.LOCALES.tr[byId["viirs-noaa21"].labelKey], "VIIRS NOAA-21");
+  assert.equal(A.LOCALES.en[byId["multi-sensor"].labelKey], "Multi-sensor result");
+  assert.equal(A.LOCALES.tr["thermal.status.disabled"], "Kapalı");
+  assert.equal(A.LOCALES.en["thermal.status.unavailable"], "Unavailable");
+});
+
+test("thermal: MTG adapter normalizes a mock GetFeature response to the shared model", async () => {
+  const TS = A.ThermalSources;
+  const mtg = TS.registry.get("mtg-fci-frp");
+  assert.ok(mtg, "mtg-fci-frp registered");
+  const out = await withGetFeature(
+    () =>
+      mtg.load({
+        bbox: bbox,
+        countryCode: "TR",
+        startTime: new Date("2026-08-01T00:00:00Z"),
+        endTime: new Date("2026-08-02T00:00:00Z"),
+      }),
+    async (opts) => {
+      assert.equal(opts.typeNames, "mtg_fd:frp", "probe-confirmed real layer name used");
+      return {
+        features: [
+          {
+            id: "mtg-1",
+            geometry: { type: "Point", coordinates: [35.2, 39.1] },
+            properties: {
+              Lat: 39.1,
+              Lon: 35.2,
+              FRP: 55.5,
+              FRPerr: 4.2,
+              Confidence: 88,
+              BT_mir_k: 361.2,
+              BT_tir_k: 310.1,
+              SZA: 42,
+              time: "2026-08-01T12:00:00Z",
+            },
+          },
+          {
+            id: "mtg-2",
+            geometry: { type: "Point", coordinates: [35.5, 39.5] },
+            properties: {
+              Lat: 39.5,
+              Lon: 35.5,
+              FRP: 22,
+              Datetime: "2026-08-01T12:10:00Z",
+            },
+          },
+          {
+            id: "mtg-3",
+            geometry: null,
+            properties: { FRP: 77, time: "2026-08-01T12:20:00Z" },
+          },
+        ],
+        pages: 1,
+        totalMatched: 3,
+        meta: {},
+      };
+    },
+  );
+  assert.equal(out.length, 2);
+  const d = out[0];
+  assert.equal(d.sourceId, "mtg-fci-frp");
+  assert.equal(d.sensorFamily, "mtg");
+  assert.equal(d.satellite, "MTG-I1");
+  assert.equal(d.frpMw, 55.5);
+  assert.equal(d.frpUncertaintyMw, 4.2);
+  assert.equal(d.confidenceRaw, 88);
+  assert.equal(d.brightnessTemperatureK, 361.2, "BT_mir_k preferred");
+  assert.equal(d.detectedAt, "2026-08-01T12:00:00Z");
+  assert.equal(d.lat, 39.1);
+  assert.equal(d.lon, 35.2);
+  assert.equal(out[1].detectedAt, "2026-08-01T12:10:00Z", "Datetime fallback");
+  assert.equal(out.metrics.rawCount, 3, "rawCount is result.features.length");
+  assert.equal(out.metrics.validCount, 2, "validCount after normalize + country filter");
+  assert.equal(out.metrics.deduplicatedCount, 2, "deduplicatedCount is deduped.length");
+});
+
+test("thermal: multi-sensor metrics count families and per-product confirmations", () => {
+  const TS = A.ThermalSources;
+  const obs = (product, family, sourceId) => ({ product, sensorFamily: family, sourceId });
+  const events = [
+    { id: "e1", detectedAt: "2026-08-02T10:00:00Z", sensorFamilies: ["viirs-modis", "slstr"], supportingSources: ["nasa-firms", "sentinel3a-slstr"], observations: [obs("VIIRS_NOAA21_NRT", "viirs-modis", "nasa-firms"), obs("SLSTR L2P FRP", "slstr", "sentinel3a-slstr")] },
+    { id: "e2", detectedAt: "2026-08-02T10:10:00Z", sensorFamilies: ["viirs-modis", "slstr", "mtg"], supportingSources: ["nasa-firms", "sentinel3b-slstr", "mtg-fci-frp"], observations: [obs("VIIRS_NOAA20_NRT", "viirs-modis", "nasa-firms"), obs("SLSTR L2P FRP", "slstr", "sentinel3b-slstr"), obs("MTG FCI FRP", "mtg", "mtg-fci-frp")] },
+  ];
+  const ms = TS.computeMultiSensorMetrics(events);
+  assert.equal(ms.totalMatchedEvents, 2);
+  assert.equal(ms.twoFamilyEvents, 1);
+  assert.equal(ms.threePlusFamilyEvents, 1);
+  assert.deepEqual(ms.familiesUsed, ["mtg", "slstr", "viirs-modis"]);
+  assert.equal(ms.confirmedByProduct["VIIRS_NOAA21_NRT"], 1);
+  assert.equal(ms.confirmedByProduct["VIIRS_NOAA20_NRT"], 1);
+  assert.equal(ms.confirmedBySource["mtg-fci-frp"], 1);
+  assert.equal(ms.confirmedBySource["sentinel3a-slstr"], 1);
+  assert.equal(ms.metrics.deduplicatedCount, 2);
+  assert.equal(ms.metrics.latestObservationAt, "2026-08-02T10:10:00Z");
+  const msEmpty = TS.computeMultiSensorMetrics([]);
+  assert.equal(msEmpty.totalMatchedEvents, 0);
+  assert.equal(msEmpty.metrics.deduplicatedCount, 0, "empty multi-sensor shows 0 events");
+  assert.equal(msEmpty.metrics.confirmedEventCount, 0, "empty multi-sensor shows 0 confirmed");
+  assert.equal(msEmpty.metrics.latestObservationAt, null);
+});
+
+test("thermal: MTG and multi-sensor map markers use the L. prefix", () => {
+  const src = read("js/map.js");
+  assert.equal(
+    src.includes("new CircleMarker("),
+    false,
+    "bare CircleMarker identifier would throw ReferenceError with real MTG data",
+  );
+  assert.ok(src.includes("new L.CircleMarker("), "L.CircleMarker used");
 });
 
 const wfsS3B = JSON.parse(read("tests/fixtures/wfs-s3b.json"));
@@ -1036,6 +1304,9 @@ test("thermal: Sentinel-3 SLSTR adapters normalize GeoJSON to the shared model",
   assert.equal(d.dayNight, "day");
   assert.equal(d.countryCode, "TR");
   assert.equal(out[1].frpMw, 61.2);
+  assert.equal(out.metrics.rawCount, 2, "SLSTR rawCount is result.features.length");
+  assert.equal(out.metrics.validCount, 2, "SLSTR validCount after normalize + country filter");
+  assert.equal(out.metrics.deduplicatedCount, 2, "SLSTR deduplicatedCount is deduped.length");
 });
 
 test("thermal: SLSTR adapter drops features outside the region and without FRP/geometry", async () => {
@@ -1064,6 +1335,9 @@ test("thermal: SLSTR adapter drops features outside the region and without FRP/g
     async () => ({ features: [outside, noTime, noGeom], pages: 1, totalMatched: 3, meta: {} }),
   );
   assert.equal(out.length, 0, "all three invalid features filtered out");
+  assert.equal(out.metrics.rawCount, 3, "rawCount counts all WFS features, even filtered ones");
+  assert.equal(out.metrics.validCount, 0, "validCount counts only kept detections");
+  assert.equal(out.metrics.deduplicatedCount, 0);
 });
 
 test("thermal: SLSTR adapter keeps the best record when duplicates overlap in the window", async () => {
@@ -1082,6 +1356,9 @@ test("thermal: SLSTR adapter keeps the best record when duplicates overlap in th
   assert.equal(out.length, 1, "same-source duplicates merged");
   assert.equal(out[0].satellite, "S3B");
   assert.equal(out[0].frpMw, 33.3);
+  assert.equal(out.metrics.rawCount, 2, "rawCount is result.features.length");
+  assert.equal(out.metrics.validCount, 2, "validCount after normalize + country filter, before dedup");
+  assert.equal(out.metrics.deduplicatedCount, 1, "deduplicatedCount is deduped.length");
 });
 
 test("thermal: loadSlstrGroup runs both satellites in parallel and reports ok", async () => {
@@ -1211,7 +1488,7 @@ test("thermal: MTG FCI FRP adapter registered behind a feature flag and normaliz
   assert.equal(mtg.sensorFamily, "mtg");
   assert.equal(mtg.supportsFrp, true);
   assert.equal(mtg.supportsUncertainty, true);
-  assert.equal(TS.registry.isEnabled("mtg-fci-frp"), false, "feature flag off by default");
+  assert.equal(TS.registry.isEnabled("mtg-fci-frp"), true, "MTG enabled after successful probe");
 
   const out = await withGetFeature(
     () =>
@@ -1332,7 +1609,7 @@ test("thermal: FIRMS_ONLY plans zero alternate requests and never touches EUMETV
   }
 });
 
-test("thermal: SEPARATE_SOURCES plans both SLSTR satellites and keeps MTG behind its flag", () => {
+test("thermal: SEPARATE_SOURCES plans both SLSTR satellites and MTG after probe enablement", () => {
   const TS = A.ThermalSources;
   const plan = TS.planThermalRequests({
     mode: "SEPARATE_SOURCES",
@@ -1340,13 +1617,20 @@ test("thermal: SEPARATE_SOURCES plans both SLSTR satellites and keeps MTG behind
     sentinel3b: true,
   });
   assert.deepEqual(plan.slstrIds, ["sentinel3a-slstr", "sentinel3b-slstr"]);
-  assert.equal(plan.mtg, false, "MTG stays off unless its feature flag is enabled");
+  assert.equal(plan.mtg, true, "MTG planned once enabled by config (probe verified)");
   const multi = TS.planThermalRequests({
     mode: "MULTI_SOURCE",
     sentinel3a: true,
     sentinel3b: true,
   });
   assert.deepEqual(multi.slstrIds, ["sentinel3a-slstr", "sentinel3b-slstr"]);
+  assert.equal(multi.mtg, true);
+  const firmsOnly = TS.planThermalRequests({
+    mode: "FIRMS_ONLY",
+    sentinel3a: true,
+    sentinel3b: true,
+  });
+  assert.equal(firmsOnly.mtg, false, "MTG is never requested in FIRMS_ONLY");
 });
 
 test("thermal: per-source flags restrict SLSTR WFS queries and disabled sensors never query", async () => {
@@ -1462,6 +1746,9 @@ test("thermal: country change clears alternate layers, data, statuses and the th
     "mtgFrpData",
     "multiSensorEvents",
     "_thermalWindowKey",
+    "sentinel3a-slstr",
+    "sentinel3b-slstr",
+    "mtg-fci-frp",
   ])
     assert.ok(resetBlock.includes(token), `resetCountryState clears ${token}`);
   const mapBlock = mapSrc.slice(mapSrc.indexOf("resetCountry()"));
@@ -1473,6 +1760,31 @@ test("thermal: country change clears alternate layers, data, statuses and the th
     "multiSensorLayer.clearLayers",
   ])
     assert.ok(mapBlock.includes(token), `map.resetCountry clears ${token}`);
+});
+
+test("thermal: country reset bumps each source's own seq, not a shared base", () => {
+  const TS = A.ThermalSources;
+  const start = source.app.indexOf("resetCountryState(");
+  const m = source.app
+    .slice(start, start + 1500)
+    .match(/(\n[ \t]*)if \(A\.ThermalSources\) \{[\s\S]*?\1\}/);
+  assert.ok(m && m[0], "seq-reset block found inside resetCountryState");
+  assert.ok(m[0].includes("nextSeq"), "reset uses per-source nextSeq");
+  const resetBlock = new Function("A", m[0]);
+  TS.patchState("sentinel3a-slstr", { seq: 2 });
+  TS.patchState("sentinel3b-slstr", { seq: 7 });
+  TS.patchState("mtg-fci-frp", { seq: 11 });
+  TS.patchState("multi-sensor", { seq: 3 });
+  resetBlock(A);
+  assert.equal(TS.state("sentinel3a-slstr").seq, 3, "S3A 2 -> 3");
+  assert.equal(TS.state("sentinel3b-slstr").seq, 8, "S3B 7 -> 8");
+  assert.equal(TS.state("mtg-fci-frp").seq, 12, "MTG 11 -> 12");
+  assert.equal(TS.state("multi-sensor").seq, 4, "multi-sensor 3 -> 4");
+  for (const id of ["sentinel3a-slstr", "sentinel3b-slstr", "mtg-fci-frp", "multi-sensor"]) {
+    assert.equal(TS.state(id).status, "idle", `${id} reset to idle`);
+    assert.equal(TS.state(id).count, 0, `${id} count cleared`);
+    assert.deepEqual(TS.state(id).metrics, TS.defaultMetrics(), `${id} metrics reset to unknown`);
+  }
 });
 
 test("multi-sensor layer only shows events confirmed by at least two independent families", () => {

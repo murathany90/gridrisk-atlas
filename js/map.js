@@ -719,7 +719,7 @@
         if (!Number.isFinite(t) || t < start || t > end.getTime()) continue;
         const radius = U.clamp(4 + Math.sqrt(Math.max(0, f.frp || 0)) * 0.7, 4, 13),
           opacity = U.ageOpacity(f.detectedAt, end),
-          m = new CircleMarker([f.lat, f.lon], {
+          m = new L.CircleMarker([f.lat, f.lon], {
             pane: "firePane",
             renderer: this.renderer,
             radius,
@@ -747,7 +747,7 @@
           radius = U.clamp(6 + ev.observationCount * 2, 8, 26),
           color =
             level >= 3 ? "#22c55e" : level === 2 ? "#facc15" : "#f97316";
-        const m = new CircleMarker([ev.lat, ev.lon], {
+        const m = new L.CircleMarker([ev.lat, ev.lon], {
           pane: "firePane",
           renderer: this.renderer,
           radius,
