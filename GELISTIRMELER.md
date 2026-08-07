@@ -1,6 +1,6 @@
 # Geliştirme Kaydı — GridRisk Atlas
 
-# v3.11.0 — Termal Kaynak Durumu ve MTG FCI FRP Pilotu
+# v3.11.1 — Termal Kaynak Durumu ve MTG FCI FRP Pilotu
 
 **Branch:** `feature/thermal-source-status-mtg-pilot`
 
@@ -14,9 +14,9 @@
 - **`js/api.js`** — FIRMS ürün durumu (MODIS_NRT dahil), `productMetrics` boş başarıda 0.
 - **`js/eumetview-wfs.js` / `tools/probe_eumetview_frp.mjs`** — EUMETView WFS getFeature; probe `numberMatched`/`numberReturned` okuyup `totalMatched` ile `returnedCount`'u ayrı raporlar (count=20 sayfa boyutu toplam tespit olarak sunulmaz).
 - **i18n (tr/en)** — termal rol/not/durum anahtarları.
-- **Sürüm 3.11.0**: `package.json`, `package-lock.json`, `js/config.js`, `index.html` (pill + cache-buster), `server.mjs`, `README.md`, sürüm geçmişi.
+- **Sürüm 3.11.1**: `package.json`, `package-lock.json`, `js/config.js`, `index.html` (pill + cache-buster), `server.mjs`, `README.md`, sürüm geçmişi.
 
-**Testler:** v3.11.0 bloğu — adaptör normalizasyonu (S3A/S3B/MTG), raw/valid/dedup metrik sözleşmesi, MODIS dinamik rol + i18n, ülke reseti (idle + per-source seq: 2→3, 7→8, 11→12), boş başarı sayaçları, probe `numberMatched`/`numberReturned`; Playwright e2e: termal kaynak tablosu, servis durumu kartı, MTG'nin FIRMS_ONLY'de kapalı kalması, ülke değişimi reseti, senaryo matrisi (EUMETView/Open-Meteo hermetik). Toplam **94/94** Node test + **28/28** Python test + Playwright **84/84** (Desktop Chrome + Mobile) geçti.
+**Testler:** v3.11.1 bloğu — adaptör normalizasyonu (S3A/S3B/MTG), raw/valid/dedup metrik sözleşmesi, MODIS dinamik rol + i18n, ülke reseti (idle + per-source seq: 2→3, 7→8, 11→12), boş başarı sayaçları, probe `numberMatched`/`numberReturned`; Playwright e2e: termal kaynak tablosu, servis durumu kartı, MTG'nin FIRMS_ONLY'de kapalı kalması, ülke değişimi reseti, senaryo matrisi (EUMETView/Open-Meteo hermetik). Toplam **94/94** Node test + **28/28** Python test + Playwright **84/84** (Desktop Chrome + Mobile) geçti.
 
 ---
 
