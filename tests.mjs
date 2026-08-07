@@ -136,11 +136,11 @@ const U = A.Utils;
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
 
-test("brand, subtitle and v3.10.0 are synchronized", () => {
+test("brand, subtitle and v3.11.0 are synchronized", () => {
   assert.equal(A.CONFIG.appName, "GridRisk Atlas");
-  assert.equal(A.CONFIG.appVersion, "3.10.0");
+  assert.equal(A.CONFIG.appVersion, "3.11.0");
   assert.equal(pkg.name, "gridrisk-atlas");
-  assert.equal(pkg.version, "3.10.0");
+  assert.equal(pkg.version, "3.11.0");
   assert.match(html, /<h1[^>]*data-i18n="app\.name"[^>]*>\s*GridRisk Atlas/);
   assert.ok(html.includes("Satellite Wildfire &amp; Grid Risk Intelligence"));
   assert.match(html, /<html lang="tr" translate="no">/);
