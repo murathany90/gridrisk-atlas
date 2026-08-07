@@ -2930,6 +2930,34 @@ test("evidence: new i18n keys exist in both locales", () => {
   });
 }
 
+test("computeMultiSensorMetrics correctly counts >=2 sensor logic", () => {
+  const events = [
+    { independentSensorCount: 1, sensorFamilies: ["viirs"] },
+    { independentSensorCount: 2, sensorFamilies: ["viirs", "slstr"] },
+    { independentSensorCount: 3, sensorFamilies: ["viirs", "slstr", "fci"] },
+    { independentSensorCount: 1, sensorFamilies: ["modis"] },
+    { independentSensorCount: 2, sensorFamilies: ["modis", "fci"] }
+  ];
+  const ms = A.ThermalSources.computeMultiSensorMetrics(events);
+  assert.equal(ms.associationGroupCount, 5);
+  assert.equal(ms.confirmedEventCount, 3);
+  assert.equal(ms.singleSensorGroupCount, 2);
+  assert.equal(ms.twoSensorEventCount, 2);
+  assert.equal(ms.threePlusSensorEventCount, 1);
+});
+
+test("thermal-association correctly computes latestDetectedAt", () => {
+  const sources = {
+    "nasa-firms": [{ lat: 38, lon: 28, detectedAt: "2024-01-01T10:00:00Z", frpMw: 10, sensorFamily: "viirs-modis" }],
+    "sentinel3a-slstr": [{ lat: 38, lon: 28, detectedAt: "2024-01-01T10:10:00Z", frpMw: 15, sensorFamily: "slstr" }],
+    "mtg-fci-frp": [{ lat: 38, lon: 28, detectedAt: "2024-01-01T10:05:00Z", frpMw: 12, sensorFamily: "mtg" }]
+  };
+  const events = A.ThermalAssociation.associateAcrossSources({ bySource: sources });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].detectedAt, "2024-01-01T10:00:00Z");
+  assert.equal(events[0].latestDetectedAt, "2024-01-01T10:10:00Z");
+});
+
 let passed = 0;
 for (const { name, fn } of tests) {
   try {

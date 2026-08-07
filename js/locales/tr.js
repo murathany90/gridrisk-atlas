@@ -268,7 +268,7 @@
       "Manuel seçimde etkin değil (seçili: {source})",
     "thermal.note.autoLoaded": "AUTO yükünde ürün bazlı sayılır",
     "thermal.note.multisensor":
-      "{total} olay · {two} olay 2 aile · {three} olay 3+ aile · aileler: {families}",
+      "{total} ilişkilendirme grubu · {confirmed} doğrulanmış · {two} iki sensör · {three} üç+ sensör",
     "thermal.note.multisensorDisabled":
       "Yalnız MULTI_SOURCE modunda hesaplanır",
     "ui.countryLoading": "Ülke verileri yükleniyor…",
@@ -500,6 +500,12 @@
     "map.multiSensorSensors": "{count} sensör",
     "map.multiSensorPlatforms": "{count} platform",
     "map.multiSensorMaxFrp": "Azami FRP: {frp} MW",
+    "map.multiSensorFamilies": "Kaynaklar: {families}",
+    "map.multiSensorLatest": "Son gözlem: {time}",
+    "map.multiSensorSensorFamilies": "{count} bağımsız sensör ailesi",
+    "legend.multiSensor": "Multi-sensor doğrulama",
+    "legend.twoSensor": "2 sensör ailesi",
+    "legend.threePlusSensor": "3+ sensör ailesi",
     "map.slstrLabel": "Sentinel-3 SLSTR",
     "map.sentinelStatus": "Sentinel-3 SLSTR durumu: {status}",
     "thermal.orchestrator.none": "Termal kaynak etkin değil",
