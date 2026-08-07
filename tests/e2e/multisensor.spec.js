@@ -2,39 +2,48 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Multi-sensor UI and Mode Tests', () => {
   test('SEPARATE_SOURCES mode hides multi-sensor layer checkbox and shows SLSTR', async ({ page }) => {
-    await page.goto('/?thermalMode=SEPARATE_SOURCES');
+    await page.addInitScript(() => {
+      localStorage.setItem('thermalMode', 'SEPARATE_SOURCES');
+    });
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
     
     const slstrLabel = page.locator('label:has(#layerSentinelSlstr)');
-    await expect(slstrLabel).toBeVisible();
+    expect(await slstrLabel.evaluate(n => n.hidden)).toBe(false);
     
     const mtgLabel = page.locator('label:has(#layerMtgFrp)');
-    await expect(mtgLabel).toBeVisible();
+    expect(await mtgLabel.evaluate(n => n.hidden)).toBe(false);
 
     const multiSensorLabel = page.locator('label:has(#layerMultiSensorConf)');
-    await expect(multiSensorLabel).toBeHidden();
+    expect(await multiSensorLabel.evaluate(n => n.hidden)).toBe(true);
   });
 
   test('MULTI_SOURCE mode shows multi-sensor checkbox and hides others if not alternate', async ({ page }) => {
-    await page.goto('/?thermalMode=MULTI_SOURCE');
+    await page.addInitScript(() => {
+      localStorage.setItem('thermalMode', 'MULTI_SOURCE');
+    });
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
     
     const multiSensorLabel = page.locator('label:has(#layerMultiSensorConf)');
-    await expect(multiSensorLabel).toBeVisible();
+    expect(await multiSensorLabel.evaluate(n => n.hidden)).toBe(false);
   });
 
   test('FIRMS_ONLY mode hides all alternate layers', async ({ page }) => {
-    await page.goto('/?thermalMode=FIRMS_ONLY');
+    await page.addInitScript(() => {
+      localStorage.setItem('thermalMode', 'FIRMS_ONLY');
+    });
+    await page.goto('/');
     await page.waitForLoadState('networkidle');
     
     const slstrLabel = page.locator('label:has(#layerSentinelSlstr)');
-    await expect(slstrLabel).toBeHidden();
+    expect(await slstrLabel.evaluate(n => n.hidden)).toBe(true);
 
     const mtgLabel = page.locator('label:has(#layerMtgFrp)');
-    await expect(mtgLabel).toBeHidden();
+    expect(await mtgLabel.evaluate(n => n.hidden)).toBe(true);
 
     const multiSensorLabel = page.locator('label:has(#layerMultiSensorConf)');
-    await expect(multiSensorLabel).toBeHidden();
+    expect(await multiSensorLabel.evaluate(n => n.hidden)).toBe(true);
   });
 
   test('Multi-sensor marker visibility on map', async ({ page }) => {

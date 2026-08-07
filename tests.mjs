@@ -1243,6 +1243,14 @@ test("thermal: MTG and multi-sensor map markers use the L. prefix", () => {
   assert.ok(src.includes("new L.CircleMarker("), "L.CircleMarker used");
 });
 
+test("thermal: Map markers for S3, MTG, and multi-sensor drop null/non-finite FRP when threshold > 0", () => {
+  const src = read("js/map.js");
+  const frpCheck = "if (this.frpThreshold > 0 && (!Number.isFinite(f.frp) || f.frp < this.frpThreshold))";
+  const evCheck = "if (this.frpThreshold > 0 && (!Number.isFinite(ev.maxFrpMw) || ev.maxFrpMw < this.frpThreshold))";
+  assert.ok(src.includes(frpCheck), "S3/MTG filter drops non-finite FRP");
+  assert.ok(src.includes(evCheck), "multi-sensor filter drops non-finite maxFrpMw");
+});
+
 const wfsS3B = JSON.parse(read("tests/fixtures/wfs-s3b.json"));
 
 async function withGetFeature(fn, handler) {
@@ -2944,6 +2952,30 @@ test("computeMultiSensorMetrics correctly counts >=2 sensor logic", () => {
   assert.equal(ms.singleSensorGroupCount, 2);
   assert.equal(ms.twoSensorEventCount, 2);
   assert.equal(ms.threePlusSensorEventCount, 1);
+});
+
+test("computeMultiSensorMetrics ignores single-sensor events for confirmedByProduct/Source", () => {
+  const events = [
+    {
+      id: "ev1",
+      independentSensorCount: 1,
+      sensorFamilies: ["viirs-modis"],
+      observations: [{ product: "VIIRS" }],
+      supportingSources: ["firms"]
+    },
+    {
+      id: "ev2",
+      independentSensorCount: 2,
+      sensorFamilies: ["viirs-modis", "slstr"],
+      observations: [{ product: "VIIRS" }, { product: "SLSTR" }],
+      supportingSources: ["firms", "s3"]
+    }
+  ];
+  const ms = A.ThermalSources.computeMultiSensorMetrics(events);
+  assert.equal(ms.confirmedByProduct["VIIRS"], 1);
+  assert.equal(ms.confirmedByProduct["SLSTR"], 1);
+  assert.equal(ms.confirmedBySource["firms"], 1);
+  assert.equal(ms.confirmedBySource["s3"], 1);
 });
 
 test("thermal-association correctly computes latestDetectedAt", () => {

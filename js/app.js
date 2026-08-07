@@ -215,6 +215,7 @@
         );
         if (dep) dep.hidden = !on;
       });
+      this.syncThermalModeUI();
       this.ui.setUpdated();
     }
     restoreSettings() {
