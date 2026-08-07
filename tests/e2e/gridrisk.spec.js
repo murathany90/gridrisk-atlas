@@ -79,6 +79,17 @@ for (const country of countries) {
         // ERR_HTTP2_PROTOCOL_ERROR during CI runs, which would surface as console errors
         await mockEffisTiles(page);
         
+        // hermetic environment: thermal sources hit EUMETView WFS live in
+        // SEPARATE_SOURCES/MULTI_SOURCE modes; external 503s must not fail the matrix
+        await page.route('**://view.eumetsat.int/**request=GetFeature*', (route) => {
+          route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify(emptyWfs),
+          });
+        });
+        await mockOpenMeteo(page);
+        
         await page.goto('/');
         await page.waitForSelector('#countrySelector');
         
