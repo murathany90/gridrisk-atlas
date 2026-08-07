@@ -43,6 +43,7 @@
     params.set("request", "GetFeature");
     params.set("typeNames", typeNames);
     params.set("outputFormat", w.outputFormat || "application/json");
+    params.set("srsName", "EPSG:4326");
     if (count != null) params.set("count", String(count));
     if (startIndex != null && startIndex > 0) params.set("startIndex", String(startIndex));
     const filter = cql || buildCql({ bbox, from, to });

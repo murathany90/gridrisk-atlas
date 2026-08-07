@@ -2990,6 +2990,35 @@ test("thermal-association correctly computes latestDetectedAt", () => {
   assert.equal(events[0].latestDetectedAt, "2024-01-01T10:10:00Z");
 });
 
+test("eumetview-wfs: cqlBbox uses south,west,north,east order", () => {
+  const cql = window.AtmoApp.EumetviewWfs.cqlBbox([25.6, 35.75, 44.9, 42.2]);
+  assert.equal(cql, "BBOX(geom, 35.75, 25.6, 42.2, 44.9)", "cqlBbox axis order must be EPSG:4326 (lat,lon) / south,west,north,east");
+});
+
+test("thermal-sources: normalizeFireDetection maps coordinates properly from Lat/Lon and geometry", () => {
+  const rawProperties = { lat: 38.5, lon: 27.2 };
+  const normalized = U.normalizeFireDetection(rawProperties);
+  assert.equal(normalized.lat, 38.5, "normalized lat should be 38.5");
+  assert.equal(normalized.lon, 27.2, "normalized lon should be 27.2");
+});
+
+test("map: mtgDetectionPopup includes both MIR and TIR separately and formats % confidence", () => {
+  const mtgPopupFn = window.AtmoApp.MapManager.prototype.mtgDetectionPopup;
+  const fullFeature = {
+    frp: 82.4,
+    confidenceRaw: 85,
+    brightnessTemperatureMirK: 305.2,
+    brightnessTemperatureTirK: 290.1,
+    detectedAt: "2024-08-08T10:00:00Z"
+  };
+  const popupHtml = mtgPopupFn(fullFeature);
+  assert.equal(popupHtml.includes("85%"), true, "Must include % confidence");
+  assert.equal(popupHtml.includes("305.2 K"), true, "Must include MIR BT");
+  assert.equal(popupHtml.includes("290.1 K"), true, "Must include TIR BT");
+  assert.equal(popupHtml.includes("BT MIR"), true, "Must include MIR label");
+  assert.equal(popupHtml.includes("BT TIR"), true, "Must include TIR label");
+});
+
 let passed = 0;
 for (const { name, fn } of tests) {
   try {

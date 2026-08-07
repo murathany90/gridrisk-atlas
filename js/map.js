@@ -871,9 +871,8 @@
       if (Number.isFinite(f.frp)) rows.push(`<tr><td>${T("map.popup.frp")}</td><td>${U.round(f.frp, 1)} MW</td></tr>`);
       if (Number.isFinite(f.frpUncertaintyMw)) rows.push(`<tr><td>${T("map.popup.frpErr")}</td><td>±${U.round(f.frpUncertaintyMw, 1)} MW</td></tr>`);
       if (f.confidenceRaw != null && Number.isFinite(Number(f.confidenceRaw))) rows.push(`<tr><td>${T("map.popup.confidence")}</td><td>${U.round(Number(f.confidenceRaw), 0)}%</td></tr>`);
-      if (Number.isFinite(f.brightTi4K)) rows.push(`<tr><td>${T("map.popup.btMir")}</td><td>${U.round(f.brightTi4K, 1)} K</td></tr>`);
-      const btTir = f.BT_tir_k != null ? Number(f.BT_tir_k) : null;
-      if (Number.isFinite(btTir)) rows.push(`<tr><td>${T("map.popup.btTir")}</td><td>${U.round(btTir, 1)} K</td></tr>`);
+      if (Number.isFinite(f.brightnessTemperatureMirK)) rows.push(`<tr><td>${T("map.popup.btMir")}</td><td>${U.round(f.brightnessTemperatureMirK, 1)} K</td></tr>`);
+      if (Number.isFinite(f.brightnessTemperatureTirK)) rows.push(`<tr><td>${T("map.popup.btTir")}</td><td>${U.round(f.brightnessTemperatureTirK, 1)} K</td></tr>`);
       if (f.detectedAt) rows.push(`<tr><td>${T("map.popup.time")}</td><td>${U.formatTrShortDateTime(new Date(f.detectedAt))}</td></tr>`);
       if (f.dayNight) rows.push(`<tr><td>${T("map.popup.dayNight")}</td><td>${f.dayNight === "night" ? T("map.popup.night") : T("map.popup.day")}</td></tr>`);
       if (Number.isFinite(f.lat) && Number.isFinite(f.lon)) rows.push(`<tr><td>${T("map.popup.location")}</td><td>${U.round(f.lat, 4)}, ${U.round(f.lon, 4)}</td></tr>`);

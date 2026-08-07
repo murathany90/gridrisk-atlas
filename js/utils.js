@@ -83,6 +83,8 @@
       brightnessTemperatureK,
       brightTi4K,
       brightTi5K,
+      brightnessTemperatureMirK: numOrNull(raw.brightnessTemperatureMirK ?? raw.btMirK ?? raw.BT_mir_k ?? brightTi4K),
+      brightnessTemperatureTirK: numOrNull(raw.brightnessTemperatureTirK ?? raw.btTirK ?? raw.BT_tir_k),
       confidenceRaw,
       confidenceNormalized:
         confidenceRaw != null ? confidenceWeight(confidenceRaw) : null,
