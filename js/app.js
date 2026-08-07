@@ -215,6 +215,7 @@
         );
         if (dep) dep.hidden = !on;
       });
+      this.syncThermalModeUI();
       this.ui.setUpdated();
     }
     restoreSettings() {
@@ -347,6 +348,10 @@
         document.getElementById("frpThresholdValue").textContent = `≥${v} MW`;
         this.map.frpThreshold = v;
         this.map.renderFires(this.state.selectedTime);
+        this.map.setSlstrSource("sentinel3a-slstr", this.map.slstrAData, this.state.selectedTime);
+        this.map.setSlstrSource("sentinel3b-slstr", this.map.slstrBData, this.state.selectedTime);
+        this.map.setMtgFrp(this.map.mtgFrpData, this.state.selectedTime);
+        this.map.setMultiSensor(this.state.multiSensorEvents, this.state.selectedTime);
         this.state.fireEvents = this.map.fireEventsVisible;
         this.updateImpact();
         this.renderFireLayers();
@@ -928,9 +933,14 @@
         count: events.length,
         metrics: {
           ...ms.metrics,
+          associationGroupCount: ms.associationGroupCount,
+          singleSensorGroupCount: ms.singleSensorGroupCount,
           totalMatchedEvents: ms.totalMatchedEvents,
+          confirmedEventCount: ms.confirmedEventCount,
           twoFamilyEvents: ms.twoFamilyEvents,
           threePlusFamilyEvents: ms.threePlusFamilyEvents,
+          twoSensorEventCount: ms.twoSensorEventCount,
+          threePlusSensorEventCount: ms.threePlusSensorEventCount,
           familiesUsed: ms.familiesUsed,
           confirmedByProduct: ms.confirmedByProduct,
           confirmedBySource: ms.confirmedBySource,
@@ -939,6 +949,8 @@
       });
       this.map.setMultiSensor(events, this.state.selectedTime);
       if (this.state.multiSensorEnabled) this.map.toggleMultiSensor(true);
+      const span = document.getElementById("multiSensorCount");
+      if (span) span.textContent = ms.confirmedEventCount > 0 ? I.formatNumber(ms.confirmedEventCount) : "";
     }
     scheduleThermalReload(ms) {
       if (A.ThermalSources.getMode() === "FIRMS_ONLY") return;
@@ -983,12 +995,14 @@
       for (const el of [sentinelLabel, sentinelDeps])
         if (el) el.hidden = !alternate;
       if (multiLabel) multiLabel.hidden = !fusion;
-      if (mtgLabel && !alternate) mtgLabel.hidden = true;
+      if (mtgLabel) mtgLabel.hidden = !alternate;
       if (!alternate) {
         this.state.slstrEnabled = false;
         this.state.slstrAEnabled = false;
         this.state.slstrBEnabled = false;
         this.state.mtgFrpEnabled = false;
+        if (document.getElementById("layerSentinelSlstr")) document.getElementById("layerSentinelSlstr").checked = false;
+        if (document.getElementById("layerMtgFrp")) document.getElementById("layerMtgFrp").checked = false;
         if (this.map) {
           this.map.toggleSentinelSlstr(false);
           this.map.toggleMtgFrp(false);
@@ -996,6 +1010,7 @@
       }
       if (!fusion) {
         this.state.multiSensorEnabled = false;
+        if (document.getElementById("layerMultiSensorConf")) document.getElementById("layerMultiSensorConf").checked = false;
         if (this.map) this.map.toggleMultiSensor(false);
       }
       this.ui?.syncLayerDependents?.();

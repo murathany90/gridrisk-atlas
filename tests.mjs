@@ -1243,6 +1243,14 @@ test("thermal: MTG and multi-sensor map markers use the L. prefix", () => {
   assert.ok(src.includes("new L.CircleMarker("), "L.CircleMarker used");
 });
 
+test("thermal: Map markers for S3, MTG, and multi-sensor drop null/non-finite FRP when threshold > 0", () => {
+  const src = read("js/map.js");
+  const frpCheck = "if (this.frpThreshold > 0 && (!Number.isFinite(f.frp) || f.frp < this.frpThreshold))";
+  const evCheck = "if (this.frpThreshold > 0 && (!Number.isFinite(ev.maxFrpMw) || ev.maxFrpMw < this.frpThreshold))";
+  assert.ok(src.includes(frpCheck), "S3/MTG filter drops non-finite FRP");
+  assert.ok(src.includes(evCheck), "multi-sensor filter drops non-finite maxFrpMw");
+});
+
 const wfsS3B = JSON.parse(read("tests/fixtures/wfs-s3b.json"));
 
 async function withGetFeature(fn, handler) {
@@ -2929,6 +2937,58 @@ test("evidence: new i18n keys exist in both locales", () => {
     },
   });
 }
+
+test("computeMultiSensorMetrics correctly counts >=2 sensor logic", () => {
+  const events = [
+    { independentSensorCount: 1, sensorFamilies: ["viirs"] },
+    { independentSensorCount: 2, sensorFamilies: ["viirs", "slstr"] },
+    { independentSensorCount: 3, sensorFamilies: ["viirs", "slstr", "fci"] },
+    { independentSensorCount: 1, sensorFamilies: ["modis"] },
+    { independentSensorCount: 2, sensorFamilies: ["modis", "fci"] }
+  ];
+  const ms = A.ThermalSources.computeMultiSensorMetrics(events);
+  assert.equal(ms.associationGroupCount, 5);
+  assert.equal(ms.confirmedEventCount, 3);
+  assert.equal(ms.singleSensorGroupCount, 2);
+  assert.equal(ms.twoSensorEventCount, 2);
+  assert.equal(ms.threePlusSensorEventCount, 1);
+});
+
+test("computeMultiSensorMetrics ignores single-sensor events for confirmedByProduct/Source", () => {
+  const events = [
+    {
+      id: "ev1",
+      independentSensorCount: 1,
+      sensorFamilies: ["viirs-modis"],
+      observations: [{ product: "VIIRS" }],
+      supportingSources: ["firms"]
+    },
+    {
+      id: "ev2",
+      independentSensorCount: 2,
+      sensorFamilies: ["viirs-modis", "slstr"],
+      observations: [{ product: "VIIRS" }, { product: "SLSTR" }],
+      supportingSources: ["firms", "s3"]
+    }
+  ];
+  const ms = A.ThermalSources.computeMultiSensorMetrics(events);
+  assert.equal(ms.confirmedByProduct["VIIRS"], 1);
+  assert.equal(ms.confirmedByProduct["SLSTR"], 1);
+  assert.equal(ms.confirmedBySource["firms"], 1);
+  assert.equal(ms.confirmedBySource["s3"], 1);
+});
+
+test("thermal-association correctly computes latestDetectedAt", () => {
+  const sources = {
+    "nasa-firms": [{ lat: 38, lon: 28, detectedAt: "2024-01-01T10:00:00Z", frpMw: 10, sensorFamily: "viirs-modis" }],
+    "sentinel3a-slstr": [{ lat: 38, lon: 28, detectedAt: "2024-01-01T10:10:00Z", frpMw: 15, sensorFamily: "slstr" }],
+    "mtg-fci-frp": [{ lat: 38, lon: 28, detectedAt: "2024-01-01T10:05:00Z", frpMw: 12, sensorFamily: "mtg" }]
+  };
+  const events = A.ThermalAssociation.associateAcrossSources({ bySource: sources });
+  assert.equal(events.length, 1);
+  assert.equal(events[0].detectedAt, "2024-01-01T10:00:00Z");
+  assert.equal(events[0].latestDetectedAt, "2024-01-01T10:10:00Z");
+});
 
 let passed = 0;
 for (const { name, fn } of tests) {

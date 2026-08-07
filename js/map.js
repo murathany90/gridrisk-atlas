@@ -300,6 +300,8 @@
       this.map.getPane("riskPane").style.zIndex = 445;
       this.map.createPane("firePane");
       this.map.getPane("firePane").style.zIndex = 460;
+      this.map.createPane("verificationPane");
+      this.map.getPane("verificationPane").style.zIndex = 470;
       this.map.createPane("windPane");
       this.map.getPane("windPane").style.zIndex = 480;
       this.setBaseMap(localStorage.getItem("baseMap") || "satellite");
@@ -333,7 +335,7 @@
       this.slstrALayer = L.layerGroup([], { pane: "firePane" });
       this.slstrBLayer = L.layerGroup([], { pane: "firePane" });
       this.mtgFrpLayer = L.layerGroup([], { pane: "firePane" });
-      this.multiSensorLayer = L.layerGroup([], { pane: "firePane" });
+      this.multiSensorLayer = L.layerGroup([], { pane: "verificationPane" });
       this.map.on("click", (e) => {
         const p = { lat: e.latlng.lat, lon: e.latlng.lng };
         if (U.insideRegion(p)) this.onPointClick?.(p);
@@ -677,7 +679,9 @@
         start = end.getTime() - 24 * 3600e3;
       const visible = this[cacheKey].filter((f) => {
         const t = Date.parse(f.detectedAt);
-        return Number.isFinite(t) && t >= start && t <= end.getTime();
+        if (!Number.isFinite(t) || t < start || t > end.getTime()) return false;
+        if (this.frpThreshold > 0 && (!Number.isFinite(f.frp) || f.frp < this.frpThreshold)) return false;
+        return true;
       });
       for (const f of visible) {
         const radius = U.clamp(4 + Math.sqrt(Math.max(0, f.frp || 0)) * 0.8, 4, 14),
@@ -717,6 +721,7 @@
       for (const f of this.mtgFrpData) {
         const t = Date.parse(f.detectedAt);
         if (!Number.isFinite(t) || t < start || t > end.getTime()) continue;
+        if (this.frpThreshold > 0 && (!Number.isFinite(f.frp) || f.frp < this.frpThreshold)) continue;
         const radius = U.clamp(4 + Math.sqrt(Math.max(0, f.frp || 0)) * 0.7, 4, 13),
           opacity = U.ageOpacity(f.detectedAt, end),
           m = new L.CircleMarker([f.lat, f.lon], {
@@ -743,18 +748,19 @@
       this.multiSensorEvents = this.constructor.eligibleMultiSensor(events);
       this.multiSensorLayer.clearLayers();
       for (const ev of this.multiSensorEvents) {
-        const level = ev.confirmationLevel || 1,
-          radius = U.clamp(6 + ev.observationCount * 2, 8, 26),
-          color =
-            level >= 3 ? "#22c55e" : level === 2 ? "#facc15" : "#f97316";
+        if (this.frpThreshold > 0 && (!Number.isFinite(ev.maxFrpMw) || ev.maxFrpMw < this.frpThreshold)) continue;
+        const level = ev.confirmationLevel || 1;
+        const radius = U.clamp(6 + ev.observationCount * 2, 8, 26);
+        const color = level >= 3 ? "#22c55e" : "#facc15";
+        const weight = level >= 3 ? 3 : 1;
         const m = new L.CircleMarker([ev.lat, ev.lon], {
-          pane: "firePane",
+          pane: "verificationPane",
           renderer: this.renderer,
           radius,
-          color: "#fff",
-          weight: 2,
+          color: color,
+          weight: weight,
           fillColor: color,
-          fillOpacity: 0.55,
+          fillOpacity: 0.15,
           opacity: 0.95,
         });
         m.bindTooltip(this.multiSensorTooltip(ev), {
@@ -787,7 +793,9 @@
       const frpLine = Number.isFinite(ev.maxFrpMw)
         ? `<small>${T("map.multiSensorMaxFrp", { frp: U.round(ev.maxFrpMw, 1) })}${perSource.length ? ` · ${perSource.join(" · ")}` : ""}</small>`
         : "";
-      return `<strong>${T("map.multiSensorLabel")}</strong> · ${T("map.multiSensorSensors", { count: ev.independentSensorCount || 1 })} · ${T("map.multiSensorCount", { count: ev.observationCount || 0 })}<br><small>${T("map.multiSensorPlatforms", { count: (ev.supportingPlatforms || []).length })}${platforms ? `: ${platforms}` : ""}</small>${frpLine ? "<br>" + frpLine : ""}`;
+      const familiesLine = ev.sensorFamilies && ev.sensorFamilies.length ? `<br><small>${T("map.multiSensorFamilies", { families: ev.sensorFamilies.join(", ") })}</small>` : "";
+      const latestTime = ev.latestDetectedAt ? U.formatLocal(new Date(ev.latestDetectedAt)) : "—";
+      return `<strong>${T("map.multiSensorLabel")}</strong><br>${T("map.multiSensorSensorFamilies", { count: ev.independentSensorCount || 1 })} · ${T("map.multiSensorCount", { count: ev.observationCount || 0 })}<br><small>${T("map.multiSensorLatest", { time: latestTime })}</small>${familiesLine}${frpLine ? "<br>" + frpLine : ""}`;
     }
     toggleSentinelSlstr(show) {
       this.slstrVisible = !!show;
@@ -818,10 +826,13 @@
     }
     toggleMultiSensor(show) {
       this.multiSensorVisible = !!show;
-      if (this.multiSensorVisible && !this.map.hasLayer(this.multiSensorLayer))
+      if (this.multiSensorVisible && !this.map.hasLayer(this.multiSensorLayer)) {
         this.multiSensorLayer.addTo(this.map);
-      else if (!this.multiSensorVisible)
+        this.makeLegend("multiSensor", T("legend.multiSensor"), `<div><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:1px solid rgba(250,204,21,1);background:rgba(250,204,21,0.15);margin-right:4px;"></span><small>${T("legend.twoSensor")}</small></div><div style="margin-top:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:3px solid rgba(34,197,94,1);background:rgba(34,197,94,0.15);margin-right:4px;box-sizing:border-box;"></span><small>${T("legend.threePlusSensor")}</small></div>`);
+      } else if (!this.multiSensorVisible) {
         this.map.removeLayer(this.multiSensorLayer);
+        document.querySelector('[data-legend="multiSensor"]')?.remove();
+      }
     }
     slstrDetectionTooltip(f, satellite) {
       return `<strong>${satellite} · ${T("map.frp")}</strong> ${U.round(

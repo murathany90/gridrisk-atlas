@@ -1,4 +1,4 @@
-﻿.modePill,
+.modePill,
 .buildPill {
   border: 1px solid #2b4154;
   border-radius: 999px;
@@ -332,6 +332,9 @@ main {
   font-size: 11px;
   padding: 4px 0;
   color: #cfe0ee;
+}
+.layerGroup label[hidden] {
+  display: none !important;
 }
 .layerGroup em {
   font-size: 8px;

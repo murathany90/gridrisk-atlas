@@ -60,7 +60,7 @@
   function computeMultiSensorMetrics(events = []) {
     const list = Array.isArray(events) ? events : [];
     const metrics = defaultMetrics();
-    metrics.deduplicatedCount = list.length ? list.length : 0;
+    metrics.deduplicatedCount = list.length;
     const confirmedByProduct = {};
     const confirmedBySource = {};
     const allFamilies = new Set();
@@ -68,6 +68,12 @@
     for (const e of list) {
       const families = Array.isArray(e.sensorFamilies) ? e.sensorFamilies : [];
       for (const f of families) allFamilies.add(f);
+      const t = e.latestDetectedAt || e.detectedAt;
+      if (t && (latest == null || new Date(t) > new Date(latest)))
+        latest = t;
+    }
+    const confirmed = list.filter(e => (e.independentSensorCount ?? (e.sensorFamilies?.length || 0)) >= 2);
+    for (const e of confirmed) {
       const prods = new Set(
         (Array.isArray(e.observations) ? e.observations : [])
           .map((d) => d && d.product)
@@ -76,16 +82,19 @@
       for (const p of prods) confirmedByProduct[p] = (confirmedByProduct[p] || 0) + 1;
       const srcs = Array.isArray(e.supportingSources) ? e.supportingSources : [];
       for (const s of srcs) confirmedBySource[s] = (confirmedBySource[s] || 0) + 1;
-      if (e.detectedAt && (latest == null || new Date(e.detectedAt) > new Date(latest)))
-        latest = e.detectedAt;
     }
-    metrics.confirmedEventCount = list.length ? list.length : 0;
+    metrics.confirmedEventCount = confirmed.length;
     metrics.latestObservationAt = latest;
     return {
       metrics,
-      totalMatchedEvents: list.length,
-      twoFamilyEvents: list.filter((e) => (e.sensorFamilies || []).length === 2).length,
-      threePlusFamilyEvents: list.filter((e) => (e.sensorFamilies || []).length >= 3).length,
+      associationGroupCount: list.length,
+      singleSensorGroupCount: list.length - confirmed.length,
+      totalMatchedEvents: confirmed.length,
+      confirmedEventCount: confirmed.length,
+      twoFamilyEvents: confirmed.filter((e) => (e.independentSensorCount ?? (e.sensorFamilies?.length || 0)) === 2).length,
+      threePlusFamilyEvents: confirmed.filter((e) => (e.independentSensorCount ?? (e.sensorFamilies?.length || 0)) >= 3).length,
+      twoSensorEventCount: confirmed.filter((e) => (e.independentSensorCount ?? (e.sensorFamilies?.length || 0)) === 2).length,
+      threePlusSensorEventCount: confirmed.filter((e) => (e.independentSensorCount ?? (e.sensorFamilies?.length || 0)) >= 3).length,
       familiesUsed: [...allFamilies].sort(),
       confirmedByProduct,
       confirmedBySource,
@@ -119,9 +128,11 @@
     const msState = registry._state.get("multi-sensor") || initialState();
     const msRaw = msState.metrics || {};
     const msSummary = {
+      associationGroupCount: msRaw.associationGroupCount ?? 0,
+      confirmedEventCount: msRaw.confirmedEventCount ?? 0,
       totalMatchedEvents: msRaw.totalMatchedEvents ?? 0,
-      twoFamilyEvents: msRaw.twoFamilyEvents ?? 0,
-      threePlusFamilyEvents: msRaw.threePlusFamilyEvents ?? 0,
+      twoFamilyEvents: msRaw.twoSensorEventCount ?? msRaw.twoFamilyEvents ?? 0,
+      threePlusFamilyEvents: msRaw.threePlusSensorEventCount ?? msRaw.threePlusFamilyEvents ?? 0,
       familiesUsed: msRaw.familiesUsed || [],
       confirmedByProduct: msRaw.confirmedByProduct || {},
       confirmedBySource: msRaw.confirmedBySource || {},
@@ -178,13 +189,14 @@
           deduplicatedCount: msSummary.totalMatchedEvents,
           thresholdCount: null,
           visibleCount: null,
-          confirmedEventCount: msSummary.totalMatchedEvents,
+          confirmedEventCount: msSummary.confirmedEventCount,
           latestObservationAt: msState.metrics ? msState.metrics.latestObservationAt : null,
         };
         const note =
           status === "ok" || status === "empty"
             ? T("thermal.note.multisensor", {
-                total: I.formatNumber(msSummary.totalMatchedEvents),
+                total: I.formatNumber(msSummary.associationGroupCount),
+                confirmed: I.formatNumber(msSummary.confirmedEventCount),
                 two: I.formatNumber(msSummary.twoFamilyEvents),
                 three: I.formatNumber(msSummary.threePlusFamilyEvents),
                 families: msSummary.familiesUsed.length

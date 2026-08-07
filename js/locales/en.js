@@ -267,7 +267,7 @@
       "Not active in manual selection (selected: {source})",
     "thermal.note.autoLoaded": "Counted per product in the AUTO load",
     "thermal.note.multisensor":
-      "{total} events · {two} events with 2 families · {three} events with 3+ families · families: {families}",
+      "{total} association groups · {confirmed} confirmed · {two} two-sensor · {three} three+ sensor",
     "thermal.note.multisensorDisabled":
       "Computed only in MULTI_SOURCE mode",
     "thermal.source.sentinel3b": "Sentinel-3B SLSTR",
@@ -503,6 +503,12 @@
     "map.multiSensorSensors": "{count} sensors",
     "map.multiSensorPlatforms": "{count} platforms",
     "map.multiSensorMaxFrp": "Max FRP: {frp} MW",
+    "map.multiSensorFamilies": "Sources: {families}",
+    "map.multiSensorLatest": "Latest observation: {time}",
+    "map.multiSensorSensorFamilies": "{count} independent sensor families",
+    "legend.multiSensor": "Multi-sensor verification",
+    "legend.twoSensor": "2 sensor families",
+    "legend.threePlusSensor": "3+ sensor families",
     "map.slstrLabel": "Sentinel-3 SLSTR",
     "map.sentinelStatus": "Sentinel-3 SLSTR status: {status}",
     "thermal.orchestrator.none": "No thermal source enabled",

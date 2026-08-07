@@ -235,11 +235,18 @@
           .filter(Boolean)
           .sort()
           .shift() || null;
+      const latestDetectedAt =
+        obs
+          .map((d) => d.detectedAt)
+          .filter(Boolean)
+          .sort()
+          .pop() || null;
       events.push({
         id: `thermal-event-${++counter}`,
         lat,
         lon,
         detectedAt,
+        latestDetectedAt,
         countryCode: obs[0]?.countryCode || A.CONFIG.activeCountryCode || "TR",
         observations: obs,
         supportingSources: sources,
