@@ -158,14 +158,19 @@
       });
       this._thermalWindowKey = null;
       if (A.ThermalSources) {
-        A.ThermalSources.patchState("multi-sensor", {
-          status: "disabled",
-          data: [],
-          error: null,
-          count: 0,
-          metrics: A.ThermalSources.defaultMetrics(),
-          lastErrorAt: null,
-        });
+        const altIds = ["sentinel3a-slstr", "sentinel3b-slstr", "mtg-fci-frp", "multi-sensor"];
+        const baseSeq = (A.ThermalSources.state("sentinel3a-slstr").seq || 0) + 1;
+        for (const id of altIds) {
+          A.ThermalSources.patchState(id, {
+            status: "idle",
+            data: [],
+            error: null,
+            count: 0,
+            seq: baseSeq,
+            metrics: A.ThermalSources.defaultMetrics(),
+            lastErrorAt: null,
+          });
+        }
       }
       const statusEl = document.getElementById("sentinelSlstrStatus");
       if (statusEl) statusEl.textContent = T("thermal.orchestrator.none");

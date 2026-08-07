@@ -151,8 +151,15 @@
         if (status === "ok" && !def.manualOnly && firmsSource === "AUTO")
           note = T("thermal.note.autoLoaded");
         metrics.confirmedEventCount = msSummary.confirmedByProduct[product] ?? null;
+        const riskRoleKey =
+          def.id === "modis"
+            ? firmsSource === "MODIS_NRT"
+              ? "thermal.role.primaryManual"
+              : "thermal.role.verificationManual"
+            : def.riskRoleKey;
         return {
           ...def,
+          riskRoleKey,
           status,
           note,
           metrics,
@@ -463,8 +470,9 @@
           signal,
           cacheKey: `${id}:${countryCode || C.activeCountryCode}:${from.toISOString()}:${to.toISOString()}`,
         });
+        const features = result.features || [];
         const out = [];
-        for (const f of result.features || []) {
+        for (const f of features) {
           const raw = slstrFeatureToRaw(f);
           if (!raw) continue;
           const d = U.normalizeFireDetection(raw, {
@@ -482,7 +490,11 @@
         }
         const deduped = U.deduplicateDetections(out);
         Object.defineProperty(deduped, "metrics", {
-          value: { rawCount: out.length, validCount: out.length },
+          value: {
+            rawCount: features.length,
+            validCount: out.length,
+            deduplicatedCount: deduped.length,
+          },
           enumerable: false,
         });
         return deduped;

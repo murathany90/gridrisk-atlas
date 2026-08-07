@@ -1064,6 +1064,49 @@ test("thermal: empty vs error vs disabled row statuses stay distinct", () => {
   }
 });
 
+test("thermal: MODIS role follows the selected firms source", () => {
+  const TS = A.ThermalSources;
+  const prevSource = A.FirmsAdapter.source;
+  try {
+    A.FirmsAdapter.source = () => "AUTO";
+    let rows = {};
+    for (const r of TS.thermalRows()) rows[r.id] = r;
+    assert.equal(
+      rows.modis.riskRoleKey,
+      "thermal.role.verificationManual",
+      "AUTO keeps MODIS in the manual verification role",
+    );
+    A.FirmsAdapter.source = () => "MODIS_NRT";
+    rows = {};
+    for (const r of TS.thermalRows()) rows[r.id] = r;
+    assert.equal(
+      rows.modis.riskRoleKey,
+      "thermal.role.primaryManual",
+      "MODIS_NRT elevates MODIS to the manual primary role",
+    );
+    assert.equal(rows["viirs-noaa21"].riskRoleKey, "thermal.role.primary", "VIIRS role unchanged");
+    assert.equal(rows["sentinel3a-slstr"].riskRoleKey, "thermal.role.verification", "SLSTR role unchanged");
+  } finally {
+    A.FirmsAdapter.source = prevSource;
+  }
+  const tr = read("js/locales/tr.js");
+  const en = read("js/locales/en.js");
+  for (const key of ["thermal.role.primaryManual", "thermal.role.verificationManual"]) {
+    assert.ok(tr.includes(key), `${key} exists in tr.js`);
+    assert.ok(en.includes(key), `${key} exists in en.js`);
+  }
+  const v = A.I18n.t("thermal.role.verificationManual");
+  assert.equal(
+    v,
+    A.I18n.locale === "en" ? "Verification · Manual selection" : "Doğrulama · Manuel seçim",
+  );
+  const p = A.I18n.t("thermal.role.primaryManual");
+  assert.equal(
+    p,
+    A.I18n.locale === "en" ? "Primary risk · Manual source" : "Ana risk · Manuel kaynak",
+  );
+});
+
 test("thermal: status table rows list VIIRS products, MODIS, S3A, S3B, MTG and multi-sensor", () => {
   const TS = A.ThermalSources;
   const rows = TS.thermalRows();
@@ -1087,7 +1130,7 @@ test("thermal: status table rows list VIIRS products, MODIS, S3A, S3B, MTG and m
   assert.equal(byId["sentinel3b-slstr"].riskRoleKey, "thermal.role.verification");
   assert.equal(byId["mtg-fci-frp"].riskRoleKey, "thermal.role.temporal");
   assert.equal(byId["multi-sensor"].riskRoleKey, "thermal.role.derived");
-  assert.equal(byId["modis"].riskRoleKey, "thermal.role.verification");
+  assert.equal(byId["modis"].riskRoleKey, "thermal.role.verificationManual", "MODIS role under AUTO");
   assert.equal(A.LOCALES.tr[byId["viirs-noaa21"].labelKey], "VIIRS NOAA-21");
   assert.equal(A.LOCALES.en[byId["multi-sensor"].labelKey], "Multi-sensor result");
   assert.equal(A.LOCALES.tr["thermal.status.disabled"], "Kapalı");
@@ -1261,6 +1304,9 @@ test("thermal: Sentinel-3 SLSTR adapters normalize GeoJSON to the shared model",
   assert.equal(d.dayNight, "day");
   assert.equal(d.countryCode, "TR");
   assert.equal(out[1].frpMw, 61.2);
+  assert.equal(out.metrics.rawCount, 2, "SLSTR rawCount is result.features.length");
+  assert.equal(out.metrics.validCount, 2, "SLSTR validCount after normalize + country filter");
+  assert.equal(out.metrics.deduplicatedCount, 2, "SLSTR deduplicatedCount is deduped.length");
 });
 
 test("thermal: SLSTR adapter drops features outside the region and without FRP/geometry", async () => {
@@ -1289,6 +1335,9 @@ test("thermal: SLSTR adapter drops features outside the region and without FRP/g
     async () => ({ features: [outside, noTime, noGeom], pages: 1, totalMatched: 3, meta: {} }),
   );
   assert.equal(out.length, 0, "all three invalid features filtered out");
+  assert.equal(out.metrics.rawCount, 3, "rawCount counts all WFS features, even filtered ones");
+  assert.equal(out.metrics.validCount, 0, "validCount counts only kept detections");
+  assert.equal(out.metrics.deduplicatedCount, 0);
 });
 
 test("thermal: SLSTR adapter keeps the best record when duplicates overlap in the window", async () => {
@@ -1307,6 +1356,9 @@ test("thermal: SLSTR adapter keeps the best record when duplicates overlap in th
   assert.equal(out.length, 1, "same-source duplicates merged");
   assert.equal(out[0].satellite, "S3B");
   assert.equal(out[0].frpMw, 33.3);
+  assert.equal(out.metrics.rawCount, 2, "rawCount is result.features.length");
+  assert.equal(out.metrics.validCount, 2, "validCount after normalize + country filter, before dedup");
+  assert.equal(out.metrics.deduplicatedCount, 1, "deduplicatedCount is deduped.length");
 });
 
 test("thermal: loadSlstrGroup runs both satellites in parallel and reports ok", async () => {
@@ -1694,6 +1746,9 @@ test("thermal: country change clears alternate layers, data, statuses and the th
     "mtgFrpData",
     "multiSensorEvents",
     "_thermalWindowKey",
+    "sentinel3a-slstr",
+    "sentinel3b-slstr",
+    "mtg-fci-frp",
   ])
     assert.ok(resetBlock.includes(token), `resetCountryState clears ${token}`);
   const mapBlock = mapSrc.slice(mapSrc.indexOf("resetCountry()"));

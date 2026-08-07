@@ -257,6 +257,8 @@
     "thermal.family.derived": "Türetilmiş",
     "thermal.role.primary": "Ana risk",
     "thermal.role.verification": "Doğrulama",
+    "thermal.role.primaryManual": "Ana risk · Manuel kaynak",
+    "thermal.role.verificationManual": "Doğrulama · Manuel seçim",
     "thermal.role.temporal": "Zamansal doğrulama",
     "thermal.role.derived": "Türetilmiş sonuç",
     "thermal.role.notUsed": "Kullanılmıyor",

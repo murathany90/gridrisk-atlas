@@ -666,6 +666,9 @@ test('MTG stays disabled in FIRMS_ONLY and never queries EUMETView', async ({ pa
     if (req.url().includes('request=GetFeature')) wfsRequests++;
   });
   await mockEffisTiles(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('thermalMode', 'FIRMS_ONLY');
+  });
 
   await page.goto('/');
   await page.waitForSelector('#countrySelector');

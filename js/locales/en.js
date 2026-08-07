@@ -256,6 +256,8 @@
     "thermal.family.derived": "Derived",
     "thermal.role.primary": "Primary risk",
     "thermal.role.verification": "Verification",
+    "thermal.role.primaryManual": "Primary risk · Manual source",
+    "thermal.role.verificationManual": "Verification · Manual selection",
     "thermal.role.temporal": "Temporal verification",
     "thermal.role.derived": "Derived result",
     "thermal.role.notUsed": "Not used",
