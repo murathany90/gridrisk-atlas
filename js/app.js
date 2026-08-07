@@ -159,14 +159,14 @@
       this._thermalWindowKey = null;
       if (A.ThermalSources) {
         const altIds = ["sentinel3a-slstr", "sentinel3b-slstr", "mtg-fci-frp", "multi-sensor"];
-        const baseSeq = (A.ThermalSources.state("sentinel3a-slstr").seq || 0) + 1;
         for (const id of altIds) {
+          const nextSeq = (A.ThermalSources.state(id).seq || 0) + 1;
           A.ThermalSources.patchState(id, {
             status: "idle",
             data: [],
             error: null,
             count: 0,
-            seq: baseSeq,
+            seq: nextSeq,
             metrics: A.ThermalSources.defaultMetrics(),
             lastErrorAt: null,
           });

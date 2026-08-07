@@ -1762,6 +1762,31 @@ test("thermal: country change clears alternate layers, data, statuses and the th
     assert.ok(mapBlock.includes(token), `map.resetCountry clears ${token}`);
 });
 
+test("thermal: country reset bumps each source's own seq, not a shared base", () => {
+  const TS = A.ThermalSources;
+  const start = source.app.indexOf("resetCountryState(");
+  const m = source.app
+    .slice(start, start + 1500)
+    .match(/(\n[ \t]*)if \(A\.ThermalSources\) \{[\s\S]*?\1\}/);
+  assert.ok(m && m[0], "seq-reset block found inside resetCountryState");
+  assert.ok(m[0].includes("nextSeq"), "reset uses per-source nextSeq");
+  const resetBlock = new Function("A", m[0]);
+  TS.patchState("sentinel3a-slstr", { seq: 2 });
+  TS.patchState("sentinel3b-slstr", { seq: 7 });
+  TS.patchState("mtg-fci-frp", { seq: 11 });
+  TS.patchState("multi-sensor", { seq: 3 });
+  resetBlock(A);
+  assert.equal(TS.state("sentinel3a-slstr").seq, 3, "S3A 2 -> 3");
+  assert.equal(TS.state("sentinel3b-slstr").seq, 8, "S3B 7 -> 8");
+  assert.equal(TS.state("mtg-fci-frp").seq, 12, "MTG 11 -> 12");
+  assert.equal(TS.state("multi-sensor").seq, 4, "multi-sensor 3 -> 4");
+  for (const id of ["sentinel3a-slstr", "sentinel3b-slstr", "mtg-fci-frp", "multi-sensor"]) {
+    assert.equal(TS.state(id).status, "idle", `${id} reset to idle`);
+    assert.equal(TS.state(id).count, 0, `${id} count cleared`);
+    assert.deepEqual(TS.state(id).metrics, TS.defaultMetrics(), `${id} metrics reset to unknown`);
+  }
+});
+
 test("multi-sensor layer only shows events confirmed by at least two independent families", () => {
   const eligible = A.MapManager.eligibleMultiSensor;
   const single = { id: "e1", lat: 38.6, lon: 35.2, independentSensorCount: 1, observationCount: 1 };
