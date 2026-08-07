@@ -700,6 +700,10 @@
           this.slstrDetectionTooltip(f, isA ? "S3A" : "S3B"),
           { className: "fire-event-tooltip", direction: "top", offset: L.point(0, -6), opacity: 0.97 },
         );
+        m.bindPopup(
+          this.slstrDetectionPopup(f, isA ? "Sentinel-3A" : "Sentinel-3B"),
+          { className: "fire-event-popup", maxWidth: 280 },
+        );
         m.addTo(layer);
       }
       if (this[visKey] && !this.map.hasLayer(layer)) layer.addTo(this.map);
@@ -735,8 +739,12 @@
             fillOpacity: opacity * 0.8,
           });
         m.bindTooltip(
-          `${T("map.mtgFrpLabel")} · ${U.round(f.frp, 1)} MW`,
+          this.mtgDetectionTooltip(f),
           { className: "fire-event-tooltip", direction: "top", offset: L.point(0, -6), opacity: 0.97 },
+        );
+        m.bindPopup(
+          this.mtgDetectionPopup(f),
+          { className: "fire-event-popup", maxWidth: 280 },
         );
         m.addTo(this.mtgFrpLayer);
       }
@@ -835,10 +843,43 @@
       }
     }
     slstrDetectionTooltip(f, satellite) {
-      return `<strong>${satellite} · ${T("map.frp")}</strong> ${U.round(
-        f.frp,
-        1,
-      )} MW<br><small>${U.formatTrShortDateTime(new Date(f.detectedAt))}</small>`;
+      const frpStr = Number.isFinite(f.frp) ? `${U.round(f.frp, 1)} MW` : "—";
+      return `<strong>${satellite} SLSTR · ${frpStr}</strong><br><small>${U.formatTrShortDateTime(new Date(f.detectedAt))}</small>`;
+    }
+    slstrDetectionPopup(f, satellite) {
+      const rows = [];
+      rows.push(`<strong>${satellite} · SLSTR</strong>`);
+      if (Number.isFinite(f.frp)) rows.push(`<tr><td>${T("map.popup.frp")}</td><td>${U.round(f.frp, 1)} MW</td></tr>`);
+      if (Number.isFinite(f.frpUncertaintyMw)) rows.push(`<tr><td>${T("map.popup.frpErr")}</td><td>±${U.round(f.frpUncertaintyMw, 1)} MW</td></tr>`);
+      if (f.confidenceRaw != null && Number.isFinite(Number(f.confidenceRaw))) rows.push(`<tr><td>${T("map.popup.confidence")}</td><td>${U.round(Number(f.confidenceRaw), 1)}%</td></tr>`);
+      if (Number.isFinite(f.brightnessTemperatureK)) rows.push(`<tr><td>${T("map.popup.bt")}</td><td>${U.round(f.brightnessTemperatureK, 1)} K</td></tr>`);
+      if (f.detectedAt) rows.push(`<tr><td>${T("map.popup.time")}</td><td>${U.formatTrShortDateTime(new Date(f.detectedAt))}</td></tr>`);
+      if (f.satellite) rows.push(`<tr><td>${T("map.popup.satellite")}</td><td>${f.satellite}</td></tr>`);
+      if (f.dayNight) rows.push(`<tr><td>${T("map.popup.dayNight")}</td><td>${f.dayNight === "night" ? T("map.popup.night") : T("map.popup.day")}</td></tr>`);
+      if (Number.isFinite(f.scan) && Number.isFinite(f.track)) rows.push(`<tr><td>${T("map.popup.pixelSize")}</td><td>${U.round(f.scan, 2)} × ${U.round(f.track, 2)} km</td></tr>`);
+      if (Number.isFinite(f.lat) && Number.isFinite(f.lon)) rows.push(`<tr><td>${T("map.popup.location")}</td><td>${U.round(f.lat, 4)}, ${U.round(f.lon, 4)}</td></tr>`);
+      const header = rows.shift();
+      return `${header}<table class="popup-meta">${rows.join("")}</table>`;
+    }
+    mtgDetectionTooltip(f) {
+      const frpStr = Number.isFinite(f.frp) ? `${U.round(f.frp, 1)} MW` : "—";
+      return `<strong>${T("map.mtgFrpLabel")} · ${frpStr}</strong><br><small>${U.formatTrShortDateTime(new Date(f.detectedAt))}</small>`;
+    }
+    mtgDetectionPopup(f) {
+      const rows = [];
+      rows.push(`<strong>MTG-I · FCI FRP</strong>`);
+      if (Number.isFinite(f.frp)) rows.push(`<tr><td>${T("map.popup.frp")}</td><td>${U.round(f.frp, 1)} MW</td></tr>`);
+      if (Number.isFinite(f.frpUncertaintyMw)) rows.push(`<tr><td>${T("map.popup.frpErr")}</td><td>±${U.round(f.frpUncertaintyMw, 1)} MW</td></tr>`);
+      if (f.confidenceRaw != null && Number.isFinite(Number(f.confidenceRaw))) rows.push(`<tr><td>${T("map.popup.confidence")}</td><td>${U.round(Number(f.confidenceRaw), 0)}%</td></tr>`);
+      if (Number.isFinite(f.brightTi4K)) rows.push(`<tr><td>${T("map.popup.btMir")}</td><td>${U.round(f.brightTi4K, 1)} K</td></tr>`);
+      const btTir = f.BT_tir_k != null ? Number(f.BT_tir_k) : null;
+      if (Number.isFinite(btTir)) rows.push(`<tr><td>${T("map.popup.btTir")}</td><td>${U.round(btTir, 1)} K</td></tr>`);
+      if (f.detectedAt) rows.push(`<tr><td>${T("map.popup.time")}</td><td>${U.formatTrShortDateTime(new Date(f.detectedAt))}</td></tr>`);
+      if (f.dayNight) rows.push(`<tr><td>${T("map.popup.dayNight")}</td><td>${f.dayNight === "night" ? T("map.popup.night") : T("map.popup.day")}</td></tr>`);
+      if (Number.isFinite(f.lat) && Number.isFinite(f.lon)) rows.push(`<tr><td>${T("map.popup.location")}</td><td>${U.round(f.lat, 4)}, ${U.round(f.lon, 4)}</td></tr>`);
+      rows.push(`<tr><td>${T("map.popup.source")}</td><td>EUMETSAT</td></tr>`);
+      const header = rows.shift();
+      return `${header}<table class="popup-meta">${rows.join("")}</table>`;
     }
     toggleHeat(show) {
       if (!show) {

@@ -1915,7 +1915,7 @@ async function withFetch(fn, handler) {
 
 test("EUMETView WFS: CQL builder uses cql_filter with time field and never time=", () => {
   const cql = WFS.buildCql({ bbox, from, to });
-  assert.equal(cql, "BBOX(geom, 25.6, 35.75, 44.9, 42.2) AND time >= '2026-08-01T00:00:00Z' AND time <= '2026-08-02T00:00:00Z'");
+  assert.equal(cql, "BBOX(geom, 35.75, 25.6, 42.2, 44.9) AND time >= '2026-08-01T00:00:00Z' AND time <= '2026-08-02T00:00:00Z'");
   const url = WFS.buildUrl({ typeNames: "copernicus:sentinel3a_slstr_level2_frp", bbox, from, to, count: 2000 });
   assert.ok(url.includes("service=WFS"));
   assert.ok(url.includes("request=GetFeature"));

@@ -24,7 +24,8 @@
     const [west, south, east, north] = bbox.map(Number);
     if (![west, south, east, north].every(Number.isFinite))
       throw new Error("eumetview-wfs: invalid bbox");
-    return `BBOX(geom, ${west}, ${south}, ${east}, ${north})`;
+    // GeoServer CQL BBOX uses EPSG:4326 axis order: lat,lon → south,west,north,east
+    return `BBOX(geom, ${south}, ${west}, ${north}, ${east})`;
   }
 
   function buildCql({ bbox, from, to }) {
