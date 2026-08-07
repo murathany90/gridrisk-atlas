@@ -68,6 +68,12 @@
     for (const e of list) {
       const families = Array.isArray(e.sensorFamilies) ? e.sensorFamilies : [];
       for (const f of families) allFamilies.add(f);
+      const t = e.latestDetectedAt || e.detectedAt;
+      if (t && (latest == null || new Date(t) > new Date(latest)))
+        latest = t;
+    }
+    const confirmed = list.filter(e => (e.independentSensorCount ?? (e.sensorFamilies?.length || 0)) >= 2);
+    for (const e of confirmed) {
       const prods = new Set(
         (Array.isArray(e.observations) ? e.observations : [])
           .map((d) => d && d.product)
@@ -76,11 +82,7 @@
       for (const p of prods) confirmedByProduct[p] = (confirmedByProduct[p] || 0) + 1;
       const srcs = Array.isArray(e.supportingSources) ? e.supportingSources : [];
       for (const s of srcs) confirmedBySource[s] = (confirmedBySource[s] || 0) + 1;
-      const t = e.latestDetectedAt || e.detectedAt;
-      if (t && (latest == null || new Date(t) > new Date(latest)))
-        latest = t;
     }
-    const confirmed = list.filter(e => (e.independentSensorCount ?? (e.sensorFamilies?.length || 0)) >= 2);
     metrics.confirmedEventCount = confirmed.length;
     metrics.latestObservationAt = latest;
     return {

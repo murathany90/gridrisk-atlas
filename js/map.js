@@ -680,7 +680,7 @@
       const visible = this[cacheKey].filter((f) => {
         const t = Date.parse(f.detectedAt);
         if (!Number.isFinite(t) || t < start || t > end.getTime()) return false;
-        if (f.frp != null && f.frp < this.frpThreshold) return false;
+        if (this.frpThreshold > 0 && (!Number.isFinite(f.frp) || f.frp < this.frpThreshold)) return false;
         return true;
       });
       for (const f of visible) {
@@ -721,7 +721,7 @@
       for (const f of this.mtgFrpData) {
         const t = Date.parse(f.detectedAt);
         if (!Number.isFinite(t) || t < start || t > end.getTime()) continue;
-        if (f.frp != null && f.frp < this.frpThreshold) continue;
+        if (this.frpThreshold > 0 && (!Number.isFinite(f.frp) || f.frp < this.frpThreshold)) continue;
         const radius = U.clamp(4 + Math.sqrt(Math.max(0, f.frp || 0)) * 0.7, 4, 13),
           opacity = U.ageOpacity(f.detectedAt, end),
           m = new L.CircleMarker([f.lat, f.lon], {
@@ -748,7 +748,7 @@
       this.multiSensorEvents = this.constructor.eligibleMultiSensor(events);
       this.multiSensorLayer.clearLayers();
       for (const ev of this.multiSensorEvents) {
-        if (ev.maxFrpMw != null && ev.maxFrpMw < this.frpThreshold) continue;
+        if (this.frpThreshold > 0 && (!Number.isFinite(ev.maxFrpMw) || ev.maxFrpMw < this.frpThreshold)) continue;
         const level = ev.confirmationLevel || 1;
         const radius = U.clamp(6 + ev.observationCount * 2, 8, 26);
         const color = level >= 3 ? "#22c55e" : "#facc15";
@@ -757,7 +757,7 @@
           pane: "verificationPane",
           renderer: this.renderer,
           radius,
-          color: "#fff",
+          color: color,
           weight: weight,
           fillColor: color,
           fillOpacity: 0.15,
@@ -828,7 +828,7 @@
       this.multiSensorVisible = !!show;
       if (this.multiSensorVisible && !this.map.hasLayer(this.multiSensorLayer)) {
         this.multiSensorLayer.addTo(this.map);
-        this.makeLegend("multiSensor", T("legend.multiSensor"), `<div><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:1px solid #fff;background:rgba(250,204,21,0.15);margin-right:4px;"></span><small>${T("legend.twoSensor")}</small></div><div style="margin-top:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:3px solid #fff;background:rgba(34,197,94,0.15);margin-right:4px;box-sizing:border-box;"></span><small>${T("legend.threePlusSensor")}</small></div>`);
+        this.makeLegend("multiSensor", T("legend.multiSensor"), `<div><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:1px solid rgba(250,204,21,1);background:rgba(250,204,21,0.15);margin-right:4px;"></span><small>${T("legend.twoSensor")}</small></div><div style="margin-top:4px;"><span style="display:inline-block;width:12px;height:12px;border-radius:50%;border:3px solid rgba(34,197,94,1);background:rgba(34,197,94,0.15);margin-right:4px;box-sizing:border-box;"></span><small>${T("legend.threePlusSensor")}</small></div>`);
       } else if (!this.multiSensorVisible) {
         this.map.removeLayer(this.multiSensorLayer);
         document.querySelector('[data-legend="multiSensor"]')?.remove();
