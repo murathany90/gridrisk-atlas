@@ -63,6 +63,15 @@ window.AtmoApp = window.AtmoApp || {};
         slstrToMtg: { maxDistanceKm: 4, maxTimeMinutes: 45 }
       }
     },
+    satelliteImagery: {
+      enabled: {
+        mtgGeoColour: true,
+        mtgFireTemperature: true,
+        viirsTrueColor: true,
+        sentinel3Olci: false,
+        sentinel2: false
+      }
+    },
     eumetviewWfs: {
       base: 'https://view.eumetsat.int/geoserver/ows',
       version: '2.0.0',
@@ -87,6 +96,26 @@ window.AtmoApp = window.AtmoApp || {};
       frameSettleMs: 3000,
       probeBbox: '35,26,43,46',
       source: 'EUMETSAT MTG-I FCI'
+    },
+    mtgFireTemperatureWms: {
+      url: 'https://view.eumetsat.int/geoserver/wms',
+      layer: 'mtg_fd:rgb_firetemperature',
+      format: 'image/png',
+      version: '1.3.0',
+      crs: 'EPSG:4326',
+      attribution: 'Imagery © EUMETSAT 2026',
+      defaultOpacity: 0.85,
+      slotMinutes: 10,
+      maxBackfillSlots: 12,
+      frameSettleMs: 3000,
+      source: 'EUMETSAT MTG-I FCI'
+    },
+    viirsTrueColorWmts: {
+      url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/{layer}/default/{time}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
+      layer: 'VIIRS_NOAA21_CorrectedReflectance_TrueColor',
+      attribution: 'Imagery provided by services from the Global Imagery Browse Services (GIBS), operated by the NASA/GSFC/Earth Science Data and Information System (ESDIS)',
+      defaultOpacity: 0.85,
+      maxZoom: 9
     },
     baseMaps: {
       satellite: {

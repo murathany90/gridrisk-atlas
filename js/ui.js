@@ -269,7 +269,8 @@
         ?.addEventListener("change", () => this.closeQuickLayers());
       document.addEventListener("change", (e) => {
         if (
-          ["layerMtg", "layerFrpHeat", "layerSmoke", "layerGridMaster"].includes(
+          e.target.name === "satelliteImagery" ||
+          ["layerFrpHeat", "layerSmoke", "layerGridMaster"].includes(
             e.target.id,
           )
         )
@@ -302,6 +303,15 @@
       fab?.setAttribute("aria-expanded", "false");
     }
     toggleQuickLayer(id) {
+      if (id === "layerMtg") {
+        const radio = document.querySelector('input[name="satelliteImagery"]:checked');
+        if (radio && radio.value !== "none") {
+          document.querySelector('input[name="satelliteImagery"][value="none"]')?.click();
+        } else {
+          document.querySelector('input[name="satelliteImagery"][value="live"]')?.click();
+        }
+        return;
+      }
       const input = document.getElementById(id);
       if (!input || input.disabled) return;
       input.click();
@@ -309,7 +319,9 @@
     syncQuickLayers() {
       const warningStates = new Set(["error", "warn", "stale", "partial"]);
       const loading = {
-        layerMtg: this.services.mtg?.state === "loading",
+        layerMtg:
+          this.services.mtg?.state === "loading" ||
+          this.services.satellite?.state === "loading",
         layerSmoke: this.services.air?.state === "loading",
         layerGridMaster:
           this.services.grid?.state === "loading" ||
@@ -322,11 +334,19 @@
         layerGridMaster: warningStates.has(this.services.grid?.state),
       };
       for (const btn of document.querySelectorAll(".quickLayerBtn")) {
-        const input = document.getElementById(btn.dataset.quickLayer);
-        if (!input) continue;
-        const active = input.checked,
-          key = btn.dataset.quickLayer,
-          isWarn = Boolean(warn[key]);
+        const key = btn.dataset.quickLayer;
+        let active = false;
+        if (key === "layerMtg") {
+          const radio = document.querySelector(
+            'input[name="satelliteImagery"]:checked',
+          );
+          active = radio && radio.value !== "none";
+        } else {
+          const input = document.getElementById(key);
+          if (!input) continue;
+          active = input.checked;
+        }
+        const isWarn = Boolean(warn[key]);
         btn.classList.toggle("active", active);
         btn.classList.toggle("loading", active && Boolean(loading[key]));
         btn.classList.toggle("warn", isWarn && !loading[key]);
