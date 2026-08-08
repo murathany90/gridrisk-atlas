@@ -98,7 +98,7 @@
     "imagery.live": "Canlı (MTG GeoColour)",
     "imagery.fire": "Yangın Termal (MTG FCI)",
     "imagery.highRes": "VIIRS True Color",
-    "imagery.highRes.sub": "NOAA-21 / NOAA-20 / Suomi-NPP · Günlük yüksek detay",
+    "imagery.highRes.sub": "NOAA-21 VIIRS · Günlük yüksek detay",
     "imagery.opacity": "Uydu Görünürlüğü",
     "imagery.refresh": "Zamanı Yenile",
     "imagery.age.live": "[GÜNCEL]",

@@ -98,7 +98,7 @@
     "imagery.live": "Live (MTG GeoColour)",
     "imagery.fire": "Fire Thermal (MTG FCI)",
     "imagery.highRes": "VIIRS True Color",
-    "imagery.highRes.sub": "NOAA-21 / NOAA-20 / Suomi-NPP · Daily high-detail imagery",
+    "imagery.highRes.sub": "NOAA-21 VIIRS · Daily high-detail imagery",
     "imagery.opacity": "Imagery Opacity",
     "imagery.refresh": "Refresh Time",
     "imagery.age.live": "[LIVE]",

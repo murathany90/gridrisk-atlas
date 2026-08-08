@@ -26,15 +26,24 @@ test.describe('Satellite Imagery Lifecycle', () => {
     return await page.evaluate(() => {
       let count = 0;
       let url = '';
+      let opacity = -1;
       const mgr = window.AtmoApp?.app?.map;
-      if (mgr && mgr.satelliteImageryLayer) {
-        count = 1;
+      if (!mgr || !mgr.map) return { count, url, opacity, storedOpacity: null };
+
+      mgr.map.eachLayer(l => {
+        if (l.options && l.options.pane === "imageryPane") {
+          count++;
+        }
+      });
+
+      if (mgr.satelliteImageryLayer) {
         const l = mgr.satelliteImageryLayer;
         url = l._url || '';
         if (l.options && l.options.layers) url += ' (layers: ' + l.options.layers + ')';
         if (l.options && l.options.layer) url += ' (layer: ' + l.options.layer + ')';
+        opacity = l.options.opacity;
       }
-      return { count, url };
+      return { count, url, opacity, storedOpacity: localStorage.getItem("satelliteImageryOpacity") };
     });
   }
 
@@ -57,7 +66,12 @@ test.describe('Satellite Imagery Lifecycle', () => {
     expect(layers.url).toContain('mtg_fd:rgb_geocolour');
 
     // Verify opacity slider affects map layer opacity natively via localStorage or directly
-    await page.$eval('#mtgOpacity', el => { el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+    await page.$eval('#mtgOpacity', el => { el.value = '0'; el.dispatchEvent(new Event('input', { bubbles: true })); });
+    await page.waitForTimeout(100);
+
+    layers = await getImageryLayerInfo(page);
+    expect(layers.opacity).toBe(0);
+    expect(layers.storedOpacity).toBe("0");
 
     // Select FIRE
     await page.$eval('input[name="satelliteImagery"][value="fire"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
@@ -68,10 +82,11 @@ test.describe('Satellite Imagery Lifecycle', () => {
     layers = await getImageryLayerInfo(page);
     expect(layers.count).toBe(1);
     expect(layers.url).toContain('mtg_fd:rgb_firetemperature');
+    expect(layers.opacity).toBe(0);
 
     // Opacity should be preserved
     let opacityValue = await page.inputValue('#mtgOpacity');
-    expect(opacityValue).toBe('50');
+    expect(opacityValue).toBe('0');
 
     // Select VIIRS
     await page.$eval('input[name="satelliteImagery"][value="highRes"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
@@ -82,6 +97,7 @@ test.describe('Satellite Imagery Lifecycle', () => {
     layers = await getImageryLayerInfo(page);
     expect(layers.count).toBe(1);
     expect(layers.url).toContain('VIIRS_NOAA21');
+    expect(layers.opacity).toBe(0);
 
     // VIIRS -> LIVE
     await page.$eval('input[name="satelliteImagery"][value="live"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
@@ -89,6 +105,7 @@ test.describe('Satellite Imagery Lifecycle', () => {
     layers = await getImageryLayerInfo(page);
     expect(layers.count).toBe(1);
     expect(layers.url).toContain('mtg_fd:rgb_geocolour');
+    expect(layers.opacity).toBe(0);
 
     // Select NONE
     await page.$eval('input[name="satelliteImagery"][value="none"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });

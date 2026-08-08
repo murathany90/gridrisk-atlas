@@ -1296,9 +1296,10 @@
         },
         probe: (iso) => mm.probeMtgTime(iso),
       }));
-      const iso = mgr.normalize(date).toISOString(),
-        opacity = U.clamp(Number(localStorage.getItem("satelliteImageryOpacity")) || wms.defaultOpacity, 0, 1);
-      const layer = L.tileLayer.wms(wms.url, {
+        const iso = mgr.normalize(date).toISOString();
+        const storedOp = localStorage.getItem("satelliteImageryOpacity");
+        const opacity = U.clamp(storedOp !== null && storedOp !== "" ? Number(storedOp) : wms.defaultOpacity, 0, 1);
+        const layer = L.tileLayer.wms(wms.url, {
         layers: wms.layer,
         format: wms.format,
         transparent: true,
@@ -1321,12 +1322,13 @@
     }
 
     createViirsWmtsLayer(date) {
-      const wms = C.viirsTrueColorWmts;
-      const iso = U.dateOnlyUtc(date);
-      const opacity = U.clamp(Number(localStorage.getItem("satelliteImageryOpacity")) || wms.defaultOpacity, 0, 1);
+        const wms = C.viirsTrueColorWmts;
+        const iso = U.dateOnlyUtc(date);
+        const storedOp = localStorage.getItem("satelliteImageryOpacity");
+        const opacity = U.clamp(storedOp !== null && storedOp !== "" ? Number(storedOp) : wms.defaultOpacity, 0, 1);
 
-      const layer = L.tileLayer(wms.url, {
-        layer: wms.layers[0], // NOAA-21
+        const layer = L.tileLayer(wms.url, {
+          layer: wms.layer,
         time: iso,
         opacity,
         pane: "imageryPane",
@@ -1336,11 +1338,13 @@
       });
 
       this.satelliteImageryLayer = layer;
-      this.currentWmsConfig = wms;
-      this.updateImageryAgeUI(iso, true);
+        this.currentWmsConfig = wms;
+        this.updateImageryAgeUI(iso, true);
 
-      A.Events.emit("service", { id: "satellite", state: "ok", count: null, note: `VIIRS ${iso}` });
-      return layer;
+        A.Events.emit("service", { id: "satellite", state: "loading", count: null, note: `VIIRS ${iso}` });
+        layer.on("tileload", () => A.Events.emit("service", { id: "satellite", state: "ok", count: null, note: `VIIRS ${iso}` }));
+        layer.on("tileerror", () => A.Events.emit("service", { id: "satellite", state: "warn", count: null, note: `VIIRS error` }));
+        return layer;
     }
 
     setSatelliteImagery(mode, date) {

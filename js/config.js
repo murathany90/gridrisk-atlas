@@ -112,7 +112,7 @@ window.AtmoApp = window.AtmoApp || {};
     },
     viirsTrueColorWmts: {
       url: 'https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/{layer}/default/{time}/GoogleMapsCompatible_Level9/{z}/{y}/{x}.jpg',
-      layers: ['VIIRS_NOAA21_CorrectedReflectance_TrueColor', 'VIIRS_NOAA20_CorrectedReflectance_TrueColor', 'VIIRS_SNPP_CorrectedReflectance_TrueColor'],
+      layer: 'VIIRS_NOAA21_CorrectedReflectance_TrueColor',
       attribution: 'Imagery provided by services from the Global Imagery Browse Services (GIBS), operated by the NASA/GSFC/Earth Science Data and Information System (ESDIS)',
       defaultOpacity: 0.85,
       maxZoom: 9
