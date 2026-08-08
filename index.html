@@ -619,24 +619,43 @@
                         <option value="dark">CARTO Dark Matter</option>
                         <option value="topo">OpenTopoMap</option>
                       </select></label
-                    ><label
-                      ><input id="layerMtg" type="checkbox" /> EUMETSAT MTG-I
-                      GeoColour
-                      <span
-                        class="layerBadge observation"
-                        data-i18n="badge.observation"
-                        >GÖZLEM</span
-                      ></label
-                    ><label
-                      class="rangeLine layerDependent"
-                      data-depends-on="layerMtg"
-                      ><span data-i18n="layers.mtgOpacity"
-                        >Uydu görünürlüğü</span
-                      >
+                    >
+                    <div class="imagerySelector">
+                      <label>
+                        <input type="radio" name="satelliteImagery" value="none" checked />
+                        <span data-i18n="imagery.none">Kapalı (Sadece Temel Harita)</span>
+                      </label>
+                      <label>
+                        <input type="radio" name="satelliteImagery" value="live" />
+                        <span data-i18n="imagery.live">Canlı (MTG GeoColour)</span>
+                        <span class="layerBadge observation" data-i18n="badge.observation">GÖZLEM</span>
+                      </label>
+                      <label>
+                        <input type="radio" name="satelliteImagery" value="fire" />
+                        <span data-i18n="imagery.fire">Yangın Termal (MTG FCI)</span>
+                        <span class="layerBadge observation" data-i18n="badge.observation">GÖZLEM</span>
+                      </label>
+                      <label>
+                        <input type="radio" name="satelliteImagery" value="highRes" />
+                        <div>
+                          <span data-i18n="imagery.highRes">VIIRS True Color</span>
+                          <span class="layerBadge observation" data-i18n="badge.observation">GÖZLEM</span><br>
+                          <small style="color: var(--text-secondary); font-size: 0.85em;" data-i18n="imagery.highRes.sub">NOAA-21 / NOAA-20 / Suomi-NPP · Günlük yüksek detay</small>
+                        </div>
+                      </label>
+                    </div>
+
+                    <div id="satelliteImageryInfo" style="display: none; padding: 4px 0 8px 0; font-size: 0.85em; color: var(--text-secondary); display: flex; justify-content: space-between; align-items: center;">
+                      <span id="satelliteImageryAge">[GÜNCEL]</span>
+                      <button type="button" id="refreshImageryBtn" style="background: none; border: 1px solid var(--border-color); color: var(--text-primary); cursor: pointer; padding: 2px 6px; border-radius: 4px; font-size: 0.9em;" data-i18n="imagery.refresh">Yenile</button>
+                    </div>
+
+                    <label class="rangeLine" id="imageryOpacityContainer" style="display: none;">
+                      <span data-i18n="imagery.opacity">Uydu Görünürlüğü</span>
                       <input
                         id="mtgOpacity"
                         type="range"
-                        min="30"
+                        min="0"
                         max="100"
                         step="5"
                         value="85"

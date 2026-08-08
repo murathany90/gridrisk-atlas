@@ -27,7 +27,7 @@
         windLevel: "10m",
         fwiEnabled: false,
         effisBurntAreaEnabled: true,
-        mtgEnabled: false,
+        satelliteImageryMode: "none",
         firesEnabled: true,
         heatEnabled: false,
         impactEnabled: true,
@@ -191,8 +191,8 @@
         this.map.toggleFwi(true, this.state.selectedTime);
       if (this.state.effisBurntAreaEnabled)
         this.map.toggleEffisBurntArea(true, this.state.selectedTime);
-      if (this.state.mtgEnabled)
-        this.map.toggleMtg(true, this.state.selectedTime);
+      if (this.state.satelliteImageryMode !== "none")
+        this.map.setSatelliteImagery(this.state.satelliteImageryMode, this.state.selectedTime);
       if (C.firmsMapKey && C.firmsMapKey !== "__FIRMS_MAP_KEY__")
         this.loadFirms().finally(() => this.loadThermalSources());
       else {
@@ -280,7 +280,7 @@
           this.state.slstrEnabled = e.target.checked;
           this.map.toggleSentinelSlstr(e.target.checked);
           this.renderThermalLayers();
-          if (
+          if(
             e.target.checked &&
             A.ThermalSources.getMode() !== "FIRMS_ONLY"
           )
@@ -417,13 +417,22 @@
           this.map.toggleEffisBurntArea(
             e.target.checked,
             this.state.selectedTime,
-          );
+            );
+          });
+        document.querySelectorAll('input[name="satelliteImagery"]').forEach(radio => {
+          radio.addEventListener("change", (e) => {
+            if (e.target.checked) {
+              this.state.satelliteImageryMode = e.target.value;
+              const opacityEl = document.getElementById("imageryOpacityContainer");
+              if (opacityEl) opacityEl.style.display = e.target.value !== "none" ? "flex" : "none";
+              this.map.setSatelliteImagery(e.target.value, this.state.selectedTime);
+            }
+          });
         });
-      document.getElementById("layerMtg").addEventListener("change", (e) => {
-        this.state.mtgEnabled = e.target.checked;
-        this.map.toggleMtg(e.target.checked, this.state.selectedTime);
-      });
-      document.getElementById("mtgOpacity").addEventListener("input", (e) => {
+        document.getElementById("refreshImageryBtn")?.addEventListener("click", () => {
+          this.map.refreshSatelliteImagery(this.state.selectedTime);
+        });
+        document.getElementById("mtgOpacity").addEventListener("input", (e) => {
         const v = Number(e.target.value) / 100;
         localStorage.setItem("mtgOpacity", String(v));
         this.map.mtgLayer?.setOpacity(v);
@@ -583,17 +592,19 @@
     }
     setTimeOffset(hours, reload) {
       const d = new Date(Date.now() + hours * 3600e3);
-      if (this.state.mtgEnabled) d.setUTCSeconds(0, 0);
+      const has10mStep = this.state.satelliteImageryMode === "live" || this.state.satelliteImageryMode === "fire";
+      if (has10mStep) d.setUTCSeconds(0, 0);
       else d.setUTCMinutes(0, 0, 0);
       this.state.selectedTime = d;
       this.ui.setTime(d);
       this.map.renderFires(d);
       this.state.fireEvents = this.map.fireEventsVisible;
       if (this.state.heatEnabled) this.map.toggleHeat(true);
-      if (this.state.fwiEnabled) this.map.toggleFwi(true, d);
+      if (this.state.fwiEnabled)
+        this.map.toggleFwi(true, d);
       if (this.state.effisBurntAreaEnabled)
         this.map.toggleEffisBurntArea(true, d);
-      if (this.state.mtgEnabled) this.map.setMtgTime(d);
+      if (this.state.satelliteImageryMode !== "none") this.map.setSatelliteImageryTime(d);
       this.updateImpact();
       this.ui.renderExportSummary(this.state);
       this.renderFireLayers();
@@ -621,7 +632,8 @@
       this.scheduleThermalReload(600);
       this.playTimer = setInterval(() => {
         const s = document.getElementById("timeSlider");
-        const step = this.state.mtgEnabled
+        const has10mStep = this.state.satelliteImageryMode === "live" || this.state.satelliteImageryMode === "fire";
+        const step = has10mStep
           ? C.timeline.mtgPlayStepMinutes / 60
           : C.timeline.playStepHours;
         let v = Number(s.value) + step;

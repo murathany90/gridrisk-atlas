@@ -136,6 +136,8 @@ const U = A.Utils;
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
 
+A.I18n.applyDocument(global.document);
+
 test("brand, subtitle and v3.11.2 are synchronized", () => {
   assert.equal(A.CONFIG.appName, "GridRisk Atlas");
   assert.equal(A.CONFIG.appVersion, "3.11.2");
@@ -613,6 +615,10 @@ test("mobile quick layer menu contract (FAB, 2x2 popover, checkbox sync)", () =>
   ].map((m) => m[1]);
   assert.deepEqual(btns, targets);
   for (const id of targets) {
+    if (id === "layerMtg") {
+      assert.ok(html.includes('name="satelliteImagery"'), "satellite radio group");
+      continue;
+    }
     assert.ok(html.includes(`<input id="${id}"`), id + " checkbox");
     assert.equal(
       (html.match(new RegExp(`id="${id}"`, "g")) || []).length,
