@@ -5,7 +5,7 @@
 [![CI](https://github.com/murathany90/gridrisk-atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/murathany90/gridrisk-atlas/actions/workflows/ci.yml)
 [![Deploy to GitHub Pages](https://github.com/murathany90/gridrisk-atlas/actions/workflows/pages.yml/badge.svg)](https://github.com/murathany90/gridrisk-atlas/actions/workflows/pages.yml)
 
-> Sürüm / Version: **v3.11.2** | [Canlı demo / Live demo](https://gridriskatlas.com/) | Arayüz / Interface: **Türkçe + English**
+> Sürüm / Version: **v3.12.0** | [Canlı demo / Live demo](https://gridriskatlas.com/) | Arayüz / Interface: **Türkçe + English**
 
 > Not: Eski GitHub Pages adresi `https://murathany90.github.io/gridrisk-atlas/` yeni canonical domaine yönlendirilir.
 

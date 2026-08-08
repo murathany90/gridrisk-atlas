@@ -1,3 +1,6 @@
+# v3.12.0 - Satellite Imagery Panel
+- **S체r체m 3.12.0**: Harita ve Uydu paneline LIVE (MTG GeoColour), FIRE (MTG Fire Temperature) ve VIIRS True Color modlar캇 eklendi. T체m paneller ve E2E testleri g체ncellendi.
+
 # v3.11.2 - EUMETView Coordinate and Metadata Fixes  
 - **S걊걅 3.11.2**: package.json, package-lock.json, js/config.js, index.html (pill + cache-buster), server.mjs, README.md, s걊걅 ge뇅i웙.  
 **Testler:** BBOX axis d걕eltmesi, MTG/SLSTR Normalize testleri ve Popup format testleri. Node, Playwright, Python hepsi ge뇍i.  
