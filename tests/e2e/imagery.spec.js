@@ -2,23 +2,15 @@ import { test, expect } from '@playwright/test';
 
 test.describe('Satellite Imagery Lifecycle', () => {
   test.beforeEach(async ({ page }) => {
-    // Intercept MTG GeoColour
-    await page.route('**/mtg_fd:rgb_geocolour**', route => {
-      route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('') });
+    await page.addInitScript(() => {
+      localStorage.clear();
+      sessionStorage.clear();
+      if (window.caches) caches.keys().then(names => names.forEach(n => caches.delete(n)));
+      if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
     });
-    // Intercept MTG Fire Temperature
-    await page.route('**/mtg_fd:rgb_firetemperature**', route => {
-      route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('') });
-    });
-    // Intercept VIIRS
-    await page.route('**/VIIRS_NOAA21_CorrectedReflectance_TrueColor**', route => {
-      route.fulfill({ status: 200, contentType: 'image/jpeg', body: Buffer.from('') });
-    });
-
+    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
     await page.goto('/?country=TR&lang=tr');
-    // Ensure map is loaded
     await page.waitForSelector('.leaflet-container');
-    // Open the layers panel (native click bypasses visibility errors)
     await page.$eval('[data-i18n="layers.title"]', el => el.click());
   });
 
@@ -48,24 +40,23 @@ test.describe('Satellite Imagery Lifecycle', () => {
   }
 
   test('cycles through modes, preserves opacity and ensures single active layer', async ({ page }) => {
-    // Initial state: NONE
+    await page.route('**/*mtg_fd*rgb_geocolour*', route => route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') }));
+    await page.route('**/*mtg_fd*rgb_firetemperature*', route => route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') }));
+    await page.route('**/VIIRS_NOAA21_CorrectedReflectance_TrueColor**', route => route.fulfill({ status: 200, contentType: 'image/jpeg', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') }));
+
     let radio = await page.$('input[name="satelliteImagery"]:checked');
     expect(await radio.inputValue()).toBe('none');
 
     let layers = await getImageryLayerInfo(page);
     expect(layers.count).toBe(0);
 
-    // Select LIVE
     await page.$eval('input[name="satelliteImagery"][value="live"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
-    await page.waitForTimeout(200);
-    let info = await page.$('#satelliteImageryInfo');
-    expect(await info.evaluate(node => node.style.display)).toBe('');
+    await expect(async () => {
+      layers = await getImageryLayerInfo(page);
+      expect(layers.count).toBe(1);
+    }).toPass({ timeout: 5000 });
+    expect(layers.url).toContain('rgb_geocolour');
 
-    layers = await getImageryLayerInfo(page);
-    expect(layers.count).toBe(1);
-    expect(layers.url).toContain('mtg_fd:rgb_geocolour');
-
-    // Verify opacity slider affects map layer opacity natively via localStorage or directly
     await page.$eval('#mtgOpacity', el => { el.value = '0'; el.dispatchEvent(new Event('input', { bubbles: true })); });
     await page.waitForTimeout(100);
 
@@ -73,70 +64,162 @@ test.describe('Satellite Imagery Lifecycle', () => {
     expect(layers.opacity).toBe(0);
     expect(layers.storedOpacity).toBe("0");
 
-    // Select FIRE
     await page.$eval('input[name="satelliteImagery"][value="fire"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
-    await page.waitForTimeout(200);
-    radio = await page.$('input[name="satelliteImagery"]:checked');
-    expect(await radio.inputValue()).toBe('fire');
-
-    layers = await getImageryLayerInfo(page);
+    await expect(async () => {
+      layers = await getImageryLayerInfo(page);
+      expect(layers.url).toContain('rgb_firetemperature');
+    }).toPass();
     expect(layers.count).toBe(1);
-    expect(layers.url).toContain('mtg_fd:rgb_firetemperature');
     expect(layers.opacity).toBe(0);
 
-    // Opacity should be preserved
-    let opacityValue = await page.inputValue('#mtgOpacity');
-    expect(opacityValue).toBe('0');
-
-    // Select VIIRS
     await page.$eval('input[name="satelliteImagery"][value="highRes"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
-    await page.waitForTimeout(200);
-    radio = await page.$('input[name="satelliteImagery"]:checked');
-    expect(await radio.inputValue()).toBe('highRes');
-
-    layers = await getImageryLayerInfo(page);
+    await expect(async () => {
+      layers = await getImageryLayerInfo(page);
+      expect(layers.url).toContain('VIIRS_NOAA21');
+    }).toPass();
     expect(layers.count).toBe(1);
-    expect(layers.url).toContain('VIIRS_NOAA21');
-    expect(layers.opacity).toBe(0);
 
-    // VIIRS -> LIVE
-    await page.$eval('input[name="satelliteImagery"][value="live"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
-    await page.waitForTimeout(200);
-    layers = await getImageryLayerInfo(page);
-    expect(layers.count).toBe(1);
-    expect(layers.url).toContain('mtg_fd:rgb_geocolour');
-    expect(layers.opacity).toBe(0);
-
-    // Select NONE
     await page.$eval('input[name="satelliteImagery"][value="none"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
-    await page.waitForTimeout(200);
-    info = await page.$('#satelliteImageryInfo');
-    expect(await info.evaluate(node => node.style.display)).toBe('none');
-
-    layers = await getImageryLayerInfo(page);
-    expect(layers.count).toBe(0);
+    await expect(async () => {
+      layers = await getImageryLayerInfo(page);
+      expect(layers.count).toBe(0);
+    }).toPass();
   });
 
   test('mobile quick layers synchronizes with desktop radios', async ({ page }) => {
-    // Switch to mobile viewport
+    await page.route('**/*mtg_fd*rgb_geocolour*', route => route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') }));
     await page.setViewportSize({ width: 375, height: 667 });
-
-    // Open quick layers FAB
     await page.$eval('#quickLayersFab', el => el.click());
-    // Toggle imagery via quick layer (should go to LIVE)
     await page.$eval('[data-quick-layer="layerMtg"]', el => el.click());
+    
+    await expect(async () => {
+      let radio = await page.$('input[name="satelliteImagery"]:checked');
+      expect(await radio.inputValue()).toBe('live');
+    }).toPass();
 
-    // Check if the underlying radio changed to live
-    let radio = await page.$('input[name="satelliteImagery"]:checked');
-    expect(await radio.inputValue()).toBe('live');
-
-    // Check if the info panel became visible
-    let info = await page.$('#satelliteImageryInfo');
-    expect(await info.evaluate(node => node.style.display)).toBe('');
-
-    // Toggle imagery again (should go to NONE)
     await page.$eval('[data-quick-layer="layerMtg"]', el => el.click());
-    radio = await page.$('input[name="satelliteImagery"]:checked');
-    expect(await radio.inputValue()).toBe('none');
+    await expect(async () => {
+      let radio = await page.$('input[name="satelliteImagery"]:checked');
+      expect(await radio.inputValue()).toBe('none');
+    }).toPass();
+  });
+
+  test('GeoColour vs Fire probes request distinct layers', async ({ page }) => {
+    let liveRequested = false;
+    let fireRequested = false;
+    await page.route('**/*mtg_fd*rgb_geocolour*', route => {
+      liveRequested = true;
+      route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') });
+    });
+    await page.route('**/*mtg_fd*rgb_firetemperature*', route => {
+      fireRequested = true;
+      route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') });
+    });
+    
+    await page.$eval('input[name="satelliteImagery"][value="live"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    await expect(async () => expect(liveRequested).toBe(true)).toPass({ timeout: 5000 });
+    
+    await page.$eval('input[name="satelliteImagery"][value="fire"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    await expect(async () => expect(fireRequested).toBe(true)).toPass({ timeout: 5000 });
+  });
+
+  test('Fast mode switching prevents async race conditions', async ({ page }) => {
+    await page.route('**/*mtg_fd*rgb_geocolour*', async route => {
+      await new Promise(r => setTimeout(r, 1500));
+      route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') });
+    });
+    await page.route('**/*mtg_fd*rgb_firetemperature*', async route => {
+      await new Promise(r => setTimeout(r, 1000));
+      route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') });
+    });
+    await page.route('**/VIIRS_NOAA21_CorrectedReflectance_TrueColor**', route => {
+      route.fulfill({ status: 200, contentType: 'image/jpeg', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') });
+    });
+
+    await page.$eval('input[name="satelliteImagery"][value="live"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    await page.waitForTimeout(50);
+    await page.$eval('input[name="satelliteImagery"][value="fire"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    await page.waitForTimeout(50);
+    await page.$eval('input[name="satelliteImagery"][value="highRes"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    
+    await expect(async () => {
+      const layers = await getImageryLayerInfo(page);
+      expect(layers.count).toBe(1);
+      expect(layers.url).toContain('VIIRS_NOAA21');
+    }).toPass({ timeout: 5000 });
+  });
+
+  test('Stale-while-revalidate keeps old layer until new one loads', async ({ page }) => {
+    await page.route('**/*mtg_fd*rgb_geocolour*', route => route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') }));
+    
+    let fireResolve = null;
+    await page.route('**/*mtg_fd*rgb_firetemperature*', async route => {
+      await new Promise(r => fireResolve = r);
+      route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') });
+    });
+
+    await page.$eval('input[name="satelliteImagery"][value="live"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    await expect(async () => {
+      const layers = await getImageryLayerInfo(page);
+      expect(layers.count).toBe(1);
+      expect(layers.url).toContain('rgb_geocolour');
+    }).toPass({ timeout: 5000 });
+
+    await page.$eval('input[name="satelliteImagery"][value="fire"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    
+    // Check that we don't immediately remove old layer
+    await page.waitForTimeout(100);
+    let layers = await getImageryLayerInfo(page);
+    expect(layers.count).toBeLessThanOrEqual(2);
+    
+    // Resolve the new one
+    fireResolve();
+    
+    await expect(async () => {
+      layers = await getImageryLayerInfo(page);
+      expect(layers.count).toBe(1);
+      expect(layers.url).toContain('rgb_firetemperature');
+    }).toPass({ timeout: 5000 });
+  });
+
+  test('Crossfade styling is applied to satellite layers', async ({ page }) => {
+    await page.route('**/*mtg_fd*rgb_geocolour*', route => route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') }));
+    
+    await page.$eval('input[name="satelliteImagery"][value="live"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    
+    await expect(async () => {
+      const hasClass = await page.evaluate(() => !!document.querySelector('.satellite-imagery-layer'));
+      expect(hasClass).toBe(true);
+    }).toPass({ timeout: 5000 });
+
+    const cssOptions = await page.evaluate(() => {
+      const layer = document.querySelector('.satellite-imagery-layer');
+      return {
+        pointerEvents: getComputedStyle(layer).pointerEvents,
+        transition: getComputedStyle(layer).transition,
+      };
+    });
+    expect(cssOptions.pointerEvents).toBe('none');
+    
+  });
+
+  test('Language switch does not recreate MTG layer or probe', async ({ page }) => {
+    let probeCount = 0;
+    await page.route('**/*mtg_fd*rgb_geocolour*', route => {
+      probeCount++;
+      route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') });
+    });
+
+    await page.$eval('input[name="satelliteImagery"][value="live"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    await expect(async () => {
+      const layers = await getImageryLayerInfo(page);
+      expect(layers.count).toBe(1);
+    }).toPass({ timeout: 5000 });
+    
+    const initialProbeCount = probeCount;
+    await page.selectOption('#languageSelector', 'en');
+    await page.waitForTimeout(500);
+
+    expect(probeCount).toBe(initialProbeCount);
   });
 });

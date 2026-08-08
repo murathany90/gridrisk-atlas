@@ -105,111 +105,140 @@
     constructor(cfg, handlers) {
       this.cfg = cfg;
       this.on = handlers || {};
+      this.cacheKey = "mtgFrameCache_" + (cfg.layer || "default");
       this.slot = (cfg.slotMinutes || 10) * 60 * 1000;
       this.maxBack = cfg.maxBackfillSlots ?? 12;
-      this.settleMs = cfg.frameSettleMs ?? 3000;
+      this.initialLag = cfg.initialLagMinutes ?? 20;
+
       this.frameSeq = 0;
-      this.requestedFrame = null;
+      this._probeAbort = null;
       this.lastUserTime = null;
-      this.displayedTime = null;
-      this.loadedTileCount = 0;
-      this.failedTileCount = 0;
-      this.backfillAttempt = 0;
-      this._settleT = null;
-      this._probeDone = false;
     }
+
     static roundToSlot(ms, slot) {
       return new Date(Math.floor(ms / slot) * slot);
     }
+
     latestAllowed() {
-      return MtgFrameManager.roundToSlot(Date.now(), this.slot);
+      return MtgFrameManager.roundToSlot(Date.now() - this.initialLag * 60 * 1000, this.slot);
     }
+
     normalize(date) {
       const ms = Number(date instanceof Date ? date.getTime() : date),
         s = MtgFrameManager.roundToSlot(ms, this.slot),
         max = this.latestAllowed();
       return s.getTime() > max.getTime() ? max : s;
     }
+
     applyUserTime(iso) {
       this.lastUserTime = iso;
-      this.backfillAttempt = 0;
-      if (iso === this.requestedFrame) return null;
       return this._start(iso);
     }
+
     applyBackfill(iso) {
       return this._start(iso);
     }
+
     _start(iso) {
-      if (this._settleT) {
-        clearTimeout(this._settleT);
-        this._settleT = null;
+      if (this._probeAbort) {
+        this._probeAbort.abort();
+        this._probeAbort = null;
       }
-      this.frameSeq++;
-      this.requestedFrame = iso;
-      this.loadedTileCount = 0;
-      this.failedTileCount = 0;
-      this._probeDone = false;
-      this.on.start?.(iso, this.frameSeq);
-      return this.frameSeq;
-    }
-    tileLoad(seq) {
-      if (seq !== this.frameSeq) return;
-      this.loadedTileCount++;
-      if (this._settleT) {
-        clearTimeout(this._settleT);
-        this._settleT = null;
-      }
-      if (this.loadedTileCount === 1) {
-        this.displayedTime = this.requestedFrame;
-        this.on.ok?.(this.requestedFrame, this.frameSeq);
-      }
-    }
-    tileError(seq) {
-      if (seq !== this.frameSeq || this.loadedTileCount > 0) return;
-      this.failedTileCount++;
-      if (this._settleT) return;
-      this._settleT = setTimeout(() => this._settle(), this.settleMs);
-    }
-    dispose() {
-      if (this._settleT) {
-        clearTimeout(this._settleT);
-        this._settleT = null;
-      }
-    }
-    async _settle() {
-      this._settleT = null;
-      const seq = this.frameSeq;
-      if (this.loadedTileCount > 0 || seq === 0) return;
-      if (this.backfillAttempt >= this.maxBack) {
-        this.on.exhausted?.(this.requestedFrame, this.backfillAttempt, seq);
-        return;
-      }
-      if (!this._probeDone && this.on.probe) {
-        this._probeDone = true;
-        const kind = await this.on.probe(this.requestedFrame);
-        if (this.frameSeq !== seq || this.loadedTileCount > 0 || this._settleT)
-          return;
-        if (kind === "invalid") {
-          this.on.invalid?.(this.requestedFrame, seq);
-          return;
+
+      const seq = ++this.frameSeq;
+      this.lastUserTime = iso;
+      this.on.start?.(iso, seq);
+
+      let cached = null;
+      const cacheTtl = this.cfg.cacheTtlMs || 60 * 60 * 1000;
+      try {
+        const c = JSON.parse(sessionStorage.getItem(this.cacheKey));
+        if (c && c.time && c.savedAt && (Date.now() - c.savedAt < cacheTtl)) {
+          cached = c.time;
         }
+      } catch (e) {}
+
+      if (cached) {
+        this.on.ok?.(cached, seq, true);
+        const absoluteLatest = MtgFrameManager.roundToSlot(Date.now() - this.initialLag * 60 * 1000, this.slot).toISOString();
+        this._runProbeSequence(absoluteLatest, seq, cached, true);
+      } else {
+        this._runProbeSequence(iso, seq, null, false);
+      }
+
+      return seq;
+    }
+
+    async _runProbeSequence(startIso, seq, cachedIso, isUpgrade) {
+      this._probeAbort = new AbortController();
+      const abortSignal = this._probeAbort.signal;
+
+      let currentIso = startIso;
+      let attempt = 0;
+
+      while (attempt <= this.maxBack) {
+        if (abortSignal.aborted) return;
+        if (isUpgrade && currentIso === cachedIso) return;
+
+        let kind = "no-frame";
+        if (this.on.probe) {
+          try {
+            kind = await this.on.probe(currentIso, abortSignal);
+          } catch (e) {
+            if (e.name === 'AbortError') return;
+            kind = "network";
+          }
+        } else {
+          kind = "image";
+        }
+
+        if (abortSignal.aborted) return;
+        
         if (kind === "network") {
-          this.on.network?.(this.requestedFrame, seq);
+          if (!isUpgrade) this.on.network?.(startIso, seq);
           return;
         }
+
+        if (kind === "image") {
+          try {
+            sessionStorage.setItem(this.cacheKey, JSON.stringify({ time: currentIso, savedAt: Date.now() }));
+          } catch (e) {}
+
+          if (isUpgrade) {
+             this.on.upgrade?.(currentIso, seq);
+          } else {
+             this.on.ok?.(currentIso, seq, false);
+          }
+          return;
+        }
+
+        if (!isUpgrade) {
+          this.on.invalid?.(currentIso, seq);
+        }
+
+        attempt++;
+        const target = new Date(Date.parse(currentIso) - this.slot).toISOString();
+        if (!isUpgrade) {
+           this.on.backfill?.(currentIso, target, attempt, seq);
+        }
+        currentIso = target;
       }
-      this.backfillAttempt++;
-      const target = new Date(
-        Date.parse(this.requestedFrame) - this.slot,
-      ).toISOString();
-      this.on.backfill?.(
-        this.requestedFrame,
-        target,
-        this.backfillAttempt,
-        seq,
-      );
+      
+      if (!isUpgrade) {
+         this.on.exhausted?.(startIso, attempt, seq);
+      }
+    }
+
+    tileLoad(seq) {}
+    tileError(seq) {}
+    dispose() {
+      if (this._probeAbort) {
+        this._probeAbort.abort();
+        this._probeAbort = null;
+      }
     }
   }
+
 
   class MapManager {
     static eligibleMultiSensor(events) {
@@ -1196,12 +1225,11 @@
         slot = (C.mtgGeoColourWms.slotMinutes || 10) * 60 * 1000;
       return MtgFrameManager.roundToSlot(ms, slot);
     }
-    async probeMtgTime(iso) {
-      const wms = C.mtgGeoColourWms,
-        bbox = wms.probeBbox || "35,26,43,46",
+    async probeMtgTime(wms, iso, abortSignal) {
+      const bbox = wms.probeBbox || "35,26,43,46",
         u = `${wms.url}?SERVICE=WMS&VERSION=${wms.version}&REQUEST=GetMap&LAYERS=${wms.layer}&STYLES=&FORMAT=image/png&TRANSPARENT=TRUE&BBOX=${bbox}&WIDTH=64&HEIGHT=64&CRS=EPSG:4326&TIME=${encodeURIComponent(iso)}`;
       try {
-        const r = await fetch(u, { signal: AbortSignal.timeout(12000) });
+        const r = await fetch(u, { signal: abortSignal || AbortSignal.timeout(12000) });
         const ct = (r.headers.get("content-type") || "").toLowerCase();
         if (!r.ok)
           return ct.includes("text/html") || ct.includes("application/json")
@@ -1218,6 +1246,7 @@
     createImageryWmsLayer(wms, date) {
       const mm = this;
       const mgr = (this._mtgFrameMgr = new MtgFrameManager(wms, {
+        probe: (iso, abortSignal) => mm.probeMtgTime(wms, iso, abortSignal),
         start: (iso) => {
           A.Events.emit("service", {
             id: "mtg",
@@ -1293,8 +1322,7 @@
             state: "error",
             note: T("map.mtgNetwork"),
           });
-        },
-        probe: (iso) => mm.probeMtgTime(iso),
+        }
       }));
         const iso = mgr.normalize(date).toISOString();
         const storedOp = localStorage.getItem("satelliteImageryOpacity");
@@ -1309,6 +1337,9 @@
         opacity,
         pane: "imageryPane",
         attribution: wms.attribution,
+        updateWhenIdle: true,
+        className: "satellite-imagery-layer",
+        keepBuffer: 3,
       });
       layer.on("tileloadstart", (e) => { e.tile.dataset.frameSeq = String(mgr.frameSeq); });
       layer.on("tileload", (e) => mgr.tileLoad(Number(e.tile.dataset.frameSeq)));
@@ -1329,12 +1360,13 @@
 
         const layer = L.tileLayer(wms.url, {
           layer: wms.layer,
-        time: iso,
-        opacity,
-        pane: "imageryPane",
-        attribution: wms.attribution,
-        maxNativeZoom: wms.maxZoom,
-        bounds: L.latLngBounds([-90, -180], [90, 180])
+          time: iso,
+          opacity,
+          pane: "imageryPane",
+          attribution: wms.attribution,
+          className: "satellite-imagery-layer",
+          maxNativeZoom: wms.maxZoom,
+          bounds: L.latLngBounds([-90, -180], [90, 180])
       });
 
       this.satelliteImageryLayer = layer;
