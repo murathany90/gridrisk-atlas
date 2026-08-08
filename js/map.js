@@ -1331,17 +1331,8 @@
         opacity,
         pane: "imageryPane",
         attribution: wms.attribution,
+        maxNativeZoom: wms.maxZoom,
         bounds: L.latLngBounds([-90, -180], [90, 180])
-      });
-
-      layer.on("tileerror", function(e) {
-        if (!e.tile._fallbackIndex) e.tile._fallbackIndex = 0;
-        if (e.tile._fallbackIndex < wms.layers.length - 1) {
-          const oldLayer = wms.layers[e.tile._fallbackIndex];
-          e.tile._fallbackIndex++;
-          const newLayer = wms.layers[e.tile._fallbackIndex];
-          e.tile.src = e.tile.src.replace(oldLayer, newLayer);
-        }
       });
 
       this.satelliteImageryLayer = layer;
@@ -1383,11 +1374,11 @@
         this.createImageryWmsLayer(wms, d).addTo(this.map);
         this.setSatelliteImageryTime(d);
         this.makeLegend("satelliteImagery", wms.label || wms.source, this.imageryLegendBody());
-        if (infoEl) infoEl.style.display = "flex";
+        if (infoEl) infoEl.style.display = "";
       } else if (mode === "highRes") {
         this.createViirsWmtsLayer(d).addTo(this.map);
-        this.makeLegend("satelliteImagery", "NASA VIIRS True Color", `<div class="sourceNote">NOAA-21 / NOAA-20 / SNPP<br>${U.dateOnlyUtc(d)}</div>`);
-        if (infoEl) infoEl.style.display = "flex";
+        this.makeLegend("satelliteImagery", "NASA VIIRS True Color", `<div class="sourceNote">NOAA-21<br>${U.dateOnlyUtc(d)}</div>`);
+        if (infoEl) infoEl.style.display = "";
       }
     }
 
@@ -2214,7 +2205,9 @@
         const v = this.lastWindVector;
         this.drawWindVector(v.point, v.direction, v.speed, v.level, v.validAt);
       }
-      this.updateMtgLegend();
+      if (this.satelliteImageryMode && this.satelliteImageryMode !== "none") {
+        this.setSatelliteImagery(this.satelliteImageryMode, this.currentSelectedTime);
+      }
     }
   }
   A.MapManager = MapManager;

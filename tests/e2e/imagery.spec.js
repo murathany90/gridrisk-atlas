@@ -22,55 +22,101 @@ test.describe('Satellite Imagery Lifecycle', () => {
     await page.$eval('[data-i18n="layers.title"]', el => el.click());
   });
 
+  async function getImageryLayerInfo(page) {
+    return await page.evaluate(() => {
+      let count = 0;
+      let url = '';
+      const mgr = window.AtmoApp?.app?.map;
+      if (mgr && mgr.satelliteImageryLayer) {
+        count = 1;
+        const l = mgr.satelliteImageryLayer;
+        url = l._url || '';
+        if (l.options && l.options.layers) url += ' (layers: ' + l.options.layers + ')';
+        if (l.options && l.options.layer) url += ' (layer: ' + l.options.layer + ')';
+      }
+      return { count, url };
+    });
+  }
+
   test('cycles through modes, preserves opacity and ensures single active layer', async ({ page }) => {
     // Initial state: NONE
     let radio = await page.$('input[name="satelliteImagery"]:checked');
     expect(await radio.inputValue()).toBe('none');
 
+    let layers = await getImageryLayerInfo(page);
+    expect(layers.count).toBe(0);
+
     // Select LIVE
-    await page.$eval('input[name="satelliteImagery"][value="live"]', el => el.click());
+    await page.$eval('input[name="satelliteImagery"][value="live"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    await page.waitForTimeout(200);
     let info = await page.$('#satelliteImageryInfo');
-    expect(await info.evaluate(node => node.style.display)).toBe('flex');
+    expect(await info.evaluate(node => node.style.display)).toBe('');
+
+    layers = await getImageryLayerInfo(page);
+    expect(layers.count).toBe(1);
+    expect(layers.url).toContain('mtg_fd:rgb_geocolour');
 
     // Verify opacity slider affects map layer opacity natively via localStorage or directly
     await page.$eval('#mtgOpacity', el => { el.value = '50'; el.dispatchEvent(new Event('input', { bubbles: true })); });
-    
+
     // Select FIRE
-    await page.$eval('input[name="satelliteImagery"][value="fire"]', el => el.click());
+    await page.$eval('input[name="satelliteImagery"][value="fire"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    await page.waitForTimeout(200);
     radio = await page.$('input[name="satelliteImagery"]:checked');
     expect(await radio.inputValue()).toBe('fire');
+
+    layers = await getImageryLayerInfo(page);
+    expect(layers.count).toBe(1);
+    expect(layers.url).toContain('mtg_fd:rgb_firetemperature');
+
     // Opacity should be preserved
     let opacityValue = await page.inputValue('#mtgOpacity');
     expect(opacityValue).toBe('50');
 
     // Select VIIRS
-    await page.$eval('input[name="satelliteImagery"][value="highRes"]', el => el.click());
+    await page.$eval('input[name="satelliteImagery"][value="highRes"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    await page.waitForTimeout(200);
     radio = await page.$('input[name="satelliteImagery"]:checked');
     expect(await radio.inputValue()).toBe('highRes');
 
+    layers = await getImageryLayerInfo(page);
+    expect(layers.count).toBe(1);
+    expect(layers.url).toContain('VIIRS_NOAA21');
+
+    // VIIRS -> LIVE
+    await page.$eval('input[name="satelliteImagery"][value="live"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    await page.waitForTimeout(200);
+    layers = await getImageryLayerInfo(page);
+    expect(layers.count).toBe(1);
+    expect(layers.url).toContain('mtg_fd:rgb_geocolour');
+
     // Select NONE
-    await page.$eval('input[name="satelliteImagery"][value="none"]', el => el.click());
+    await page.$eval('input[name="satelliteImagery"][value="none"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
+    await page.waitForTimeout(200);
     info = await page.$('#satelliteImageryInfo');
     expect(await info.evaluate(node => node.style.display)).toBe('none');
+
+    layers = await getImageryLayerInfo(page);
+    expect(layers.count).toBe(0);
   });
 
   test('mobile quick layers synchronizes with desktop radios', async ({ page }) => {
     // Switch to mobile viewport
     await page.setViewportSize({ width: 375, height: 667 });
-    
+
     // Open quick layers FAB
     await page.$eval('#quickLayersFab', el => el.click());
     // Toggle imagery via quick layer (should go to LIVE)
     await page.$eval('[data-quick-layer="layerMtg"]', el => el.click());
-    
+
     // Check if the underlying radio changed to live
     let radio = await page.$('input[name="satelliteImagery"]:checked');
     expect(await radio.inputValue()).toBe('live');
-    
+
     // Check if the info panel became visible
     let info = await page.$('#satelliteImageryInfo');
-    expect(await info.evaluate(node => node.style.display)).toBe('flex');
-    
+    expect(await info.evaluate(node => node.style.display)).toBe('');
+
     // Toggle imagery again (should go to NONE)
     await page.$eval('[data-quick-layer="layerMtg"]', el => el.click());
     radio = await page.$('input[name="satelliteImagery"]:checked');

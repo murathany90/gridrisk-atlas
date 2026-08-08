@@ -419,7 +419,13 @@
             this.state.selectedTime,
             );
           });
-        document.querySelectorAll('input[name="satelliteImagery"]').forEach(radio => {
+        const satFlags = C.satelliteImagery?.enabled || {};
+        if (!satFlags.mtgGeoColour) document.querySelector('input[name="satelliteImagery"][value="live"]')?.closest('label')?.remove();
+        if (!satFlags.mtgFireTemperature) document.querySelector('input[name="satelliteImagery"][value="fire"]')?.closest('label')?.remove();
+        if (!satFlags.viirsTrueColor) document.querySelector('input[name="satelliteImagery"][value="highRes"]')?.closest('label')?.remove();
+        if (!satFlags.sentinel2) document.querySelector('input[name="satelliteImagery"][value="veryHighRes"]')?.closest('label')?.remove();
+
+        document.querySelectorAll('input[name="satelliteImagery"]').forEach((radio) => {
           radio.addEventListener("change", (e) => {
             if (e.target.checked) {
               this.state.satelliteImageryMode = e.target.value;
@@ -432,13 +438,21 @@
         document.getElementById("refreshImageryBtn")?.addEventListener("click", () => {
           this.map.refreshSatelliteImagery(this.state.selectedTime);
         });
+
+        const initialOpacity = localStorage.getItem("satelliteImageryOpacity");
+        if (initialOpacity !== null) {
+          const v = Number(initialOpacity) * 100;
+          document.getElementById("mtgOpacity").value = v;
+          document.getElementById("mtgOpacityValue").textContent = `%${Math.round(v)}`;
+        }
+
         document.getElementById("mtgOpacity").addEventListener("input", (e) => {
-        const v = Number(e.target.value) / 100;
-        localStorage.setItem("mtgOpacity", String(v));
-        this.map.mtgLayer?.setOpacity(v);
-        document.getElementById("mtgOpacityValue").textContent =
-          `%${Math.round(v * 100)}`;
-      });
+          const v = Number(e.target.value) / 100;
+          localStorage.setItem("satelliteImageryOpacity", String(v));
+          this.map.setSatelliteImageryOpacity(v);
+          document.getElementById("mtgOpacityValue").textContent =
+            `%${Math.round(v * 100)}`;
+        });
       document
         .getElementById("layerFootprint")
         .addEventListener("change", (e) => {
