@@ -93,7 +93,9 @@ window.AtmoApp = window.AtmoApp || {};
       defaultOpacity: 0.85,
       slotMinutes: 10,
       maxBackfillSlots: 12,
-      frameSettleMs: 3000,
+      initialLagMinutes: 20,
+      probeTimeoutMs: 4000,
+      cacheTtlMs: 3600000,
       probeBbox: '35,26,43,46',
       source: 'EUMETSAT MTG-I FCI'
     },
@@ -107,7 +109,10 @@ window.AtmoApp = window.AtmoApp || {};
       defaultOpacity: 0.85,
       slotMinutes: 10,
       maxBackfillSlots: 12,
-      frameSettleMs: 3000,
+      initialLagMinutes: 20,
+      probeTimeoutMs: 4000,
+      cacheTtlMs: 3600000,
+      probeBbox: '35,26,43,46',
       source: 'EUMETSAT MTG-I FCI'
     },
     viirsTrueColorWmts: {
@@ -241,7 +246,7 @@ window.AtmoApp = window.AtmoApp || {};
     A.CONFIG.activeCountryCode=country.code;A.CONFIG.defaultCenter=country.center;A.CONFIG.defaultZoom=country.zoom;A.CONFIG.regionLabel=A.I18n?.countryName(country.code)||country.nameTr;A.CONFIG.regionGeometry=geometry;
     if(positions.length){const xs=positions.map(p=>p[0]),ys=positions.map(p=>p[1]);A.CONFIG.regionBounds={west:Math.min(...xs),south:Math.min(...ys),east:Math.max(...xs),north:Math.max(...ys)};}
     A.CONFIG.gridSources['400'].file=country.grid400Url;A.CONFIG.gridSources['154'].file=country.grid154Url;A.CONFIG.gridSources.substations.file=country.substationsUrl;
-    A.CONFIG.mtgGeoColourWms.probeBbox=[A.CONFIG.regionBounds.south,A.CONFIG.regionBounds.west,A.CONFIG.regionBounds.north,A.CONFIG.regionBounds.east].join(',');
+    A.CONFIG.mtgGeoColourWms.probeBbox=A.CONFIG.mtgFireTemperatureWms.probeBbox=[A.CONFIG.regionBounds.south,A.CONFIG.regionBounds.west,A.CONFIG.regionBounds.north,A.CONFIG.regionBounds.east].join(',');
     return country;
   };
 })(window.AtmoApp);
