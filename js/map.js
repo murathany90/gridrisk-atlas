@@ -158,13 +158,19 @@
 
       if (cached) {
         this.on.ok?.(cached, seq, true);
-        const absoluteLatest = MtgFrameManager.roundToSlot(Date.now() - this.initialLag * 60 * 1000, this.slot).toISOString();
-        this._runProbeSequence(absoluteLatest, seq, cached, true);
+        this._triggerBackgroundUpgrade(seq, cached);
       } else {
-        this._runProbeSequence(iso, seq, null, false);
+        this._runProbeSequence(iso, seq, null, false).catch(() => {});
       }
 
       return seq;
+    }
+
+    _triggerBackgroundUpgrade(seq, displayedIso) {
+      const absoluteLatest = MtgFrameManager.roundToSlot(Date.now(), this.slot).toISOString();
+      if (absoluteLatest > displayedIso) {
+        this._runProbeSequence(absoluteLatest, seq, displayedIso, true).catch(() => {});
+      }
     }
 
     async _runProbeSequence(startIso, seq, cachedIso, isUpgrade) {
@@ -204,9 +210,12 @@
 
           if (isUpgrade) {
              this.on.upgrade?.(currentIso, seq);
-          } else {
-             this.on.ok?.(currentIso, seq, false);
-          }
+           } else {
+              this.on.ok?.(currentIso, seq, false);
+              setTimeout(() => {
+                this._triggerBackgroundUpgrade(seq, currentIso);
+              }, 5000);
+           }
           return;
         }
 
@@ -1258,9 +1267,7 @@
       }
     }
     createMtgLeafletLayer(wms, time, seq, mgr) {
-      let opacity = Number(localStorage.getItem("satelliteImageryOpacity"));
-      if (opacity === null || isNaN(opacity)) opacity = wms.defaultOpacity;
-      else opacity = U.clamp(opacity, 0, 1);
+      const opacity = this.getSatelliteImageryOpacity(wms.defaultOpacity);
 
       const layer = L.tileLayer.wms(wms.url, {
         layers: wms.layer,
@@ -1305,12 +1312,15 @@
       if (this.imagerySeq !== mapSeq || !this.satelliteImageryLayer) return;
       const oldTime = this.satelliteImageryLayer.options.time;
       if (iso > oldTime) {
+        if (this.staleImageryLayer && this.staleImageryLayer !== this.satelliteImageryLayer) {
+           this.map.removeLayer(this.staleImageryLayer);
+        }
         this.staleImageryLayer = this.satelliteImageryLayer;
         this.satelliteImageryLayer = this.createMtgLeafletLayer(this.currentWmsConfig, iso, mapSeq, this._mtgFrameMgr);
         this.satelliteImageryLayer.addTo(this.map);
 
         this.imageryDisplayedTime = iso;
-        A.Events.emit('mtgFrame', { state: 'ok', selected: this.imageryRequestedTime || iso, displayed: iso, backfill: true });
+        A.Events.emit('mtgFrame', { state: 'ok', selected: this.imageryRequestedTime || iso, displayed: iso, backfill: false, upgrade: true });
         this.updateImageryLegend();
       }
     }
@@ -1344,7 +1354,7 @@
             const backfill = Boolean(mgr.lastUserTime && iso !== mgr.lastUserTime),
               requested = backfill ? T("map.mtgRequested", { time: mtgFmt(mgr.lastUserTime) }) : "";
             
-            const time = isCached ? iso : (mgr.lastUserTime || iso);
+            const time = iso;
             
             if (!mm.satelliteImageryLayer) {
               mm.satelliteImageryLayer = mm.createMtgLeafletLayer(wms, time, seq, mgr);
@@ -1376,7 +1386,7 @@
           },
           invalid: () => {
             if (mm.imagerySeq !== seq) return;
-            A.Events.emit("service", { id: "mtg", state: "error", note: T("map.mtgInvalid") });
+            A.Events.emit("service", { id: "mtg", state: "loading", note: T("map.mtgInvalid") });
           },
           network: () => {
             if (mm.imagerySeq !== seq) return;
@@ -1394,8 +1404,7 @@
     createViirsWmtsLayer(date, seq) {
         const wms = C.viirsTrueColorWmts;
         const iso = U.dateOnlyUtc(date);
-        const storedOp = localStorage.getItem("satelliteImageryOpacity");
-        const opacity = U.clamp(storedOp !== null && storedOp !== "" ? Number(storedOp) : wms.defaultOpacity, 0, 1);
+        const opacity = this.getSatelliteImageryOpacity(wms.defaultOpacity);
 
         const layer = L.tileLayer(wms.url, {
           layer: wms.layer,
@@ -1516,13 +1525,20 @@
     refreshSatelliteImagery(date) {
       if (!this.satelliteImageryLayer) return;
       if (this._mtgFrameMgr) {
-        const iso = this._mtgFrameMgr.lastUserTime;
+        const iso = this.satelliteImageryLayer.options?.time || this.imageryDisplayedTime;
         if (iso) {
            this.satelliteImageryLayer.setParams({ time: iso, _t: Date.now() });
         }
       } else if (this.satelliteImageryMode === "highRes") {
          this.satelliteImageryLayer.redraw();
       }
+    }
+
+    getSatelliteImageryOpacity(defaultOpacity) {
+      const raw = localStorage.getItem("satelliteImageryOpacity");
+      if (raw === null || raw === "") return defaultOpacity;
+      const value = Number(raw);
+      return Number.isFinite(value) ? U.clamp(value, 0, 1) : defaultOpacity;
     }
 
     setSatelliteImageryOpacity(v) {
@@ -1558,7 +1574,7 @@
     imageryLegendBody() {
       const mgr = this._mtgFrameMgr,
         req = mgr?.lastUserTime,
-        disp = mgr?.displayedTime,
+        disp = this.imageryDisplayedTime,
         wms = this.currentWmsConfig;
       if (!wms) return "";
       const lines = [T("map.mtgReal", { source: wms.source })];
