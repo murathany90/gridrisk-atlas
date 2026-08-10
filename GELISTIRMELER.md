@@ -1,3 +1,9 @@
+# v3.13.0 - 3D Terrain and Fire Grid Contrast
+- Real DEM-based 3D terrain with MapLibre GL JS, AWS Terrarium DEM, terrain exaggeration 1.43, and hillshade.
+- 2D/3D camera synchronization; grid, fire, substation, risk, MTG GeoColour/Fire Temperature, and VIIRS raster mirroring.
+- FIRE mode keeps the 154 kV analysis class white while preserving the 400 kV red class; OSM voltage data is unchanged.
+- Lazy MapLibre/DEM loading, WebGL/DEM fallback, repeated-toggle cleanup, and real MapLibre plus AWS DEM acceptance coverage.
+
 # v3.12.1 - MTG Imagery Loading Performance
 - MTG GeoColour / Fire Temperature probe-first loading with safe fast first-frame discovery.
 - Session timestamp cache, background freshness revalidation, and stale-while-revalidate layer replacement.
