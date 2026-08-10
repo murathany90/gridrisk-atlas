@@ -1,3 +1,10 @@
+# v3.12.1 - MTG Imagery Loading Performance
+- MTG GeoColour / Fire Temperature probe-first loading with safe fast first-frame discovery.
+- Session timestamp cache, background freshness revalidation, and stale-while-revalidate layer replacement.
+- Race/timer cleanup, historical timeline isolation, and cache writes only after a successfully displayed latest frame.
+- Opacity/default-zero fixes and language-switch imagery reload prevention.
+- Deterministic Desktop/Mobile lifecycle coverage.
+
 # v3.12.0 - Satellite Imagery Panel
 - **Sürüm 3.12.0**: Harita ve Uydu paneline LIVE (MTG GeoColour), FIRE (MTG Fire Temperature) ve VIIRS True Color modları eklendi. Tüm paneller ve E2E testleri güncellendi.
 
