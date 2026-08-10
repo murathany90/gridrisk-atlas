@@ -13,7 +13,11 @@
       this.container = null;
       this.toggle = null;
       this._resizeHandler = () => this.map?.resize();
-      this._demFailureHandled = false;
+      this._demSuccessSeen = false;
+      this._demErrorCount = 0;
+      this._demWarned = false;
+      this._demInitialTimer = null;
+      this._demFallbackTriggered = false;
     }
 
     attach() {
@@ -53,7 +57,7 @@
       if (!C.terrain3d?.enabled || this.loading || this.enabled) return this.enabled;
       this.loading = true;
       this.refreshUi("loading");
-      this._demFailureHandled = false;
+      this.resetDemHealth();
       try {
         const maplibregl = await this.ensureMapLibreLoaded();
         if (!maplibregl?.Map || !this.webglSupported() || (maplibregl.supported && !maplibregl.supported({ failIfMajorPerformanceCaveat: true }))) {
@@ -91,6 +95,41 @@
         return Boolean(canvas.getContext("webgl2") || canvas.getContext("webgl"));
       } catch (error) {
         return false;
+      }
+    }
+
+    resetDemHealth() {
+      clearTimeout(this._demInitialTimer);
+      this._demInitialTimer = null;
+      this._demSuccessSeen = false;
+      this._demErrorCount = 0;
+      this._demWarned = false;
+      this._demFallbackTriggered = false;
+    }
+
+    beginInitialDemWatch(map) {
+      clearTimeout(this._demInitialTimer);
+      this._demInitialTimer = setTimeout(() => {
+        if (this.map === map && !this._demSuccessSeen) this.fail("dem");
+      }, 12000);
+    }
+
+    markDemSuccess() {
+      this._demSuccessSeen = true;
+      clearTimeout(this._demInitialTimer);
+      this._demInitialTimer = null;
+    }
+
+    handleDemError() {
+      this._demErrorCount += 1;
+      if (!this._demSuccessSeen) {
+        // Fail only when initial terrain loading is clearly unavailable, not for one tile retry.
+        if (this._demErrorCount >= 4) this.fail("dem");
+        return;
+      }
+      if (!this._demWarned) {
+        this._demWarned = true;
+        A.Events.emit("service", { id: "terrain3d", state: "warn", count: null });
       }
     }
 
@@ -243,13 +282,21 @@
       this.map = map;
       map.on("error", (event) => {
         const sourceId = event?.sourceId || event?.error?.sourceId;
-        if (sourceId === "terrainSource" || sourceId === "hillshadeSource") this.fail("dem");
+        if (sourceId === "terrainSource" || sourceId === "hillshadeSource") this.handleDemError();
+      });
+      map.on("sourcedata", (event) => {
+        const sourceId = event?.sourceId;
+        if (
+          (sourceId === "terrainSource" || sourceId === "hillshadeSource") &&
+          (event.isSourceLoaded || event.sourceDataType === "content")
+        ) this.markDemSuccess();
       });
       await new Promise((resolve, reject) => {
         const ready = () => {
           try {
             map.setTerrain({ source: "terrainSource", exaggeration: C.terrain3d.exaggeration });
             map.on("click", "fire-events-circle", (event) => this.handleFireClick(event));
+            this.beginInitialDemWatch(map);
             resolve();
           } catch (error) {
             reject(error);
@@ -273,6 +320,8 @@
 
     disable() {
       if (!this.map && !this.enabled) return;
+      clearTimeout(this._demInitialTimer);
+      this._demInitialTimer = null;
       const camera = this.map
         ? { center: this.map.getCenter(), zoom: this.map.getZoom() }
         : null;
@@ -295,8 +344,8 @@
     }
 
     fail(kind) {
-      if (this._demFailureHandled && kind === "dem") return;
-      if (kind === "dem") this._demFailureHandled = true;
+      if (kind === "dem" && this._demFallbackTriggered) return;
+      if (kind === "dem") this._demFallbackTriggered = true;
       const key = kind === "dem" ? "terrain3d.errorDem" : kind === "unavailable" ? "terrain3d.errorUnavailable" : "terrain3d.errorLoad";
       this.disable();
       A.app?.ui?.toast?.(T(key), "error");

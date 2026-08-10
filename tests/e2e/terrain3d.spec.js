@@ -26,9 +26,10 @@ const mapLibreMock = `
         if (dem) {
           fetch(dem.replace('{z}', '6').replace('{x}', '36').replace('{y}', '24'))
             .then((response) => {
-              if (!response.ok) this.emit('error', { sourceId: 'terrainSource' });
+              if (response.ok) this.emit('sourcedata', { sourceId: 'terrainSource', isSourceLoaded: true });
+              else for (let count = 0; count < 4; count += 1) this.emit('error', { sourceId: 'terrainSource' });
             })
-            .catch(() => this.emit('error', { sourceId: 'terrainSource' }));
+            .catch(() => { for (let count = 0; count < 4; count += 1) this.emit('error', { sourceId: 'terrainSource' }); });
         }
       }, 0);
     }
@@ -122,6 +123,9 @@ async function installMapLibreMock(page, { unavailable = false, demFailure = fal
 
 test.describe('FIRE grid contrast and real terrain mode', () => {
   test('keeps 154 kV white throughout FIRE lifecycle and restores the configured black', async ({ page }) => {
+    // Initial country/grid hydration can contend with the fully parallel suite.
+    // Keep the lifecycle assertions unchanged while allowing that bounded startup work.
+    test.slow();
     await page.route('**/geoserver/wms**', (route) => route.fulfill({ status: 200, contentType: 'image/png', body: png }));
     await page.route('**/VIIRS_NOAA21_CorrectedReflectance_TrueColor**', (route) => route.fulfill({ status: 200, contentType: 'image/jpeg', body: png }));
     await boot(page);
@@ -326,5 +330,16 @@ test.describe('FIRE grid contrast and real terrain mode', () => {
     expect(requests.getDemRequests()).toBeGreaterThan(0);
     expect(await page.locator('#map').evaluate((el) => !el.classList.contains('terrain2dHidden'))).toBe(true);
     expect(pageErrors).toEqual([]);
+  });
+
+  test('keeps a running 3D map open after one recoverable DEM tile error', async ({ page }) => {
+    await installMapLibreMock(page);
+    await boot(page);
+    await page.locator('#terrain3dToggle').click();
+    await expect(page.locator('#terrain3dToggle')).toHaveAttribute('aria-pressed', 'true');
+    await page.evaluate(() => window.__terrainMaps.at(-1).emit('error', { sourceId: 'terrainSource' }));
+    await page.waitForTimeout(100);
+    await expect(page.locator('#terrain3dToggle')).toHaveAttribute('aria-pressed', 'true');
+    expect(await page.locator('#map3d').evaluate((el) => !el.classList.contains('hidden'))).toBe(true);
   });
 });
