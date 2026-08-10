@@ -231,9 +231,29 @@ main {
   overflow: hidden;
 }
 #map {
+  position: relative;
+  z-index: 1;
   width: 100%;
   height: 100%;
   background: #d7e3e8;
+}
+.map3d {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  width: 100%;
+  height: 100%;
+  background: #d7e3e8;
+}
+.map3d.hidden {
+  display: none;
+}
+#map.terrain2dHidden {
+  visibility: hidden;
+  pointer-events: none;
+}
+.map3d .maplibregl-ctrl-attrib {
+  font-size: 8px;
 }
 .panelFloating {
   position: absolute;
@@ -1153,7 +1173,8 @@ select {
   mix-blend-mode: normal;
 }
 .legendToggleBtn,
-.analysisToggleBtn {
+.analysisToggleBtn,
+.terrain3dToggleBtn {
   left: 12px;
   z-index: 610;
   font-size: 9px;
@@ -1167,6 +1188,17 @@ select {
 }
 .analysisToggleBtn {
   bottom: 74px;
+}
+.terrain3dToggleBtn {
+  bottom: 40px;
+}
+.terrain3dToggleBtn[aria-pressed="true"] {
+  border-color: #7be6ff;
+  color: #dff8ff;
+}
+.terrain3dToggleBtn:disabled {
+  cursor: wait;
+  opacity: 0.75;
 }
 .legendStack {
   bottom: 142px;
@@ -1349,6 +1381,10 @@ select {
   }
   .analysisToggleBtn {
     bottom: 92px;
+    left: 8px;
+  }
+  .terrain3dToggleBtn {
+    bottom: 58px;
     left: 8px;
   }
   .legendStack {

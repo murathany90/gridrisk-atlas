@@ -156,6 +156,22 @@ window.AtmoApp = window.AtmoApp || {};
         attribution:'Map data © OpenStreetMap contributors, SRTM | Map style © OpenTopoMap (CC-BY-SA)'
       }
     },
+    terrain3d: {
+      enabled: true,
+      mapLibreVersion: '6.2.0',
+      cdnBase: 'https://cdn.jsdelivr.net/npm/maplibre-gl@6.2.0/dist',
+      moduleUrl: 'https://cdn.jsdelivr.net/npm/maplibre-gl@6.2.0/dist/maplibre-gl.mjs',
+      provider: 'AWS Open Data Terrain Tiles',
+      tiles: ['https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png'],
+      encoding: 'terrarium',
+      tileSize: 256,
+      maxZoom: 15,
+      attribution: 'Elevation tiles © AWS Open Data Terrain Tiles',
+      pitch: 55,
+      bearing: 0,
+      exaggeration: 1.43,
+      hillshade: true
+    },
     gridSources: {
       '400': {labelKey:'layers.grid400',label:'400 kV',file:'data/countries/TR/grid_400.geojson',color:'#d7191c',weight:2.2,description:'OSM 300–550 kV'},
       '154': {labelKey:'layers.grid154',label:'154 kV',file:'data/countries/TR/grid_154.geojson',color:'#111111',weight:1.5,description:'OSM 50–299.999 kV'},
