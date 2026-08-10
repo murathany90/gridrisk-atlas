@@ -67,7 +67,10 @@ test.describe('@real-terrain MapLibre and AWS Terrarium acceptance', () => {
           mountainElevation: map?.queryTerrainElevation?.(mountainPoint),
         };
       }, [valley, mountain]);
-      return Number.isFinite(elevations.valleyElevation) && Number.isFinite(elevations.mountainElevation);
+      return Number.isFinite(elevations.valleyElevation) &&
+        Number.isFinite(elevations.mountainElevation) &&
+        Math.abs(elevations.valleyElevation) > 1 &&
+        Math.abs(elevations.mountainElevation - elevations.valleyElevation) > 20;
     }, { timeout: 45000 }).toBe(true);
     expect(Math.abs(elevations.valleyElevation)).toBeGreaterThan(1);
     expect(Math.abs(elevations.mountainElevation - elevations.valleyElevation)).toBeGreaterThan(20);
