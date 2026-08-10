@@ -334,6 +334,7 @@
       this.lastRiskVisible = false;
       this.gridLayers = new Map();
       this.gridData = new Map();
+      this.terrain3d = A.Terrain3DManager ? new A.Terrain3DManager(this) : null;
       this._gridViewportTimer = null;
       this.fwiLayer = null;
       this.effisBurntAreaLayer = null;
@@ -372,6 +373,7 @@
         minZoom: C.mapMinZoom || 2,
         worldCopyJump: true,
       }).setView(C.defaultCenter, C.defaultZoom);
+      this.terrain3d?.attach();
       this.renderer = L.canvas({ padding: 0.4 });
       this.map.createPane("imageryPane");
       this.map.getPane("imageryPane").style.zIndex = 240;
@@ -499,12 +501,16 @@
       });
       this.baseLayer.addTo(this.map);
       this.baseLayer.bringToBack();
+      this.terrain3d?.syncBaseMap();
       localStorage.setItem("baseMap", this.baseKey);
       A.Events.emit("basemap", {
         key: this.baseKey,
         label: cfg.label,
         mode: useProxy ? "server-proxy" : "direct",
       });
+    }
+    async toggleTerrain3d() {
+      return this.terrain3d?.toggleMode() ?? false;
     }
     bounds() {
       return this.map.getBounds();
@@ -519,8 +525,10 @@
     setView(lat, lon, zoom = 9) {
       const la = Number(lat),
         lo = Number(lon);
-      if (Number.isFinite(la) && Number.isFinite(lo))
+      if (Number.isFinite(la) && Number.isFinite(lo)) {
         this.map.setView([U.clamp(la, -85, 85), lo], zoom);
+        this.terrain3d?.sync({ camera: true });
+      }
     }
     setCountryBoundary(boundary, country, fit = true) {
       if (this.borderLayer) this.map.removeLayer(this.borderLayer);
@@ -545,6 +553,7 @@
           });
       }
       this.map.invalidateSize();
+      this.terrain3d?.sync({ camera: true });
     }
     resetCountry() {
       this.fireAll = [];
@@ -589,6 +598,7 @@
       document
         .querySelectorAll("#legendStack [data-legend]")
         .forEach((x) => x.remove());
+      this.terrain3d?.sync();
     }
     setFires(data, selectedTime) {
       this.fireAll = (data || []).filter(U.insideRegion.bind(U));
@@ -747,11 +757,13 @@
         events: this.fireEventsVisible.length,
         eventsTotal: allEvents.length,
       });
+      this.terrain3d?.syncFires();
     }
     toggleFires(show) {
       if (show) {
         if (!this.map.hasLayer(this.fireLayer)) this.fireLayer.addTo(this.map);
       } else this.map.removeLayer(this.fireLayer);
+      this.terrain3d?.syncFires();
     }
     setSlstrSource(sourceId, data, selectedTime) {
       const isA = sourceId === "sentinel3a-slstr",
@@ -1390,6 +1402,7 @@
         });
         this.updateImageryLegend();
         this.updateImageryAgeUI(time);
+        this.terrain3d?.syncImagery();
         mgr.markDisplayed(time, frameSeq);
       };
 
@@ -1425,6 +1438,7 @@
         active.options?.layers === wms.layer
       ) {
         this.imageryDisplayedTime = time;
+        this.terrain3d?.syncImagery();
         mgr.markDisplayed(time, frameSeq);
         this.updateImageryLegend();
         return;
@@ -1541,6 +1555,7 @@
       const promote = () => {
         if (this.imagerySeq !== seq || !this.settleImageryLayer(layer)) return;
         this.imageryDisplayedTime = iso;
+        this.terrain3d?.syncImagery();
         A.Events.emit("service", {
           id: "satellite",
           state: "ok",
@@ -1565,6 +1580,8 @@
 
     setSatelliteImagery(mode, date) {
       this.satelliteImageryMode = mode;
+      this.refreshGridStyles();
+      this.terrain3d?.syncImagery();
       const seq = ++this.imagerySeq;
 
       clearTimeout(this._imageryDebounceT);
@@ -1587,6 +1604,7 @@
         this.satelliteImageryLayer = null;
         this.staleImageryLayer = null;
         this.imageryDisplayedTime = null;
+        this.terrain3d?.syncImagery();
         return;
       }
 
@@ -2094,13 +2112,33 @@
       this.gridLayers.delete("substations");
       this.setGridGroup("substations", data, true);
     }
+    getEffectiveGridStyle(key, { hover = false } = {}) {
+      const cfg = C.gridSources[key];
+      if (!cfg) return {};
+      const fireContrast = key === "154" && this.satelliteImageryMode === "fire";
+      const baseOpacity = key === "400" ? 0.84 : fireContrast ? 0.95 : 0.78;
+      return {
+        color: fireContrast ? "#ffffff" : cfg.color,
+        weight: cfg.weight + (fireContrast ? 0.35 : 0) + (hover ? 1 : 0),
+        opacity: hover ? 1 : baseOpacity,
+      };
+    }
+    refreshGridStyles() {
+      for (const [key, layer] of this.gridLayers.entries()) {
+        if (key !== "substations") layer.setStyle(this.getEffectiveGridStyle(key));
+      }
+      this.updateGridLegend();
+      this.terrain3d?.syncGrid();
+    }
     async setGridGroup(key, data, show) {
       if (data) this.gridData.set(key, data);
       if (this.gridLayers.has(key)) {
         const layer = this.gridLayers.get(key);
         if (show && !this.map.hasLayer(layer)) layer.addTo(this.map);
         if (!show && this.map.hasLayer(layer)) this.map.removeLayer(layer);
+        if (key !== "substations") layer.setStyle(this.getEffectiveGridStyle(key));
         this.updateGridLegend();
+        this.terrain3d?.syncGrid();
         return;
       }
       if (!show || !data) return;
@@ -2159,27 +2197,17 @@
           style: () => ({
             pane: "gridPane",
             renderer: this.renderer,
-            color: cfg.color,
-            weight: cfg.weight,
-            opacity: key === "400" ? 0.84 : 0.78,
+            ...this.getEffectiveGridStyle(key),
           }),
           onEachFeature: (f, l) => {
             l.bindTooltip(this.gridTooltip(f.properties, false), {
               sticky: true,
             });
             l.on("mouseover", () =>
-              l.setStyle({
-                weight: cfg.weight + 1,
-                opacity: 1,
-                color: cfg.color,
-              }),
+              l.setStyle(this.getEffectiveGridStyle(key, { hover: true })),
             );
             l.on("mouseout", () =>
-              l.setStyle({
-                weight: cfg.weight,
-                opacity: key === "400" ? 0.84 : 0.78,
-                color: cfg.color,
-              }),
+              l.setStyle(this.getEffectiveGridStyle(key)),
             );
             l.on("click", (e) => {
               L.DomEvent.stopPropagation(e);
@@ -2199,6 +2227,7 @@
       this.gridLayers.set(key, layer);
       layer.addTo(this.map);
       this.updateGridLegend();
+      this.terrain3d?.syncGrid();
     }
     gridTooltip(p, isSub) {
       const actual = U.formatVoltage(p.actualVoltageKv) || T("common.unknown"),
@@ -2234,7 +2263,7 @@
       this.makeLegend(
         "grid",
         T("map.gridTitle", { country: I.countryName(C.activeCountryCode) }),
-        `${active.map((k) => `<div class="legendLine"><i style="background:${C.gridSources[k].color}"></i><span>${T(C.gridSources[k].labelKey) || C.gridSources[k].label}${k === "400" ? ` — ${T("map.gridColor400")}` : k === "154" ? ` — ${T("map.gridColor154")}` : ""}</span></div>`).join("")}<div class="sourceNote">${T("map.gridNote")}</div>`,
+        `${active.map((k) => { const style = this.getEffectiveGridStyle(k); const border = style.color === "#ffffff" ? ";border:1px solid #334155" : ""; return `<div class="legendLine"><i style="background:${style.color}${border}"></i><span>${T(C.gridSources[k].labelKey) || C.gridSources[k].label}${k === "400" ? ` — ${T("map.gridColor400")}` : k === "154" ? ` — ${T("map.gridColor154")}` : ""}</span></div>`; }).join("")}<div class="sourceNote">${T("map.gridNote")}</div>`,
       );
     }
     riskSubstationCandidates(analyses) {
@@ -2265,7 +2294,10 @@
       this.riskLayer.clearLayers();
       this.riskAssetLayer.clearLayers();
       document.querySelector('[data-legend="risk"]')?.remove();
-      if (!show) return;
+      if (!show) {
+        this.terrain3d?.syncRisk();
+        return;
+      }
       let rendered = false;
       for (const a of analyses || []) {
         if (!U.insideRegion({ lat: a.event.lat, lon: a.event.lon })) continue;
@@ -2337,6 +2369,7 @@
           T("map.riskTitle"),
           `${C.riskScoreBands.map((b) => `<div class="legendLine"><i class="dot" style="background:${U.riskColor(b.level)}"></i><span>${b.min}+ · ${T(`risk.${b.level}`)}</span></div>`).join("")}<div class="legendLine"><span class="substationSquare substation-risk" style="display:inline-block"></span><span>${T("map.substationRisk", { distance: C.substationRiskDisplayDistanceKm })}</span></div><div class="sourceNote">${T("map.riskNote", { distance: C.substationRiskDisplayDistanceKm })}</div>`,
         );
+      this.terrain3d?.syncRisk();
     }
     showRiskEvidence(evidence) {
       this.lastRiskEvidence = evidence || null;
@@ -2436,6 +2469,7 @@
     }
     refreshLocalizedContent() {
       if (!this.map || !this.fireLayer) return;
+      this.terrain3d?.refreshUi();
       this.renderFires(this.currentSelectedTime);
       if (this.airData.length) this.updateSmokeLegend();
       this.updateGridLegend();

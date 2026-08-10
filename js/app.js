@@ -242,6 +242,9 @@
       if (evidenceCb) evidenceCb.checked = this.state.riskEvidenceEnabled;
     }
     bindUI() {
+      document.getElementById("terrain3dToggle")?.addEventListener("click", () => {
+        this.map.toggleTerrain3d();
+      });
       document
         .getElementById("countrySelector")
         .addEventListener("change", (e) =>
