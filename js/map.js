@@ -112,7 +112,9 @@
 
       this.frameSeq = 0;
       this._probeAbort = null;
+      this._backgroundTimer = null;
       this.lastUserTime = null;
+      this.latestMode = false;
     }
 
     static roundToSlot(ms, slot) {
@@ -130,119 +132,162 @@
       return s.getTime() > max.getTime() ? max : s;
     }
 
-    applyUserTime(iso) {
-      this.lastUserTime = iso;
-      return this._start(iso);
+    isLatestSelection(date) {
+      const ms = Number(date instanceof Date ? date.getTime() : date);
+      return Number.isFinite(ms) && ms >= this.latestAllowed().getTime();
     }
 
-    
+    applyUserTime(iso, { latest = true } = {}) {
+      this.lastUserTime = iso;
+      return this._start(iso, latest);
+    }
 
-    _start(iso) {
+    _cancelWork() {
       if (this._probeAbort) {
         this._probeAbort.abort();
         this._probeAbort = null;
       }
+      if (this._backgroundTimer !== null) {
+        clearTimeout(this._backgroundTimer);
+        this._backgroundTimer = null;
+      }
+    }
+
+    _readCachedFrame() {
+      const cacheTtl = this.cfg.cacheTtlMs || 60 * 60 * 1000;
+      try {
+        const cached = JSON.parse(sessionStorage.getItem(this.cacheKey));
+        if (
+          cached &&
+          Number.isFinite(Date.parse(cached.time)) &&
+          Number.isFinite(Number(cached.savedAt)) &&
+          Date.now() - Number(cached.savedAt) < cacheTtl
+        )
+          return cached.time;
+      } catch (e) {}
+      return null;
+    }
+
+    _storeFrame(iso) {
+      try {
+        sessionStorage.setItem(
+          this.cacheKey,
+          JSON.stringify({ time: iso, savedAt: Date.now() }),
+        );
+      } catch (e) {}
+    }
+
+    _start(iso, latest) {
+      this._cancelWork();
 
       const seq = ++this.frameSeq;
       this.lastUserTime = iso;
+      this.latestMode = Boolean(latest);
       this.on.start?.(iso, seq);
 
-      let cached = null;
-      const cacheTtl = this.cfg.cacheTtlMs || 60 * 60 * 1000;
-      try {
-        const c = JSON.parse(sessionStorage.getItem(this.cacheKey));
-        if (c && c.time && c.savedAt && (Date.now() - c.savedAt < cacheTtl)) {
-          cached = c.time;
-        }
-      } catch (e) {}
+      const cached = this.latestMode ? this._readCachedFrame() : null;
 
       if (cached) {
         this.on.ok?.(cached, seq, true);
-        this._triggerBackgroundUpgrade(seq, cached);
       } else {
-        this._runProbeSequence(iso, seq, null, false).catch(() => {});
+        this._runProbeSequence(iso, seq, { upgrade: false }).catch(() => {});
       }
 
       return seq;
     }
 
+    markDisplayed(displayedIso, seq) {
+      if (seq !== this.frameSeq || !this.latestMode) return;
+      this._scheduleBackgroundUpgrade(seq, displayedIso);
+    }
+
+    _scheduleBackgroundUpgrade(seq, displayedIso) {
+      if (seq !== this.frameSeq || !this.latestMode) return;
+      if (this._backgroundTimer !== null) clearTimeout(this._backgroundTimer);
+      this._backgroundTimer = setTimeout(() => {
+        this._backgroundTimer = null;
+        if (seq !== this.frameSeq || !this.latestMode) return;
+        this._triggerBackgroundUpgrade(seq, displayedIso);
+      }, this.cfg.backgroundProbeDelayMs ?? 250);
+    }
+
     _triggerBackgroundUpgrade(seq, displayedIso) {
+      if (seq !== this.frameSeq || !this.latestMode) return;
       const absoluteLatest = MtgFrameManager.roundToSlot(Date.now(), this.slot).toISOString();
       if (absoluteLatest > displayedIso) {
-        this._runProbeSequence(absoluteLatest, seq, displayedIso, true).catch(() => {});
+        this._runProbeSequence(absoluteLatest, seq, {
+          upgrade: true,
+          displayedIso,
+        }).catch(() => {});
       }
     }
 
-    async _runProbeSequence(startIso, seq, cachedIso, isUpgrade) {
-      this._probeAbort = new AbortController();
-      const abortSignal = this._probeAbort.signal;
+    async _runProbeSequence(startIso, seq, { upgrade, displayedIso = null }) {
+      const controller = new AbortController();
+      this._probeAbort = controller;
+      const abortSignal = controller.signal;
 
       let currentIso = startIso;
       let attempt = 0;
 
-      while (attempt <= this.maxBack) {
-        if (abortSignal.aborted) return;
-        if (isUpgrade && currentIso === cachedIso) return;
+      try {
+        while (attempt <= this.maxBack) {
+          if (abortSignal.aborted || seq !== this.frameSeq) return;
+          if (
+            upgrade &&
+            displayedIso &&
+            Date.parse(currentIso) <= Date.parse(displayedIso)
+          )
+            return;
 
-        let kind = "no-frame";
-        if (this.on.probe) {
-          try {
-            kind = await this.on.probe(currentIso, abortSignal);
-          } catch (e) {
-            if (e.name === 'AbortError') return;
-            kind = "network";
+          let kind = "no-frame";
+          if (this.on.probe) {
+            try {
+              kind = await this.on.probe(currentIso, abortSignal);
+            } catch (e) {
+              if (e.name === "AbortError") return;
+              kind = "network";
+            }
+          } else {
+            kind = "image";
           }
-        } else {
-          kind = "image";
-        }
 
-        if (abortSignal.aborted) return;
-        
-        if (kind === "network") {
-          if (!isUpgrade) this.on.network?.(startIso, seq);
-          return;
-        }
+          if (abortSignal.aborted || seq !== this.frameSeq) return;
 
-        if (kind === "image") {
-          try {
-            sessionStorage.setItem(this.cacheKey, JSON.stringify({ time: currentIso, savedAt: Date.now() }));
-          } catch (e) {}
+          if (kind === "network") {
+            this.on.network?.(startIso, seq, upgrade);
+            return;
+          }
 
-          if (isUpgrade) {
-             this.on.upgrade?.(currentIso, seq);
-           } else {
-              this.on.ok?.(currentIso, seq, false);
-              setTimeout(() => {
-                this._triggerBackgroundUpgrade(seq, currentIso);
-              }, 5000);
-           }
-          return;
-        }
+          if (kind === "image") {
+            this._storeFrame(currentIso);
+            if (upgrade) this.on.upgrade?.(currentIso, seq);
+            else this.on.ok?.(currentIso, seq, false);
+            return;
+          }
 
-        if (!isUpgrade) {
-          this.on.invalid?.(currentIso, seq);
-        }
+          if (!upgrade) this.on.invalid?.(currentIso, seq);
 
-        attempt++;
-        const target = new Date(Date.parse(currentIso) - this.slot).toISOString();
-        if (!isUpgrade) {
-           this.on.backfill?.(currentIso, target, attempt, seq);
+          attempt++;
+          const target = new Date(Date.parse(currentIso) - this.slot).toISOString();
+          if (!upgrade)
+            this.on.backfill?.(currentIso, target, attempt, seq);
+          currentIso = target;
         }
-        currentIso = target;
-      }
-      
-      if (!isUpgrade) {
-         this.on.exhausted?.(startIso, attempt, seq);
+        if (!upgrade && seq === this.frameSeq)
+          this.on.exhausted?.(startIso, attempt, seq);
+      } finally {
+        if (this._probeAbort === controller) this._probeAbort = null;
       }
     }
 
-    tileLoad(seq) {}
-    tileError(seq) {}
+    cancelPendingWork() {
+      this._cancelWork();
+    }
+
     dispose() {
-      if (this._probeAbort) {
-        this._probeAbort.abort();
-        this._probeAbort = null;
-      }
+      this.frameSeq++;
+      this._cancelWork();
     }
   }
 
@@ -261,6 +306,7 @@
       this.baseLayer = null;
       this.imagerySeq = 0;
       this.staleImageryLayer = null;
+      this.pendingImageryLayer = null;
       this.baseKey = null;
       this.fireLayer = null;
       this.fireAll = [];
@@ -1237,20 +1283,16 @@
     async probeMtgTime(wms, iso, abortSignal) {
       const bbox = wms.probeBbox || "35,26,43,46",
         u = `${wms.url}?SERVICE=WMS&VERSION=${wms.version}&REQUEST=GetMap&LAYERS=${wms.layer}&STYLES=&FORMAT=image/png&TRANSPARENT=TRUE&BBOX=${bbox}&WIDTH=64&HEIGHT=64&CRS=EPSG:4326&TIME=${encodeURIComponent(iso)}`;
-      
       const timeoutMs = wms.probeTimeoutMs || 4000;
-      let finalSignal;
-      if (typeof AbortSignal !== "undefined" && typeof AbortSignal.any === "function") {
-        finalSignal = AbortSignal.any([abortSignal, AbortSignal.timeout(timeoutMs)]);
-      } else {
-        const ac = new AbortController();
-        const tid = setTimeout(() => ac.abort(new Error("TimeoutError")), timeoutMs);
-        if (abortSignal) {
-          abortSignal.addEventListener("abort", () => { clearTimeout(tid); ac.abort(abortSignal.reason); });
-        }
-        finalSignal = ac.signal;
-      }
-      
+      const timeout = new AbortController();
+      const timeoutId = setTimeout(() => timeout.abort(), timeoutMs);
+      const signals = [abortSignal, timeout.signal].filter(Boolean);
+      const finalSignal =
+        typeof AbortSignal !== "undefined" && typeof AbortSignal.any === "function"
+          ? AbortSignal.any(signals)
+          : timeout.signal;
+      const abortExternal = () => timeout.abort();
+      abortSignal?.addEventListener("abort", abortExternal, { once: true });
       try {
         const r = await fetch(u, { signal: finalSignal });
         const ct = (r.headers.get("content-type") || "").toLowerCase();
@@ -1264,9 +1306,54 @@
           : "no-frame";
       } catch (e) {
         return "network";
+      } finally {
+        clearTimeout(timeoutId);
+        abortSignal?.removeEventListener("abort", abortExternal);
       }
     }
-    createMtgLeafletLayer(wms, time, seq, mgr) {
+    removeImageryLayer(layer) {
+      if (layer && this.map?.hasLayer(layer)) this.map.removeLayer(layer);
+    }
+
+    discardPendingImageryLayer() {
+      if (!this.pendingImageryLayer) return;
+      this.removeImageryLayer(this.pendingImageryLayer);
+      this.pendingImageryLayer = null;
+    }
+
+    beginImageryReplacement(layer) {
+      this.discardPendingImageryLayer();
+      if (
+        this.staleImageryLayer &&
+        this.staleImageryLayer !== this.satelliteImageryLayer
+      )
+        this.removeImageryLayer(this.staleImageryLayer);
+      this.staleImageryLayer = this.satelliteImageryLayer || null;
+      this.pendingImageryLayer = layer;
+      layer.addTo(this.map);
+    }
+
+    settleImageryLayer(layer) {
+      if (this.pendingImageryLayer !== layer) return false;
+      const previous = this.satelliteImageryLayer;
+      this.satelliteImageryLayer = layer;
+      this.pendingImageryLayer = null;
+      if (previous && previous !== layer) this.removeImageryLayer(previous);
+      if (this.staleImageryLayer && this.staleImageryLayer !== previous)
+        this.removeImageryLayer(this.staleImageryLayer);
+      this.staleImageryLayer = null;
+      return true;
+    }
+
+    isCurrentMtgRequest(mgr, mapSeq, frameSeq) {
+      return (
+        this.imagerySeq === mapSeq &&
+        this._mtgFrameMgr === mgr &&
+        mgr.frameSeq === frameSeq
+      );
+    }
+
+    createMtgLeafletLayer(wms, time, mapSeq, mgr, frameSeq) {
       const opacity = this.getSatelliteImageryOpacity(wms.defaultOpacity);
 
       const layer = L.tileLayer.wms(wms.url, {
@@ -1283,162 +1370,196 @@
         keepBuffer: 3,
       });
 
-      layer.on("tileloadstart", (e) => {
-        if (mgr) e.tile.dataset.frameSeq = String(mgr.frameSeq);
-      });
-
-      const cleanStale = () => {
-        if (this.imagerySeq === seq && this.satelliteImageryLayer === layer) {
-          if (this.staleImageryLayer && this.staleImageryLayer !== layer) {
-             this.map.removeLayer(this.staleImageryLayer);
-             this.staleImageryLayer = null;
-          }
-        }
+      const promote = () => {
+        if (!this.isCurrentMtgRequest(mgr, mapSeq, frameSeq)) return;
+        if (!this.settleImageryLayer(layer)) return;
+        this.imageryDisplayedTime = time;
+        const backfill = Boolean(mgr.lastUserTime && time !== mgr.lastUserTime);
+        A.Events.emit("service", {
+          id: "mtg",
+          state: "ok",
+          count: null,
+          note: T("map.mtgOk", { time: mtgFmt(time), requested: "" }),
+        });
+        A.Events.emit("mtgFrame", {
+          state: "ok",
+          selected: mgr.lastUserTime || time,
+          displayed: time,
+          backfill,
+        });
+        this.updateImageryLegend();
+        this.updateImageryAgeUI(time);
+        mgr.markDisplayed(time, frameSeq);
       };
 
-      layer.on("tileload", (e) => {
-        if (mgr) mgr.tileLoad(Number(e.tile.dataset.frameSeq));
-        cleanStale();
+      layer.on("tileload", () => {
+        layer._mtgTileLoaded = true;
+        promote();
       });
-      layer.on("load", cleanStale);
+      layer.on("load", () => {
+        if (layer._mtgTileLoaded) promote();
+      });
 
-      layer.on("tileerror", (e) => {
-        if (mgr) mgr.tileError(Number(e.tile.dataset.frameSeq));
+      layer.on("tileerror", () => {
+        if (!this.isCurrentMtgRequest(mgr, mapSeq, frameSeq)) return;
+        if (this.pendingImageryLayer !== layer) return;
+        this.discardPendingImageryLayer();
+        A.Events.emit("service", {
+          id: "mtg",
+          state: "warn",
+          count: null,
+          note: T("map.mtgNetwork"),
+        });
+        this.updateImageryLegend();
       });
       return layer;
     }
 
-    applyUpgrade(iso, mapSeq) {
-      if (this.imagerySeq !== mapSeq || !this.satelliteImageryLayer) return;
-      const oldTime = this.satelliteImageryLayer.options.time;
-      if (iso > oldTime) {
-        if (this.staleImageryLayer && this.staleImageryLayer !== this.satelliteImageryLayer) {
-           this.map.removeLayer(this.staleImageryLayer);
-        }
-        this.staleImageryLayer = this.satelliteImageryLayer;
-        this.satelliteImageryLayer = this.createMtgLeafletLayer(this.currentWmsConfig, iso, mapSeq, this._mtgFrameMgr);
-        this.satelliteImageryLayer.addTo(this.map);
-
-        this.imageryDisplayedTime = iso;
-        A.Events.emit('mtgFrame', { state: 'ok', selected: this.imageryRequestedTime || iso, displayed: iso, backfill: false, upgrade: true });
+    queueMtgLayer(wms, time, mapSeq, mgr, frameSeq) {
+      if (!this.isCurrentMtgRequest(mgr, mapSeq, frameSeq)) return;
+      const active = this.satelliteImageryLayer;
+      if (
+        active &&
+        active.options?.time === time &&
+        active.options?.layers === wms.layer
+      ) {
+        this.imageryDisplayedTime = time;
+        mgr.markDisplayed(time, frameSeq);
         this.updateImageryLegend();
+        return;
       }
+      const layer = this.createMtgLeafletLayer(wms, time, mapSeq, mgr, frameSeq);
+      this.beginImageryReplacement(layer);
+      this.updateImageryLegend();
     }
 
     discoverMtgFrame(wms, date) {
-        const mm = this;
-        const seq = this.imagerySeq;
-        
-        const mtgFmt = (iso) => {
-          const d = new Date(iso);
-          return isNaN(d.getTime())
-            ? iso
-            : new Intl.DateTimeFormat(A.I18n.locale, {
-                hour: "2-digit",
-                minute: "2-digit",
-                timeZone: "UTC",
-              }).format(d) + " UTC";
-        };
+      const mm = this;
+      const mapSeq = this.imagerySeq;
+      const mgr = (this._mtgFrameMgr = new MtgFrameManager(wms, {
+        probe: (iso, abortSignal) => mm.probeMtgTime(wms, iso, abortSignal),
+        start: (iso, frameSeq) => {
+          if (!mm.isCurrentMtgRequest(mgr, mapSeq, frameSeq)) return;
+          mm.discardPendingImageryLayer();
+          mm.imageryRequestedTime = iso;
+          A.Events.emit("service", {
+            id: "mtg",
+            state: "loading",
+            note: T("map.mtgLoading", { time: mtgFmt(iso) }),
+          });
+          A.Events.emit("mtgFrame", {
+            state: "loading",
+            selected: iso,
+            displayed: mm.imageryDisplayedTime,
+            backfill: false,
+          });
+          mm.updateImageryLegend();
+        },
+        ok: (iso, frameSeq) => {
+          if (!mm.isCurrentMtgRequest(mgr, mapSeq, frameSeq)) return;
+          mm.queueMtgLayer(wms, iso, mapSeq, mgr, frameSeq);
+        },
+        upgrade: (iso, frameSeq) => {
+          if (!mm.isCurrentMtgRequest(mgr, mapSeq, frameSeq)) return;
+          mm.queueMtgLayer(wms, iso, mapSeq, mgr, frameSeq);
+        },
+        backfill: (req, target, n, frameSeq) => {
+          if (!mm.isCurrentMtgRequest(mgr, mapSeq, frameSeq)) return;
+          A.Events.emit("service", {
+            id: "mtg",
+            state: "backfill",
+            note: T("map.mtgBackfill", {
+              requested: mtgFmt(mgr.lastUserTime || req),
+              target: mtgFmt(target),
+              attempt: n,
+              max: mgr.maxBack,
+            }),
+          });
+          A.Events.emit("mtgFrame", {
+            state: "backfill",
+            selected: mgr.lastUserTime || req,
+            displayed: mm.imageryDisplayedTime,
+            backfill: true,
+          });
+          mm.updateImageryLegend();
+        },
+        exhausted: (req, n, frameSeq) => {
+          if (!mm.isCurrentMtgRequest(mgr, mapSeq, frameSeq)) return;
+          A.Events.emit("service", {
+            id: "mtg",
+            state: "no-frame",
+            note: T("map.mtgExhausted", { time: mtgFmt(req), count: n }),
+          });
+          mm.updateImageryLegend();
+        },
+        invalid: (iso, frameSeq) => {
+          if (!mm.isCurrentMtgRequest(mgr, mapSeq, frameSeq)) return;
+          A.Events.emit("service", {
+            id: "mtg",
+            state: "loading",
+            note: T("map.mtgInvalid"),
+          });
+        },
+        network: (iso, frameSeq, isBackground) => {
+          if (!mm.isCurrentMtgRequest(mgr, mapSeq, frameSeq)) return;
+          A.Events.emit("service", {
+            id: "mtg",
+            state: isBackground ? "warn" : "error",
+            note: T("map.mtgNetwork"),
+          });
+        },
+      }));
 
-        const mgr = (this._mtgFrameMgr = new MtgFrameManager(wms, {
-          probe: (iso, abortSignal) => mm.probeMtgTime(wms, iso, abortSignal),
-          start: (iso) => {
-            if (mm.imagerySeq !== seq) return;
-            A.Events.emit("service", { id: "mtg", state: "loading", note: T("map.mtgLoading", { time: mtgFmt(iso) }) });
-            A.Events.emit("mtgFrame", { state: "loading", selected: mgr.lastUserTime || iso, displayed: mm.imageryDisplayedTime, backfill: false });
-            mm.updateImageryLegend();
-          },
-          ok: (iso, cbSeq, isCached) => {
-            if (mm.imagerySeq !== seq) return;
-            mm.imageryDisplayedTime = iso;
-            const backfill = Boolean(mgr.lastUserTime && iso !== mgr.lastUserTime),
-              requested = backfill ? T("map.mtgRequested", { time: mtgFmt(mgr.lastUserTime) }) : "";
-            
-            const time = iso;
-            
-            if (!mm.satelliteImageryLayer) {
-              mm.satelliteImageryLayer = mm.createMtgLeafletLayer(wms, time, seq, mgr);
-              mm.satelliteImageryLayer.addTo(mm.map);
-            } else if (mm.satelliteImageryLayer.options.time !== time || mm.satelliteImageryLayer.options.layers !== wms.layer) {
-              mm.staleImageryLayer = mm.satelliteImageryLayer;
-              mm.satelliteImageryLayer = mm.createMtgLeafletLayer(wms, time, seq, mgr);
-              mm.satelliteImageryLayer.addTo(mm.map);
-            }
-
-            A.Events.emit("service", { id: "mtg", state: "ok", count: null, note: T("map.mtgOk", { time: mtgFmt(iso), requested }) });
-            A.Events.emit("mtgFrame", { state: "ok", selected: mgr.lastUserTime || iso, displayed: iso, backfill });
-            mm.updateImageryLegend();
-            mm.updateImageryAgeUI(iso);
-          },
-          upgrade: (iso, cbSeq) => {
-            mm.applyUpgrade(iso, seq);
-          },
-          backfill: (req, target, n) => {
-            if (mm.imagerySeq !== seq) return;
-            A.Events.emit("service", { id: "mtg", state: "backfill", note: T("map.mtgBackfill", { requested: mtgFmt(mgr.lastUserTime || req), target: mtgFmt(target), attempt: n, max: mgr.maxBack }) });
-            A.Events.emit("mtgFrame", { state: "backfill", selected: mgr.lastUserTime || req, displayed: target, backfill: true });
-            mm.updateImageryLegend();
-          },
-          exhausted: (req, n) => {
-            if (mm.imagerySeq !== seq) return;
-            A.Events.emit("service", { id: "mtg", state: "no-frame", note: T("map.mtgExhausted", { time: mtgFmt(req), count: n }) });
-            mm.updateImageryLegend();
-          },
-          invalid: () => {
-            if (mm.imagerySeq !== seq) return;
-            A.Events.emit("service", { id: "mtg", state: "loading", note: T("map.mtgInvalid") });
-          },
-          network: () => {
-            if (mm.imagerySeq !== seq) return;
-            A.Events.emit("service", { id: "mtg", state: "error", note: T("map.mtgNetwork") });
-          }
-        }));
-        
-        const iso = mgr.normalize(date).toISOString();
-        mgr.applyUserTime(iso);
-        this.imageryRequestedTime = iso;
-        this.imageryDisplayedTime = null;
-        this.currentWmsConfig = wms;
+      const iso = mgr.normalize(date).toISOString();
+      this.currentWmsConfig = wms;
+      this.imageryRequestedTime = iso;
+      mgr.applyUserTime(iso, { latest: mgr.isLatestSelection(date) });
     }
 
     createViirsWmtsLayer(date, seq) {
-        const wms = C.viirsTrueColorWmts;
-        const iso = U.dateOnlyUtc(date);
-        const opacity = this.getSatelliteImageryOpacity(wms.defaultOpacity);
-
-        const layer = L.tileLayer(wms.url, {
-          layer: wms.layer,
-          time: iso,
-          opacity,
-          pane: "imageryPane",
-          attribution: wms.attribution,
-          className: "satellite-imagery-layer",
-          maxNativeZoom: wms.maxZoom,
-          bounds: L.latLngBounds([-90, -180], [90, 180])
+      const wms = C.viirsTrueColorWmts;
+      const iso = U.dateOnlyUtc(date);
+      const opacity = this.getSatelliteImageryOpacity(wms.defaultOpacity);
+      const layer = L.tileLayer(wms.url, {
+        layer: wms.layer,
+        time: iso,
+        opacity,
+        pane: "imageryPane",
+        attribution: wms.attribution,
+        className: "satellite-imagery-layer",
+        maxNativeZoom: wms.maxZoom,
+        bounds: L.latLngBounds([-90, -180], [90, 180]),
+      });
+      A.Events.emit("service", {
+        id: "satellite",
+        state: "loading",
+        count: null,
+        note: `VIIRS ${iso}`,
       });
 
-        A.Events.emit("service", { id: "satellite", state: "loading", count: null, note: `VIIRS ${iso}` });
-
-        const cleanStale = () => {
-          if (this.imagerySeq !== seq) return;
-          if (this.staleImageryLayer && this.staleImageryLayer !== layer) {
-             this.map.removeLayer(this.staleImageryLayer);
-             this.staleImageryLayer = null;
-          }
-        };
-
-        layer.on("tileload", () => {
-          if (this.imagerySeq !== seq) return;
-          A.Events.emit("service", { id: "satellite", state: "ok", count: null, note: `VIIRS ${iso}` });
-          cleanStale();
+      const promote = () => {
+        if (this.imagerySeq !== seq || !this.settleImageryLayer(layer)) return;
+        this.imageryDisplayedTime = iso;
+        A.Events.emit("service", {
+          id: "satellite",
+          state: "ok",
+          count: null,
+          note: `VIIRS ${iso}`,
         });
-        layer.on("load", cleanStale);
-
-        layer.on("tileerror", () => {
-          if (this.imagerySeq !== seq) return;
-          A.Events.emit("service", { id: "satellite", state: "warn", count: null, note: `VIIRS error` });
+      };
+      layer.on("tileload", promote);
+      layer.on("load", promote);
+      layer.on("tileerror", () => {
+        if (this.imagerySeq !== seq || this.pendingImageryLayer !== layer) return;
+        this.discardPendingImageryLayer();
+        A.Events.emit("service", {
+          id: "satellite",
+          state: "warn",
+          count: null,
+          note: "VIIRS error",
         });
-        return layer;
+      });
+      return layer;
     }
 
     setSatelliteImagery(mode, date) {
@@ -1449,8 +1570,9 @@
       this._mtgFrameMgr?.dispose();
 
       this._mtgFrameMgr = null;
+      this.discardPendingImageryLayer();
       this.imageryRequestedTime = null;
-      this.imageryDisplayedTime = null;
+      this.imageryDisplayedTime = this.satelliteImageryLayer?.options?.time || null;
       this.currentWmsConfig = null;
       document.querySelector('[data-legend="satelliteImagery"]')?.remove();
       const infoEl = document.getElementById("satelliteImageryInfo");
@@ -1459,24 +1581,17 @@
       A.Events.emit("mtgFrame", { state: "off", selected: null, displayed: null, backfill: false });
 
       if (!mode || mode === "none") {
-        if (this.satelliteImageryLayer) {
-           this.map.removeLayer(this.satelliteImageryLayer);
-           this.satelliteImageryLayer = null;
-        }
-        if (this.staleImageryLayer) {
-           this.map.removeLayer(this.staleImageryLayer);
-           this.staleImageryLayer = null;
-        }
+        this.removeImageryLayer(this.satelliteImageryLayer);
+        this.removeImageryLayer(this.staleImageryLayer);
+        this.satelliteImageryLayer = null;
+        this.staleImageryLayer = null;
+        this.imageryDisplayedTime = null;
         return;
       }
 
-      if (this.satelliteImageryLayer) {
-        if (this.staleImageryLayer && this.staleImageryLayer !== this.satelliteImageryLayer) {
-           this.map.removeLayer(this.staleImageryLayer);
-        }
-        this.staleImageryLayer = this.satelliteImageryLayer;
-        this.satelliteImageryLayer = null;
-      }
+      if (this.staleImageryLayer && this.staleImageryLayer !== this.satelliteImageryLayer)
+        this.removeImageryLayer(this.staleImageryLayer);
+      this.staleImageryLayer = this.satelliteImageryLayer || null;
 
       const d = date || new Date();
       if (mode === "live" || mode === "fire") {
@@ -1486,10 +1601,9 @@
         this.makeLegend("satelliteImagery", wms.label || wms.source, this.imageryLegendBody());
         if (infoEl) infoEl.style.display = "";
       } else if (mode === "highRes") {
-        this.satelliteImageryLayer = this.createViirsWmtsLayer(d, seq);
-        this.satelliteImageryLayer.addTo(this.map);
         this.currentWmsConfig = C.viirsTrueColorWmts;
-        this.updateImageryAgeUI(U.dateOnlyUtc(d), true);
+        const layer = this.createViirsWmtsLayer(d, seq);
+        this.beginImageryReplacement(layer);
         this.makeLegend("satelliteImagery", "NASA VIIRS True Color", `<div class="sourceNote">NOAA-21<br>${U.dateOnlyUtc(d)}</div>`);
         if (infoEl) infoEl.style.display = "";
       }
@@ -1498,13 +1612,12 @@
     setSatelliteImageryTime(date) {
       const seq = this.imagerySeq;
       if (!this._mtgFrameMgr) {
-        if (this.satelliteImageryMode === "highRes" && this.satelliteImageryLayer) {
+        if (this.satelliteImageryMode === "highRes") {
            const iso = U.dateOnlyUtc(date);
-           if (this.satelliteImageryLayer.options.time !== iso) {
-             this.staleImageryLayer = this.satelliteImageryLayer;
-             this.satelliteImageryLayer = this.createViirsWmtsLayer(date, seq);
-             this.satelliteImageryLayer.addTo(this.map);
-             this.updateImageryAgeUI(iso, true);
+           const current = this.pendingImageryLayer || this.satelliteImageryLayer;
+           if (current?.options?.time !== iso) {
+             const layer = this.createViirsWmtsLayer(date, seq);
+             this.beginImageryReplacement(layer);
            }
         }
         return;
@@ -1513,10 +1626,12 @@
       const mgr = this._mtgFrameMgr,
         iso = mgr.normalize(this.roundToMtgSlot(date)).toISOString();
       if (iso === mgr.lastUserTime) return;
+      mgr.cancelPendingWork();
+      this.discardPendingImageryLayer();
       clearTimeout(this._imageryDebounceT);
       this._imageryDebounceT = setTimeout(() => {
-        if (this.imagerySeq !== seq) return;
-        mgr.applyUserTime(iso);
+        if (this.imagerySeq !== seq || this._mtgFrameMgr !== mgr) return;
+        mgr.applyUserTime(iso, { latest: mgr.isLatestSelection(date) });
         this.imageryRequestedTime = iso;
         this.updateImageryLegend();
       }, 300);
@@ -1525,9 +1640,13 @@
     refreshSatelliteImagery(date) {
       if (!this.satelliteImageryLayer) return;
       if (this._mtgFrameMgr) {
-        const iso = this.satelliteImageryLayer.options?.time || this.imageryDisplayedTime;
+        const iso =
+          this.imageryDisplayedTime ||
+          this.satelliteImageryLayer.wmsParams?.time ||
+          this.satelliteImageryLayer.options?.time;
         if (iso) {
            this.satelliteImageryLayer.setParams({ time: iso, _t: Date.now() });
+           this.satelliteImageryLayer.options.time = iso;
         }
       } else if (this.satelliteImageryMode === "highRes") {
          this.satelliteImageryLayer.redraw();
@@ -1542,9 +1661,12 @@
     }
 
     setSatelliteImageryOpacity(v) {
-      if (this.satelliteImageryLayer) {
-        this.satelliteImageryLayer.setOpacity(v);
-      }
+      const opacity = U.clamp(Number(v), 0, 1);
+      for (const layer of new Set([
+        this.satelliteImageryLayer,
+        this.pendingImageryLayer,
+        this.staleImageryLayer,
+      ])) layer?.setOpacity(opacity);
     }
 
     updateImageryAgeUI(iso, isDaily = false) {
@@ -1589,11 +1711,7 @@
             selected: T("map.mtgSelected", { time: mtgFmt(req) }),
           }),
         );
-      if (
-        mgr &&
-        mgr.lastUserTime &&
-        mgr.lastUserTime >= mgr.latestAllowed().toISOString()
-      )
+      if (mgr?.latestMode)
         lines.push(T("map.mtgLatest"));
       return `<div class="sourceNote">${lines.join("<br>")}</div>`;
     }

@@ -8,7 +8,7 @@ export default defineConfig({
   workers: process.env.CI ? 1 : undefined,
   reporter: 'list',
   use: {
-    baseURL: 'http://127.0.0.1:8890',
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || 'http://127.0.0.1:8890',
     trace: 'on-first-retry',
   },
   projects: [

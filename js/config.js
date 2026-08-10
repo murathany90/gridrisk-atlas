@@ -96,6 +96,7 @@ window.AtmoApp = window.AtmoApp || {};
       initialLagMinutes: 20,
       probeTimeoutMs: 4000,
       cacheTtlMs: 3600000,
+      backgroundProbeDelayMs: 250,
       probeBbox: '35,26,43,46',
       source: 'EUMETSAT MTG-I FCI'
     },
@@ -112,6 +113,7 @@ window.AtmoApp = window.AtmoApp || {};
       initialLagMinutes: 20,
       probeTimeoutMs: 4000,
       cacheTtlMs: 3600000,
+      backgroundProbeDelayMs: 250,
       probeBbox: '35,26,43,46',
       source: 'EUMETSAT MTG-I FCI'
     },

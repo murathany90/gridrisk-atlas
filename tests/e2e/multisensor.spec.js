@@ -50,7 +50,6 @@ test.describe('Multi-sensor UI and Mode Tests', () => {
     await page.addInitScript(() => {
       localStorage.setItem('thermalMode', 'MULTI_SOURCE');
     });
-    page.on('console', msg => console.log('Browser:', msg.text()));
     await page.goto('/');
     await page.waitForLoadState('networkidle');
 

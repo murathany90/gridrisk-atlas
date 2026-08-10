@@ -8,7 +8,6 @@ test.describe('Satellite Imagery Lifecycle', () => {
       if (window.caches) caches.keys().then(names => names.forEach(n => caches.delete(n)));
       if (navigator.serviceWorker) navigator.serviceWorker.getRegistrations().then(regs => regs.forEach(r => r.unregister()));
     });
-    page.on('console', msg => console.log('PAGE LOG:', msg.text()));
     await page.goto('/?country=TR&lang=tr');
     await page.waitForSelector('.leaflet-container');
     await page.$eval('[data-i18n="layers.title"]', el => el.click());
@@ -31,7 +30,7 @@ test.describe('Satellite Imagery Lifecycle', () => {
          let url = l._url || '';
          if (l.options && l.options.layers) url += ' (layers: ' + l.options.layers + ')';
          if (l.options && l.options.layer) url += ' (layer: ' + l.options.layer + ')';
-         urls.push(url);
+         if (!urls.includes(url)) urls.push(url);
       };
 
       if (mgr.satelliteImageryLayer) {
@@ -41,8 +40,20 @@ test.describe('Satellite Imagery Lifecycle', () => {
       if (mgr.staleImageryLayer) {
         addLayerUrl(mgr.staleImageryLayer);
       }
+      if (mgr.pendingImageryLayer) {
+        addLayerUrl(mgr.pendingImageryLayer);
+      }
 
-      return { count, urls, url: urls[0] || '', opacity, storedOpacity: localStorage.getItem("satelliteImageryOpacity") };
+      return {
+        count,
+        urls,
+        url: urls[0] || '',
+        opacity,
+        activeTime: mgr.satelliteImageryLayer?.wmsParams?.time || mgr.satelliteImageryLayer?.options?.time || null,
+        displayedTime: mgr.imageryDisplayedTime,
+        pendingTime: mgr.pendingImageryLayer?.wmsParams?.time || mgr.pendingImageryLayer?.options?.time || null,
+        storedOpacity: localStorage.getItem("satelliteImageryOpacity"),
+      };
     });
   }
 
@@ -222,6 +233,23 @@ test.describe('Satellite Imagery Lifecycle', () => {
       const layers = await getImageryLayerInfo(page);
       expect(layers.count).toBe(1);
     }).toPass({ timeout: 5000 });
+
+    // Let the expected latest-mode freshness pass settle before measuring the
+    // language action itself.  The action must add exactly zero requests.
+    await page.waitForFunction(() => {
+      const map = window.AtmoApp?.app?.map;
+      const mgr = map?._mtgFrameMgr;
+      const active = map?.satelliteImageryLayer;
+      const slot = (window.AtmoApp.CONFIG.mtgGeoColourWms.slotMinutes || 10) * 60 * 1000;
+      const latest = new Date(Math.floor(Date.now() / slot) * slot).toISOString();
+      return Boolean(
+        mgr &&
+        mgr._backgroundTimer === null &&
+        mgr._probeAbort === null &&
+        !map.pendingImageryLayer &&
+        active?.options?.time === latest,
+      );
+    }, { timeout: 5000 });
     
     const initialProbeCount = probeCount;
     const initialTileCount = fullTileCount;
@@ -262,8 +290,8 @@ test.describe('Satellite Imagery Lifecycle', () => {
   test('Valid probe creates full WMS layer', async ({ page }) => {
     let probes = 0;
     let fullTiles = 0;
-    let tileTime = null;
-    let probeTime = null;
+    const tileTimes = [];
+    const probeTimes = [];
     
     await page.route(/view\.eumetsat\.int\/geoserver\/wms/i, route => {
       const u = new URL(route.request().url());
@@ -271,10 +299,10 @@ test.describe('Satellite Imagery Lifecycle', () => {
       const time = u.searchParams.get("TIME") || u.searchParams.get("time");
       if (width === 64) {
         probes++;
-        probeTime = time;
+        probeTimes.push(time);
       } else {
         fullTiles++;
-        tileTime = time;
+        tileTimes.push(time);
       }
       route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') });
     });
@@ -286,30 +314,96 @@ test.describe('Satellite Imagery Lifecycle', () => {
     }).toPass({ timeout: 5000 });
     
     expect(probes).toBeGreaterThan(0);
-    expect(tileTime).toBe(probeTime);
+    for (const time of tileTimes) expect(probeTimes).toContain(time);
   });
 
-  test('Cache background upgrade test', async ({ page }) => {
+  test('an invalid current slot backfills before creating full tiles', async ({ page }) => {
+    await page.clock.install({ time: new Date('2026-08-08T19:10:00Z') });
+    const invalidTime = '2026-08-08T18:50:00.000Z';
+    const validTime = '2026-08-08T18:40:00.000Z';
+    const probes = [];
+    const tiles = [];
+
+    await page.route(/view\.eumetsat\.int\/geoserver\/wms/i, route => {
+      const u = new URL(route.request().url());
+      const width = Number(u.searchParams.get('WIDTH') || u.searchParams.get('width'));
+      const time = u.searchParams.get('TIME') || u.searchParams.get('time');
+      if (width === 64) probes.push(time);
+      else tiles.push(time);
+      route.fulfill(
+        time === validTime
+          ? { status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') }
+          : { status: 200, contentType: 'application/vnd.ogc.se_xml', body: Buffer.from('<ServiceExceptionReport/>') },
+      );
+    });
+
+    await page.$eval('input[name="satelliteImagery"][value="live"]', el => { el.click(); el.dispatchEvent(new Event('change', { bubbles: true })); });
+    await expect.poll(() => tiles.length).toBeGreaterThan(0);
+    expect(probes).toContain(invalidTime);
+    expect(probes).toContain(validTime);
+    expect(tiles).toEqual(expect.arrayContaining([validTime]));
+    expect(tiles).not.toContain(invalidTime);
+  });
+
+  test('historical MTG selection ignores latest cache and never starts a freshness probe', async ({ page }) => {
+    await page.clock.install({ time: new Date('2026-08-08T19:10:00Z') });
+    const cachedTime = '2026-08-08T18:40:00.000Z';
+    const historicalTime = '2026-08-08T13:10:00.000Z';
+    let probes = 0;
+    const tiles = [];
+
+    await page.evaluate(time => {
+      sessionStorage.setItem('mtgFrameCache_mtg_fd:rgb_geocolour', JSON.stringify({ time, savedAt: Date.now() }));
+    }, cachedTime);
+    await page.route(/view\.eumetsat\.int\/geoserver\/wms/i, route => {
+      const u = new URL(route.request().url());
+      const width = Number(u.searchParams.get('WIDTH') || u.searchParams.get('width'));
+      const time = u.searchParams.get('TIME') || u.searchParams.get('time');
+      if (width === 64) probes++;
+      else tiles.push(time);
+      route.fulfill(
+        time === historicalTime
+          ? { status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') }
+          : { status: 200, contentType: 'application/vnd.ogc.se_xml', body: Buffer.from('<ServiceExceptionReport/>') },
+      );
+    });
+
+    await page.evaluate(time => {
+      window.AtmoApp.app.map.setSatelliteImagery('live', new Date(time));
+    }, historicalTime);
+    await expect.poll(() => tiles.length).toBeGreaterThan(0);
+    expect(tiles).toEqual(expect.arrayContaining([historicalTime]));
+    expect(tiles).not.toContain(cachedTime);
+    expect(probes).toBe(1);
+
+    await page.clock.fastForward(7000);
+    expect(probes).toBe(1);
+    expect((await getImageryLayerInfo(page)).displayedTime).toBe(historicalTime);
+  });
+
+  test('cached latest frame paints first, then promotes only after the fresher layer loads', async ({ page }) => {
     await page.clock.install({ time: new Date('2026-08-08T19:10:00Z') });
 
     const cachedTime = '2026-08-08T18:40:00.000Z';
-    const upgradeTime = '2026-08-08T18:50:00.000Z';
+    const upgradeTime = '2026-08-08T19:00:00.000Z';
     
     await page.evaluate((cTime) => {
       sessionStorage.setItem('mtgFrameCache_mtg_fd:rgb_geocolour', JSON.stringify({ time: cTime, savedAt: Date.now() }));
     }, cachedTime);
 
     let initialTileTime = null;
+    const probeTimes = [];
+    let resolveUpgradeTile;
+    const waitForUpgradeTile = new Promise(resolve => { resolveUpgradeTile = resolve; });
     
-    await page.route(/view\.eumetsat\.int\/geoserver\/wms/i, route => {
+    await page.route(/view\.eumetsat\.int\/geoserver\/wms/i, async route => {
       const u = new URL(route.request().url());
       const t = u.searchParams.get('time') || u.searchParams.get('TIME');
       const width = Number(u.searchParams.get("WIDTH") || u.searchParams.get("width"));
-      
-      console.log(`TEST INTERCEPT: width=${width} time=${t}`);
 
+      if (width === 64) probeTimes.push(t);
       if (width > 64 && !initialTileTime) initialTileTime = t;
-
+      if (width > 64 && t === upgradeTime) await waitForUpgradeTile;
       if (t === upgradeTime || t === cachedTime) {
          route.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64') });
       } else {
@@ -318,17 +412,28 @@ test.describe('Satellite Imagery Lifecycle', () => {
     });
 
     await page.$eval('input[name="satelliteImagery"][value="live"]', el => { el.click(); el.dispatchEvent(new Event('change', {bubbles:true})); });
-    
+
     await expect(async () => {
-      const activeIso = await page.evaluate(() => {
-        const l = window.AtmoApp?.app?.map?.satelliteImageryLayer;
-        return l?.wmsParams?.time || l?.options?.time;
-      });
-      console.log(`TEST EVAL: activeIso=${activeIso}`);
-      expect(activeIso).toBe(upgradeTime);
+      expect((await getImageryLayerInfo(page)).activeTime).toBe(cachedTime);
     }).toPass({ timeout: 5000 });
-    
     expect(initialTileTime).toBe(cachedTime);
+
+    await page.clock.fastForward(300);
+    await expect(async () => {
+      const layer = await getImageryLayerInfo(page);
+      expect(probeTimes).toEqual(expect.arrayContaining(['2026-08-08T19:10:00.000Z', upgradeTime]));
+      expect(layer.pendingTime).toBe(upgradeTime);
+      expect(layer.displayedTime).toBe(cachedTime);
+      expect(layer.count).toBe(2);
+    }).toPass({ timeout: 5000 });
+
+    resolveUpgradeTile();
+    await expect(async () => {
+      const layer = await getImageryLayerInfo(page);
+      expect(layer.activeTime).toBe(upgradeTime);
+      expect(layer.displayedTime).toBe(upgradeTime);
+      expect(layer.count).toBe(1);
+    }).toPass({ timeout: 5000 });
 
     const finalCache = await page.evaluate(() => {
        try { return JSON.parse(sessionStorage.getItem('mtgFrameCache_mtg_fd:rgb_geocolour')).time; } catch(e) { return null; }
