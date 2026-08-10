@@ -197,7 +197,9 @@
     }
 
     markDisplayed(displayedIso, seq) {
-      if (seq !== this.frameSeq || !this.latestMode) return;
+      if (seq !== this.frameSeq) return;
+      if (!this.latestMode) return;
+      this._storeFrame(displayedIso);
       this._scheduleBackgroundUpgrade(seq, displayedIso);
     }
 
@@ -260,7 +262,6 @@
           }
 
           if (kind === "image") {
-            this._storeFrame(currentIso);
             if (upgrade) this.on.upgrade?.(currentIso, seq);
             else this.on.ok?.(currentIso, seq, false);
             return;
