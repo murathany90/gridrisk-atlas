@@ -138,10 +138,10 @@ const test = (name, fn) => tests.push({ name, fn });
 
 A.I18n.applyDocument(global.document);
 
-test("brand, subtitle and v3.13.0 are synchronized", () => {
+test("brand, subtitle and v3.13.1 are synchronized", () => {
   assert.equal(A.CONFIG.appName, "GridRisk Atlas");
-  assert.equal(A.CONFIG.appVersion, "3.13.0");
-  assert.equal(pkg.version, "3.13.0");
+  assert.equal(A.CONFIG.appVersion, "3.13.1");
+  assert.equal(pkg.version, "3.13.1");
   assert.equal(document.title.includes("GridRisk Atlas"), true);
   assert.match(html, /<h1[^>]*data-i18n="app\.name"[^>]*>\s*GridRisk Atlas/);
   assert.ok(html.includes("Satellite Wildfire &amp; Grid Risk Intelligence"));

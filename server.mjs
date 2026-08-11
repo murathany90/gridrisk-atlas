@@ -6,7 +6,7 @@ import { gzipSync } from 'node:zlib';
 import { spawn } from 'node:child_process';
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
-const APP_VERSION='3.13.0';
+const APP_VERSION='3.13.1';
 const PREFERRED_PORT=Number(process.env.PORT||8890);
 let ACTIVE_PORT=PREFERRED_PORT;
 const FIRMS_MAP_KEY=process.env.FIRMS_MAP_KEY||'';

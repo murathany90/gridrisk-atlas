@@ -1,3 +1,10 @@
+# v3.13.1 - 3D Terrain Blank Screen Hotfix
+- 3D hazırlanırken Leaflet görünür kalır.
+- Base raster, DEM ve ilk render hazır olmadan 3D gösterilmez.
+- Initial base source rebuild kaldırıldı; 3D basemap failure için fallback eklendi.
+- Base, DEM ve WebGL failure durumunda güvenli 2D dönüş sağlanır.
+- Blank/black screen koruması eklendi.
+
 # v3.13.0 - 3D Terrain and Fire Grid Contrast
 - Real DEM-based 3D terrain with MapLibre GL JS, AWS Terrarium DEM, terrain exaggeration 1.43, and hillshade.
 - 2D/3D camera synchronization; grid, fire, substation, risk, MTG GeoColour/Fire Temperature, and VIIRS raster mirroring.
