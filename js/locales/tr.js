@@ -57,6 +57,7 @@
     "terrain3d.errorUnavailable": "3D arazi bu tarayıcıda kullanılamıyor. 2D harita açık kaldı.",
     "terrain3d.errorLoad": "3D arazi yüklenemedi. 2D harita açık kaldı.",
     "terrain3d.errorDem": "Arazi yükseklik verisi alınamadı. 2D harita açık kaldı.",
+    "terrain3d.errorBase": "3D harita görüntüsü yüklenemedi. 2D haritaya dönüldü.",
     "layers.title": "Katmanlar",
     "layers.collapseAria": "Katman panelini daralt",
     "layers.fireGroup": "🔥 Yangın ve Doğrulama",
