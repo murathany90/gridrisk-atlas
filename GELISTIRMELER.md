@@ -1,3 +1,9 @@
+# v3.13.2 - 3D Offscreen Canvas Hotfix
+- MapLibre 3D container'ının workspace dışında/offscreen konumlanmasına neden olan CSS specificity problemi düzeltildi.
+- 3D canvas artık Leaflet ile aynı map viewport'unu kaplıyor.
+- Gerçek viewport geometry/intersection regression testleri eklendi.
+- Blank/black map viewport için visual sanity testi güçlendirildi.
+
 # v3.13.1 - 3D Terrain Blank Screen Hotfix
 - 3D hazırlanırken Leaflet görünür kalır.
 - Base raster, DEM ve ilk render hazır olmadan 3D gösterilmez.
