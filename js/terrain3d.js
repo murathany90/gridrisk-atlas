@@ -10,14 +10,29 @@
       this.map = null;
       this.loading = false;
       this.enabled = false;
+      this.firstVisualReady = false;
       this.container = null;
       this.toggle = null;
       this._resizeHandler = () => this.map?.resize();
       this._demSuccessSeen = false;
       this._demErrorCount = 0;
       this._demWarned = false;
-      this._demInitialTimer = null;
-      this._demFallbackTriggered = false;
+      this._baseSuccessSeen = false;
+      this._baseErrorCount = 0;
+      this._baseFallbackTriggered = false;
+      this._baseStyleId = null;
+      this._selectedBaseStyleId = null;
+      this._firstFrameWait = null;
+      this._firstFrameTimer = null;
+      this._styleInitTimer = null;
+      this._renderCount = 0;
+      this._baseSuccessRender = -1;
+      this._demSuccessRender = -1;
+      this._failureActive = false;
+      this._otherMapErrorWarned = false;
+      this._contextCanvas = null;
+      this._contextLostHandler = (event) => this.handleContextLost(event);
+      this._contextRestoredHandler = () => this.handleContextRestored();
     }
 
     attach() {
@@ -57,20 +72,30 @@
       if (!C.terrain3d?.enabled || this.loading || this.enabled) return this.enabled;
       this.loading = true;
       this.refreshUi("loading");
-      this.resetDemHealth();
+      this.resetLoadHealth();
       try {
         const maplibregl = await this.ensureMapLibreLoaded();
         if (!maplibregl?.Map || !this.webglSupported() || (maplibregl.supported && !maplibregl.supported({ failIfMajorPerformanceCaveat: true }))) {
           throw new Error("WEBGL_UNAVAILABLE");
         }
         await this.createMap(maplibregl);
+        await this.waitForFirstUsableFrame(this.map);
         this.enabled = true;
         this.show3d();
         this.sync({ camera: false });
         this.refreshUi("on");
         return true;
       } catch (error) {
-        this.fail(error?.message === "WEBGL_UNAVAILABLE" ? "unavailable" : "load");
+        if (!this._failureActive) {
+          const kind = error?.message === "WEBGL_UNAVAILABLE"
+            ? "unavailable"
+            : error?.message === "FIRST_FRAME_BASE_FAILED"
+              ? "base"
+              : error?.message === "FIRST_FRAME_DEM_FAILED"
+                ? "dem"
+                : "load";
+          this.fail(kind);
+        }
         return false;
       } finally {
         this.loading = false;
@@ -98,26 +123,57 @@
       }
     }
 
-    resetDemHealth() {
-      clearTimeout(this._demInitialTimer);
-      this._demInitialTimer = null;
+    resetLoadHealth() {
+      clearTimeout(this._firstFrameTimer);
+      clearTimeout(this._styleInitTimer);
+      this._firstFrameTimer = null;
+      this._styleInitTimer = null;
       this._demSuccessSeen = false;
       this._demErrorCount = 0;
       this._demWarned = false;
-      this._demFallbackTriggered = false;
+      this._baseSuccessSeen = false;
+      this._baseErrorCount = 0;
+      this._baseFallbackTriggered = false;
+      this.firstVisualReady = false;
+      this._renderCount = 0;
+      this._baseSuccessRender = -1;
+      this._demSuccessRender = -1;
+      this._failureActive = false;
+      this._otherMapErrorWarned = false;
     }
 
-    beginInitialDemWatch(map) {
-      clearTimeout(this._demInitialTimer);
-      this._demInitialTimer = setTimeout(() => {
-        if (this.map === map && !this._demSuccessSeen) this.fail("dem");
-      }, 12000);
+    beginInitialFrameWatch(map) {
+      const deadline = Date.now() + 12000;
+      const watch = () => {
+        if (this.map !== map || this.firstVisualReady) return;
+        const remaining = deadline - Date.now();
+        if (!this._baseSuccessSeen && !this._baseFallbackTriggered) {
+          this.activateBaseFallback();
+          this.scheduleInitialFrameWatch(map, deadline);
+          return;
+        }
+        if (remaining <= 0) {
+          this.fail(!this._baseSuccessSeen ? "base" : !this._demSuccessSeen ? "dem" : "load");
+          return;
+        }
+        this.scheduleInitialFrameWatch(map, deadline);
+      };
+      this._initialFrameWatch = watch;
+      this.scheduleInitialFrameWatch(map, deadline);
+    }
+
+    scheduleInitialFrameWatch(map, deadline) {
+      clearTimeout(this._firstFrameTimer);
+      const remaining = Math.max(0, deadline - Date.now());
+      const delay = this._baseFallbackTriggered ? remaining : Math.min(6000, remaining);
+      this._firstFrameTimer = setTimeout(() => this._initialFrameWatch?.(map), delay);
     }
 
     markDemSuccess() {
+      if (this._demSuccessSeen) return;
       this._demSuccessSeen = true;
-      clearTimeout(this._demInitialTimer);
-      this._demInitialTimer = null;
+      this._demSuccessRender = this._renderCount;
+      this._firstFrameWait?.check?.();
     }
 
     handleDemError() {
@@ -131,6 +187,60 @@
         this._demWarned = true;
         A.Events.emit("service", { id: "terrain3d", state: "warn", count: null });
       }
+    }
+
+    markBaseSuccess() {
+      if (this._baseSuccessSeen) return;
+      this._baseSuccessSeen = true;
+      this._baseSuccessRender = this._renderCount;
+      this._firstFrameWait?.check?.();
+    }
+
+    handleBaseError() {
+      if (this._baseSuccessSeen) {
+        A.Events.emit("service", { id: "terrain3d-base", state: "warn", count: null });
+        return;
+      }
+      this._baseErrorCount += 1;
+      if (this._baseErrorCount < 4) return;
+      if (!this._baseFallbackTriggered) {
+        this.activateBaseFallback();
+        return;
+      }
+      this.fail("base");
+    }
+
+    handleMapError(event) {
+      const sourceId = event?.sourceId || event?.error?.sourceId;
+      if (sourceId === "terrainSource" || sourceId === "hillshadeSource") {
+        this.handleDemError();
+        return;
+      }
+      if (sourceId === "base-raster") {
+        this.handleBaseError();
+        return;
+      }
+      if (sourceId === "operational-imagery") {
+        A.Events.emit("service", { id: "terrain3d-imagery", state: "warn", count: null });
+        return;
+      }
+      const message = String(event?.error?.message || event?.error || "");
+      if (/webgl.*context|context.*lost/i.test(message)) {
+        this.fail("load");
+      } else if (!this._otherMapErrorWarned) {
+        this._otherMapErrorWarned = true;
+        A.Events.emit("service", { id: "terrain3d", state: "warn", count: null });
+      }
+    }
+
+    isSuccessfulTileEvent(map, sourceId, event) {
+      // MapLibre emits `content` even for some failed raster requests. A loaded tile is
+      // the positive signal; fully loaded source content is a safe fallback for mocks/API variants.
+      return event?.tile?.state === "loaded" || Boolean(
+        event?.sourceDataType === "content" &&
+        event?.isSourceLoaded &&
+        map.isSourceLoaded?.(sourceId),
+      );
     }
 
     loadAsset(id, url, type) {
@@ -175,11 +285,25 @@
       return Number(leafletZoom);
     }
 
-    baseTiles() {
-      const cfg = C.baseMaps[this.owner.baseKey] || C.baseMaps.satellite;
+    baseTiles(key = this.owner.baseKey) {
+      const cfg = C.baseMaps[key] || C.baseMaps.satellite;
       const subdomains = String(cfg.subdomains || "").split("").filter(Boolean);
       const urls = subdomains.length ? subdomains.map((s) => cfg.url.replace("{s}", s)) : [cfg.url];
       return { cfg, tiles: urls.map((url) => url.replace("{r}", "")) };
+    }
+
+    baseStyleId(base, key = this.owner.baseKey) {
+      return `${key}:${base.tiles.join("|")}`;
+    }
+
+    baseRasterSource(base) {
+      return {
+        type: "raster",
+        tiles: base.tiles,
+        tileSize: 256,
+        maxzoom: base.cfg.maxZoom,
+        attribution: base.cfg.attribution,
+      };
     }
 
     terrainSource(id) {
@@ -195,14 +319,10 @@
 
     style() {
       const base = this.baseTiles();
+      this._selectedBaseStyleId = this.baseStyleId(base);
+      this._baseStyleId = this._selectedBaseStyleId;
       const sources = {
-        "base-raster": {
-          type: "raster",
-          tiles: base.tiles,
-          tileSize: 256,
-          maxzoom: base.cfg.maxZoom,
-          attribution: base.cfg.attribution,
-        },
+        "base-raster": this.baseRasterSource(base),
         terrainSource: this.terrainSource("terrainSource"),
         hillshadeSource: this.terrainSource("hillshadeSource"),
         "country-boundary": { type: "geojson", data: EMPTY() },
@@ -280,36 +400,109 @@
         attributionControl: true,
       });
       this.map = map;
-      map.on("error", (event) => {
-        const sourceId = event?.sourceId || event?.error?.sourceId;
-        if (sourceId === "terrainSource" || sourceId === "hillshadeSource") this.handleDemError();
-      });
+      const canvas = map.getCanvas?.();
+      if (canvas) {
+        this._contextCanvas = canvas;
+        canvas.addEventListener("webglcontextlost", this._contextLostHandler, false);
+        canvas.addEventListener("webglcontextrestored", this._contextRestoredHandler, false);
+      }
+      map.on("error", (event) => this.handleMapError(event));
       map.on("sourcedata", (event) => {
         const sourceId = event?.sourceId;
         if (
           (sourceId === "terrainSource" || sourceId === "hillshadeSource") &&
-          (event.isSourceLoaded || event.sourceDataType === "content")
+          this.isSuccessfulTileEvent(map, sourceId, event)
         ) this.markDemSuccess();
+        if (
+          sourceId === "base-raster" &&
+          this.isSuccessfulTileEvent(map, sourceId, event)
+        ) this.markBaseSuccess();
+      });
+      map.on("render", () => {
+        this._renderCount += 1;
+        this._firstFrameWait?.check?.();
       });
       await new Promise((resolve, reject) => {
+        let initialized = false;
         const ready = () => {
+          if (initialized || this.map !== map) return;
+          initialized = true;
+          clearTimeout(this._styleInitTimer);
+          this._styleInitTimer = null;
           try {
             map.setTerrain({ source: "terrainSource", exaggeration: C.terrain3d.exaggeration });
             map.on("click", "fire-events-circle", (event) => this.handleFireClick(event));
-            this.beginInitialDemWatch(map);
+            this.beginInitialFrameWatch(map);
             resolve();
           } catch (error) {
             reject(error);
           }
         };
         try {
+          map.on("style.load", ready);
           map.on("load", ready);
+          this._styleInitTimer = setTimeout(() => reject(new Error("STYLE_UNAVAILABLE")), 12000);
         } catch (error) {
           reject(error);
         }
       });
       window.addEventListener("resize", this._resizeHandler);
       map.resize();
+    }
+
+    waitForFirstUsableFrame(map) {
+      return new Promise((resolve, reject) => {
+        const check = () => {
+          if (this.map !== map || this.firstVisualReady) return;
+          const firstUsableRender = this._renderCount > Math.max(this._baseSuccessRender, this._demSuccessRender);
+          // MapLibre may keep isStyleLoaded() false while unrelated background tiles stream.
+          // A rendered base + DEM content frame is the user-visible readiness contract.
+          if (!this._baseSuccessSeen || !this._demSuccessSeen || !firstUsableRender) return;
+          this.firstVisualReady = true;
+          clearTimeout(this._firstFrameTimer);
+          this._firstFrameTimer = null;
+          this._firstFrameWait = null;
+          resolve();
+        };
+        this._firstFrameWait = { map, check, reject };
+        check();
+      });
+    }
+
+    cancelFirstFrameWait(error) {
+      clearTimeout(this._firstFrameTimer);
+      this._firstFrameTimer = null;
+      const wait = this._firstFrameWait;
+      this._firstFrameWait = null;
+      if (wait && error) wait.reject(error);
+    }
+
+    replaceBaseRaster(base, id) {
+      if (!this.map) return;
+      if (this.map.getLayer?.("base-raster")) this.map.removeLayer("base-raster");
+      if (this.map.getSource?.("base-raster")) this.map.removeSource("base-raster");
+      this.map.addSource("base-raster", this.baseRasterSource(base));
+      this.map.addLayer({ id: "base-raster", type: "raster", source: "base-raster" }, "terrain-hillshade");
+      this._baseStyleId = id;
+    }
+
+    activateBaseFallback() {
+      if (!this.map || this._baseFallbackTriggered) return false;
+      const fallback = this.baseTiles("osm");
+      this._baseFallbackTriggered = true;
+      this._baseSuccessSeen = false;
+      this._baseErrorCount = 0;
+      this.replaceBaseRaster(fallback, this.baseStyleId(fallback, "fallback:osm"));
+      return true;
+    }
+
+    handleContextLost(event) {
+      event?.preventDefault?.();
+      if (this.map) this.fail("load");
+    }
+
+    handleContextRestored() {
+      // A new explicit toggle is safer than attempting to revive a stale MapLibre context.
     }
 
     show3d() {
@@ -320,17 +513,22 @@
 
     disable() {
       if (!this.map && !this.enabled) return;
-      clearTimeout(this._demInitialTimer);
-      this._demInitialTimer = null;
+      clearTimeout(this._styleInitTimer);
+      this._styleInitTimer = null;
+      this.cancelFirstFrameWait(new Error("TERRAIN_DISABLED"));
       const camera = this.map
         ? { center: this.map.getCenter(), zoom: this.map.getZoom() }
         : null;
       window.removeEventListener("resize", this._resizeHandler);
+      this._contextCanvas?.removeEventListener("webglcontextlost", this._contextLostHandler, false);
+      this._contextCanvas?.removeEventListener("webglcontextrestored", this._contextRestoredHandler, false);
+      this._contextCanvas = null;
       try {
         this.map?.remove();
       } catch (e) {}
       this.map = null;
       this.enabled = false;
+      this.firstVisualReady = false;
       this.container?.replaceChildren();
       this.container?.classList.add("hidden");
       this.container?.classList.remove("preparing");
@@ -344,9 +542,18 @@
     }
 
     fail(kind) {
-      if (kind === "dem" && this._demFallbackTriggered) return;
-      if (kind === "dem") this._demFallbackTriggered = true;
-      const key = kind === "dem" ? "terrain3d.errorDem" : kind === "unavailable" ? "terrain3d.errorUnavailable" : "terrain3d.errorLoad";
+      if (this._failureActive) return;
+      this._failureActive = true;
+      this.cancelFirstFrameWait(new Error(
+        kind === "base" ? "FIRST_FRAME_BASE_FAILED" : kind === "dem" ? "FIRST_FRAME_DEM_FAILED" : "TERRAIN_FAILED",
+      ));
+      const key = kind === "dem"
+        ? "terrain3d.errorDem"
+        : kind === "base"
+          ? "terrain3d.errorBase"
+          : kind === "unavailable"
+            ? "terrain3d.errorUnavailable"
+            : "terrain3d.errorLoad";
       this.disable();
       A.app?.ui?.toast?.(T(key), "error");
     }
@@ -502,14 +709,14 @@
       const source = this.map?.getSource?.("base-raster");
       if (!source) return;
       const base = this.baseTiles();
-      const id = `${this.owner.baseKey}:${base.tiles.join("|")}`;
-      if (source.__gridRiskId === id) return;
-      if (this.map.getLayer?.("base-raster")) this.map.removeLayer("base-raster");
-      this.map.removeSource("base-raster");
-      this.map.addSource("base-raster", { type: "raster", tiles: base.tiles, tileSize: 256, maxzoom: base.cfg.maxZoom, attribution: base.cfg.attribution });
-      const next = this.map.getSource("base-raster");
-      if (next) next.__gridRiskId = id;
-      this.map.addLayer({ id: "base-raster", type: "raster", source: "base-raster" }, "terrain-hillshade");
+      const id = this.baseStyleId(base);
+      // The initial style already owns this source. Do not tear it down during first activation.
+      if (this._baseStyleId === id) return;
+      // Keep a successful 3D OSM fallback independent from the user's unchanged Leaflet base-map choice.
+      if (this._baseFallbackTriggered && id === this._selectedBaseStyleId) return;
+      this._baseFallbackTriggered = false;
+      this._selectedBaseStyleId = id;
+      this.replaceBaseRaster(base, id);
     }
 
     setPaint(layer, property, value) {

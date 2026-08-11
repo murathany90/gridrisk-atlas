@@ -7,18 +7,24 @@ test.describe('@real-terrain MapLibre and AWS Terrarium acceptance', () => {
   test('loads the pinned ESM renderer, real DEM tiles, and non-flat terrain', async ({ page }) => {
     test.setTimeout(90000);
     const pageErrors = [];
-    const requests = { module: 0, css: 0, dem: 0, demPng: 0 };
+    const requests = { module: 0, css: 0, dem: 0, demPng: 0, base: 0, baseImage: 0 };
     page.on('pageerror', (error) => pageErrors.push(error.message));
     page.on('request', (request) => {
       const url = request.url();
       if (url.includes('maplibre-gl@6.2.0/dist/maplibre-gl.mjs')) requests.module += 1;
       if (url.includes('maplibre-gl@6.2.0/dist/maplibre-gl.css')) requests.css += 1;
       if (url.includes('s3.amazonaws.com/elevation-tiles-prod/terrarium/')) requests.dem += 1;
+      if (url.includes('server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/') || url.includes('tile.openstreetmap.org/')) requests.base += 1;
     });
     page.on('response', (response) => {
       if (response.url().includes('s3.amazonaws.com/elevation-tiles-prod/terrarium/') && response.status() === 200 && response.headers()['content-type']?.includes('image/png')) {
         requests.demPng += 1;
       }
+      if (
+        (response.url().includes('server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/') || response.url().includes('tile.openstreetmap.org/')) &&
+        response.status() === 200 &&
+        /^image\/(png|jpe?g)/i.test(response.headers()['content-type'] || '')
+      ) requests.baseImage += 1;
     });
 
     await page.addInitScript(() => {
@@ -38,26 +44,34 @@ test.describe('@real-terrain MapLibre and AWS Terrarium acceptance', () => {
     await expect.poll(() => page.evaluate(() => {
       const manager = window.AtmoApp?.app?.map?.terrain3d;
       const map = manager?.map;
-      const source = map?.getStyle?.().sources?.terrainSource;
+      const source = map?.getStyle?.()?.sources?.terrainSource;
+      const baseSource = map?.getStyle?.()?.sources?.['base-raster'];
       const canvas = document.querySelector('#map3d canvas.maplibregl-canvas');
       return {
         enabled: manager?.enabled,
+        firstVisualReady: manager?.firstVisualReady,
         realMap: Boolean(map && window.maplibregl?.Map && map instanceof window.maplibregl.Map),
         terrain: map?.getTerrain?.(),
         source,
+        baseSource,
+        baseLoaded: map?.isSourceLoaded?.('base-raster'),
         hillshade: Boolean(map?.getLayer?.('terrain-hillshade')),
         canvas: Boolean(canvas && getComputedStyle(canvas).visibility !== 'hidden' && canvas.getBoundingClientRect().width > 0),
       };
     }), { timeout: 45000 }).toMatchObject({
       enabled: true,
+      firstVisualReady: true,
       realMap: true,
       terrain: { source: 'terrainSource', exaggeration: 1.43 },
       source: { type: 'raster-dem', encoding: 'terrarium', tileSize: 256, maxzoom: 15 },
+      baseSource: { type: 'raster', tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'] },
+      baseLoaded: true,
       hillshade: true,
       canvas: true,
     });
 
     await expect.poll(() => requests.demPng, { timeout: 45000 }).toBeGreaterThan(0);
+    await expect.poll(() => requests.baseImage, { timeout: 45000 }).toBeGreaterThan(0);
     let elevations = { valleyElevation: null, mountainElevation: null };
     await expect.poll(async () => {
       elevations = await page.evaluate(([valleyPoint, mountainPoint]) => {
@@ -76,6 +90,7 @@ test.describe('@real-terrain MapLibre and AWS Terrarium acceptance', () => {
     expect(Math.abs(elevations.mountainElevation - elevations.valleyElevation)).toBeGreaterThan(20);
     expect(requests).toMatchObject({ module: 1, css: 1 });
     expect(requests.dem).toBeGreaterThan(0);
+    expect(requests.base).toBeGreaterThan(0);
     expect(pageErrors).toEqual([]);
 
     const terrainScreenshot = await page.screenshot();

@@ -57,6 +57,7 @@
     "terrain3d.errorUnavailable": "3D terrain is unavailable in this browser. The 2D map remains open.",
     "terrain3d.errorLoad": "3D terrain could not be loaded. The 2D map remains open.",
     "terrain3d.errorDem": "Terrain elevation data could not be loaded. The 2D map remains open.",
+    "terrain3d.errorBase": "3D map imagery could not be loaded. Returned to the 2D map.",
     "layers.title": "Layers",
     "layers.collapseAria": "Collapse layer panel",
     "layers.fireGroup": "🔥 Fire and Verification",

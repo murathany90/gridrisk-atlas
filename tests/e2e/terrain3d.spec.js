@@ -14,23 +14,21 @@ const mapLibreMock = `
       this.layers = {};
       this.handlers = {};
       this.removed = false;
+      this.sourceAdds = {};
+      this.sourceRemoves = {};
       this.center = { lng: Number(options.center[0]), lat: Number(options.center[1]) };
       this.zoom = Number(options.zoom);
+      this.canvas = document.createElement('canvas');
+      this.canvas.className = 'maplibregl-canvas';
+      options.container.appendChild(this.canvas);
       for (const [id, source] of Object.entries(options.style.sources || {})) this.addSource(id, source);
       for (const layer of options.style.layers || []) this.addLayer(layer);
       window.__terrainMaps = window.__terrainMaps || [];
       window.__terrainMaps.push(this);
       setTimeout(() => {
+        this.emit('style.load');
         this.emit('load');
-        const dem = this.sources.terrainSource?.tiles?.[0];
-        if (dem) {
-          fetch(dem.replace('{z}', '6').replace('{x}', '36').replace('{y}', '24'))
-            .then((response) => {
-              if (response.ok) this.emit('sourcedata', { sourceId: 'terrainSource', isSourceLoaded: true });
-              else for (let count = 0; count < 4; count += 1) this.emit('error', { sourceId: 'terrainSource' });
-            })
-            .catch(() => { for (let count = 0; count < 4; count += 1) this.emit('error', { sourceId: 'terrainSource' }); });
-        }
+        this.emit('render');
       }, 0);
     }
     emit(event, payload = {}) { for (const handler of this.handlers[event] || []) handler(payload); }
@@ -43,9 +41,12 @@ const mapLibreMock = `
       const next = { ...source };
       next.setData = (data) => { next.data = data; };
       this.sources[id] = next;
+      this.sourceAdds[id] = (this.sourceAdds[id] || 0) + 1;
+      if (id === 'terrainSource' || id === 'base-raster') setTimeout(() => this.requestTile(id), 0);
     }
     getSource(id) { return this.sources[id]; }
-    removeSource(id) { delete this.sources[id]; }
+    getStyle() { return { sources: this.sources, layers: Object.values(this.layers) }; }
+    removeSource(id) { this.sourceRemoves[id] = (this.sourceRemoves[id] || 0) + 1; delete this.sources[id]; }
     addLayer(layer) { this.layers[layer.id] = { ...layer, paint: { ...(layer.paint || {}) } }; }
     getLayer(id) { return this.layers[id]; }
     removeLayer(id) { delete this.layers[id]; }
@@ -60,8 +61,30 @@ const mapLibreMock = `
     }
     getCenter() { return this.center; }
     getZoom() { return this.zoom; }
+    isStyleLoaded() { return true; }
+    isSourceLoaded(id) { return Boolean(this.sources[id]?.__loaded); }
+    loaded() { return true; }
+    areTilesLoaded() { return true; }
+    getCanvas() { return this.canvas; }
     resize() { this.resizeCount = (this.resizeCount || 0) + 1; }
-    remove() { this.removed = true; }
+    remove() { this.removed = true; this.canvas.remove(); }
+    requestTile(id) {
+      const source = this.sources[id];
+      const template = source?.tiles?.[0];
+      if (!template || source.__requested) return;
+      source.__requested = true;
+      fetch(template.replace('{z}', '6').replace('{x}', '36').replace('{y}', '24'))
+        .then((response) => {
+          if (!response.ok) throw new Error('HTTP ' + response.status);
+          source.__loaded = true;
+          this.emit('sourcedata', { sourceId: id, isSourceLoaded: true, sourceDataType: 'content' });
+          this.emit('render');
+          this.emit('idle');
+        })
+        .catch(() => {
+          for (let count = 0; count < 4; count += 1) this.emit('error', { sourceId: id });
+        });
+    }
   }
   window.maplibregl = { Map: FakeMap, supported: () => true };
 })();
@@ -98,9 +121,11 @@ async function gridStyle(page, key) {
   }, key);
 }
 
-async function installMapLibreMock(page, { unavailable = false, demFailure = false } = {}) {
+async function installMapLibreMock(page, { unavailable = false, demFailure = false, baseFailure = 'none', baseDelayMs = 0, baseGate = null } = {}) {
   let mapLibreRequests = 0;
   let demRequests = 0;
+  let esriRequests = 0;
+  let osmRequests = 0;
   await page.route('**/maplibre-gl@6.2.0/dist/maplibre-gl.css', (route) => {
     mapLibreRequests += 1;
     return route.fulfill({ status: 200, contentType: 'text/css', body: '' });
@@ -118,7 +143,28 @@ async function installMapLibreMock(page, { unavailable = false, demFailure = fal
     if (demFailure) return route.fulfill({ status: 404, contentType: 'text/plain', body: 'missing DEM tile' });
     return route.fulfill({ status: 200, contentType: 'image/png', body: png, headers: { 'access-control-allow-origin': '*' } });
   });
-  return { getMapLibreRequests: () => mapLibreRequests, getDemRequests: () => demRequests };
+  await page.route('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/**', async (route) => {
+    esriRequests += 1;
+    if (baseGate) await baseGate;
+    if (baseDelayMs) await new Promise((resolve) => setTimeout(resolve, baseDelayMs));
+    if (baseFailure === 'esri' || baseFailure === 'all') {
+      return route.fulfill({ status: 503, contentType: 'text/plain', body: 'Esri unavailable', headers: { 'access-control-allow-origin': '*' } });
+    }
+    return route.fulfill({ status: 200, contentType: 'image/png', body: png, headers: { 'access-control-allow-origin': '*' } });
+  });
+  await page.route('https://tile.openstreetmap.org/**', (route) => {
+    osmRequests += 1;
+    if (baseFailure === 'all') {
+      return route.fulfill({ status: 503, contentType: 'text/plain', body: 'OSM unavailable', headers: { 'access-control-allow-origin': '*' } });
+    }
+    return route.fulfill({ status: 200, contentType: 'image/png', body: png, headers: { 'access-control-allow-origin': '*' } });
+  });
+  return {
+    getMapLibreRequests: () => mapLibreRequests,
+    getDemRequests: () => demRequests,
+    getEsriRequests: () => esriRequests,
+    getOsmRequests: () => osmRequests,
+  };
 }
 
 test.describe('FIRE grid contrast and real terrain mode', () => {
@@ -215,6 +261,13 @@ test.describe('FIRE grid contrast and real terrain mode', () => {
     expect(terrain.grid154).toBeGreaterThan(0);
     expect(Math.abs(terrain.center.lat - 37)).toBeLessThan(0.01);
     expect(Math.abs(terrain.center.lng - 32)).toBeLessThan(0.01);
+    expect(await page.evaluate(() => {
+      const map = window.__terrainMaps.at(-1);
+      return {
+        baseCreates: map.sourceAdds['base-raster'],
+        baseRemovals: map.sourceRemoves['base-raster'] || 0,
+      };
+    })).toEqual({ baseCreates: 1, baseRemovals: 0 });
 
     const mapIndex = await page.evaluate(() => window.__terrainMaps.length - 1);
     await page.selectOption('#languageSelector', 'en');
@@ -259,6 +312,90 @@ test.describe('FIRE grid contrast and real terrain mode', () => {
       allMapsRemoved: window.__terrainMaps.every((map) => map.removed),
       leafletVisible: !document.getElementById('map').classList.contains('terrain2dHidden'),
     }))).toEqual({ activeCanvases: 0, allMapsRemoved: true, leafletVisible: true });
+  });
+
+  test('keeps Leaflet visible until delayed base and DEM tiles produce the first usable 3D frame', async ({ page }) => {
+    let releaseBase;
+    const baseGate = new Promise((resolve) => { releaseBase = resolve; });
+    await installMapLibreMock(page, { baseGate });
+    await boot(page);
+    await page.locator('#terrain3dToggle').click();
+
+    await expect.poll(() => page.evaluate(() => ({
+      loading: window.AtmoApp.app.map.terrain3d.loading,
+      firstVisualReady: window.AtmoApp.app.map.terrain3d.firstVisualReady,
+      leafletVisible: !document.getElementById('map').classList.contains('terrain2dHidden'),
+      map3dVisibility: getComputedStyle(document.getElementById('map3d')).visibility,
+      pressed: document.getElementById('terrain3dToggle').getAttribute('aria-pressed'),
+    }))).toEqual({
+      loading: true,
+      firstVisualReady: false,
+      leafletVisible: true,
+      map3dVisibility: 'hidden',
+      pressed: 'false',
+    });
+
+    releaseBase();
+    await expect(page.locator('#terrain3dToggle')).toHaveAttribute('aria-pressed', 'true');
+    expect(await page.evaluate(() => ({
+      firstVisualReady: window.AtmoApp.app.map.terrain3d.firstVisualReady,
+      leafletHidden: document.getElementById('map').classList.contains('terrain2dHidden'),
+      map3dVisibility: getComputedStyle(document.getElementById('map3d')).visibility,
+    }))).toEqual({ firstVisualReady: true, leafletHidden: true, map3dVisibility: 'visible' });
+  });
+
+  test('uses the 3D-only OSM raster fallback when Esri base tiles fail', async ({ page }) => {
+    const requests = await installMapLibreMock(page, { baseFailure: 'esri' });
+    await boot(page);
+    await page.locator('#terrain3dToggle').click();
+    await expect(page.locator('#terrain3dToggle')).toHaveAttribute('aria-pressed', 'true');
+
+    expect(requests.getEsriRequests()).toBeGreaterThan(0);
+    expect(requests.getOsmRequests()).toBeGreaterThan(0);
+    expect(await page.evaluate(() => {
+      const manager = window.AtmoApp.app.map.terrain3d;
+      return {
+        fallback: manager._baseFallbackTriggered,
+        firstVisualReady: manager.firstVisualReady,
+        tiles: manager.map.getStyle().sources['base-raster'].tiles,
+        leafletHidden: document.getElementById('map').classList.contains('terrain2dHidden'),
+      };
+    })).toEqual({
+      fallback: true,
+      firstVisualReady: true,
+      tiles: ['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],
+      leafletHidden: true,
+    });
+  });
+
+  test('returns to Leaflet and shows the localized toast when every 3D base tile fails', async ({ page }) => {
+    const pageErrors = [];
+    page.on('pageerror', (error) => pageErrors.push(error.message));
+    const requests = await installMapLibreMock(page, { baseFailure: 'all' });
+    await boot(page);
+    await page.locator('#terrain3dToggle').click();
+
+    await expect(page.locator('#terrain3dToggle')).toHaveAttribute('aria-pressed', 'false');
+    await expect(page.locator('.toast.error')).toContainText('3D harita görüntüsü yüklenemedi. 2D haritaya dönüldü.');
+    expect(requests.getEsriRequests()).toBeGreaterThan(0);
+    expect(requests.getOsmRequests()).toBeGreaterThan(0);
+    expect(await page.evaluate(() => ({
+      map: window.AtmoApp.app.map.terrain3d.map,
+      firstVisualReady: window.AtmoApp.app.map.terrain3d.firstVisualReady,
+      leafletVisible: !document.getElementById('map').classList.contains('terrain2dHidden'),
+      map3dHidden: document.getElementById('map3d').classList.contains('hidden'),
+    }))).toEqual({ map: null, firstVisualReady: false, leafletVisible: true, map3dHidden: true });
+    expect(pageErrors).toEqual([]);
+  });
+
+  test('returns to Leaflet if the 3D WebGL context is lost', async ({ page }) => {
+    await installMapLibreMock(page);
+    await boot(page);
+    await page.locator('#terrain3dToggle').click();
+    await expect(page.locator('#terrain3dToggle')).toHaveAttribute('aria-pressed', 'true');
+    await page.evaluate(() => window.AtmoApp.app.map.terrain3d.map.getCanvas().dispatchEvent(new Event('webglcontextlost', { cancelable: true })));
+    await expect(page.locator('#terrain3dToggle')).toHaveAttribute('aria-pressed', 'false');
+    expect(await page.locator('#map').evaluate((el) => !el.classList.contains('terrain2dHidden'))).toBe(true);
   });
 
   test('keeps the active 3D instance coherent through TR, ES, and FR country changes', async ({ page }) => {

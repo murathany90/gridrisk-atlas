@@ -248,6 +248,11 @@ main {
 .map3d.hidden {
   display: none;
 }
+.map3d.preparing {
+  /* Keep dimensions for MapLibre, but never cover the working Leaflet map while tiles arrive. */
+  visibility: hidden;
+  pointer-events: none;
+}
 #map.terrain2dHidden {
   visibility: hidden;
   pointer-events: none;
