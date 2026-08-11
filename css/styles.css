@@ -237,7 +237,7 @@ main {
   height: 100%;
   background: #d7e3e8;
 }
-.map3d {
+#map3d.map3d {
   position: absolute;
   inset: 0;
   z-index: 2;
@@ -248,7 +248,7 @@ main {
 .map3d.hidden {
   display: none;
 }
-.map3d.preparing {
+#map3d.map3d.preparing {
   /* Keep dimensions for MapLibre, but never cover the working Leaflet map while tiles arrive. */
   visibility: hidden;
   pointer-events: none;
