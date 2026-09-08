@@ -8,6 +8,7 @@ const html = read("index.html");
 const css = read("css/styles.css");
 const readme = read("README.md");
 const pagesWorkflow = read(".github/workflows/pages.yml");
+const gridAtlas3d = read("GridAtlas3D/index.html");
 const manifest = JSON.parse(read("manifest.webmanifest"));
 const pkg = JSON.parse(read("package.json"));
 const source = Object.fromEntries(
@@ -177,6 +178,34 @@ test("repository, README and Pages workflow use the renamed project", () => {
     /tr_wildfire|GridMoni|Wildfire Grid Risk Monitor/.test(combined),
     false,
   );
+});
+
+test("GridAtlas 3D is an isolated, lazy-loaded Pages runtime", () => {
+  const frameMarkup = html.match(
+    /<iframe[\s\S]*?id="gridAtlas3dFrame"[\s\S]*?<\/iframe>/,
+  )?.[0] || "";
+  assert.equal(statSync("GridAtlas3D/index.html").isFile(), true);
+  assert.match(gridAtlas3d, /GRIDATLAS 3D/);
+  assert.ok(html.indexOf('data-view="impact"') < html.indexOf('data-view="gridatlas3d"'));
+  assert.ok(html.indexOf('data-view="gridatlas3d"') < html.indexOf('data-view="settings"'));
+  assert.match(html, /id="view-gridatlas3d" class="view gridAtlas3dView"/);
+  assert.match(
+    html,
+    /id="gridAtlas3dFrame"[\s\S]*?data-src="GridAtlas3D\/index\.html\?embed=1&amp;country=TR&amp;lang=tr"/,
+  );
+  assert.doesNotMatch(frameMarkup, /\ssrc="/);
+  assert.match(source.ui, /ensureGridAtlasFrame\(\)/);
+  assert.match(source.ui, /GridAtlas3D\/index\.html\?embed=1/);
+  assert.match(source.ui, /postMessage\(/);
+  assert.match(source.app, /showView\(this\.ui\.initialView\(\)\)/);
+  assert.match(css, /body\.gridAtlas3dMode \.kpiBar/);
+  assert.match(css, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\) auto/);
+  assert.match(pagesWorkflow, /cp -r GridAtlas3D deploy\//);
+  assert.match(pagesWorkflow, /test -f deploy\/GridAtlas3D\/index\.html/);
+  assert.equal(I.t("nav.gridatlas3d"), "🏭 GridAtlas 3D");
+  I.locale = "en";
+  assert.equal(I.t("nav.gridatlas3dAria"), "Open the 3D substation digital twin");
+  I.locale = "tr";
 });
 
 test("TR and EN dictionaries have identical, complete key sets", () => {

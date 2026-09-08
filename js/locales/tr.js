@@ -25,6 +25,8 @@
     "nav.map": "🗺 Harita",
     "nav.analysis": "⚡ Etki Analizi",
     "nav.analysis.short": "⚡ Analiz",
+    "nav.gridatlas3d": "🏭 GridAtlas 3D",
+    "nav.gridatlas3dAria": "Trafo merkezi 3D dijital ikizini aç",
     "nav.settings": "⚙ Ayarlar",
     "nav.info": "ℹ Bilgi",
     "nav.refresh": "↻ Gerçek Veriyi Yenile",

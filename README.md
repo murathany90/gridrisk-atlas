@@ -19,6 +19,7 @@ GridRisk Atlas combines satellite fire observations, atmospheric models and real
 
 - [Canlı demo — Türkçe](https://gridriskatlas.com/?country=TR&lang=tr)
 - [Live demo — English](https://gridriskatlas.com/?country=TR&lang=en)
+- [GridAtlas 3D dijital ikizi](https://gridriskatlas.com/?country=TR&lang=tr&view=gridatlas3d)
 - [Kurulum / Installation](#kurulum--installation)
 - [Kullanım / Usage](#kullanım--usage)
 - [Kaynak kod / Source](https://github.com/murathany90/gridrisk-atlas)
@@ -91,6 +92,12 @@ Uygulama varsayılan olarak `http://localhost:8890` adresinde açılır. Yerel F
 4. **Etki Analizi / Impact Analysis** görünümünde öncelikli olayları inceleyin ve CSV/JSON/GeoJSON dışa aktarın.
 
 Dil değişimi mevcut ülkeyi, harita merkezini/zoomunu, timeline'ı ve katman seçimlerini korur; FIRMS/CAMS/rüzgâr/grid verisini yeniden indirmez.
+
+## GridAtlas 3D
+
+GridAtlas 3D, 400/154/33 kV trafo merkezi dijital ikizinin **DEMO / READ-ONLY / SIMULATION ONLY** görünümüdür. Bağımsız uygulama [`/GridAtlas3D/index.html`](https://gridriskatlas.com/GridAtlas3D/index.html) adresinde çalışır; ana uygulamadaki entegre görünüm için `?view=gridatlas3d` kullanılır.
+
+Ana GridRisk Atlas sayfası, GridAtlas 3D'yi same-origin iframe içinde yalnız sekme ilk kez açıldığında yükler. Bu sayede normal harita açılışında ikinci WebGL renderer başlatılmaz. Demo model, ülke seçimini fiziksel trafo merkezi konfigürasyonuna uygulamaz.
 
 ## Çoklu kaynak termal tespit / Multi-source thermal detections
 

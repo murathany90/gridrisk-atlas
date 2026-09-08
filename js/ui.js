@@ -217,7 +217,64 @@
       this.setTime(A.app?.state?.selectedTime || new Date());
       this.renderServices();
     }
-    showView(view) {
+    initialView() {
+      try {
+        const view = new URLSearchParams(location.search || "").get("view");
+        return ["map", "impact", "gridatlas3d", "settings", "info"].includes(view)
+          ? view
+          : "map";
+      } catch {
+        return "map";
+      }
+    }
+    updateViewUrl(view) {
+      try {
+        const url = new URL(location.href);
+        if (view === "map") url.searchParams.delete("view");
+        else url.searchParams.set("view", view);
+        history.replaceState(
+          {
+            country: A.app?.state?.countryCode || "TR",
+            lang: I.locale,
+            view: view === "map" ? null : view,
+          },
+          "",
+          `${url.pathname}${url.search}${url.hash}`,
+        );
+      } catch {}
+    }
+    postGridAtlasVisibility(visible) {
+      const frame = document.getElementById("gridAtlas3dFrame");
+      if (!frame?.dataset.loaded) return;
+      try {
+        frame.contentWindow?.postMessage(
+          { type: "gridatlas-visibility", visible },
+          location.origin,
+        );
+      } catch {}
+    }
+    ensureGridAtlasFrame() {
+      const frame = document.getElementById("gridAtlas3dFrame");
+      if (!frame || frame.dataset.loaded) return frame;
+      const country = A.app?.state?.countryCode || "TR";
+      const lang = I.locale || "tr";
+      frame.addEventListener(
+        "load",
+        () => {
+          this.postGridAtlasVisibility(
+            document.getElementById("view-gridatlas3d")?.classList.contains("active"),
+          );
+        },
+        { once: true },
+      );
+      frame.src = `GridAtlas3D/index.html?embed=1&country=${encodeURIComponent(country)}&lang=${encodeURIComponent(lang)}`;
+      frame.dataset.loaded = "1";
+      return frame;
+    }
+    showView(view, { updateUrl = true } = {}) {
+      const validViews = ["map", "impact", "gridatlas3d", "settings", "info"];
+      if (!validViews.includes(view)) view = "map";
+      const isGridAtlas3d = view === "gridatlas3d";
       this.closeQuickLayers();
       document
         .querySelectorAll(".view")
@@ -225,6 +282,12 @@
       document
         .querySelectorAll(".navBtn")
         .forEach((b) => b.classList.toggle("active", b.dataset.view === view));
+      document.body.classList.toggle("gridAtlas3dMode", isGridAtlas3d);
+      if (isGridAtlas3d) {
+        this.ensureGridAtlasFrame();
+        this.postGridAtlasVisibility(true);
+      } else this.postGridAtlasVisibility(false);
+      if (updateUrl) this.updateViewUrl(view);
       if (view === "map")
         setTimeout(() => A.app?.map?.map?.invalidateSize(), 30);
     }

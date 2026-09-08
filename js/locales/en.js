@@ -25,6 +25,8 @@
     "nav.map": "🗺 Map",
     "nav.analysis": "⚡ Impact Analysis",
     "nav.analysis.short": "⚡ Analysis",
+    "nav.gridatlas3d": "🏭 GridAtlas 3D",
+    "nav.gridatlas3dAria": "Open the 3D substation digital twin",
     "nav.settings": "⚙ Settings",
     "nav.info": "ℹ About",
     "nav.refresh": "↻ Refresh Live Data",

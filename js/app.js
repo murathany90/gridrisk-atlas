@@ -106,6 +106,7 @@
         ),
       );
       await this.countryManager.init();
+      this.ui.showView(this.ui.initialView());
       this.map.map.on("moveend", () => {
         clearTimeout(this.moveTimer);
         this.moveTimer = setTimeout(() => {

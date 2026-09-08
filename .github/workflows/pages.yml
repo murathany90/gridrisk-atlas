@@ -37,6 +37,7 @@ jobs:
           cp manifest.webmanifest deploy/
           cp -r assets deploy/
           cp -r css js deploy/
+          cp -r GridAtlas3D deploy/
           cp -r data/countries deploy/data/
           cp .nojekyll deploy/
           test ! -e deploy/spain_osm_power_grid_50kv_plus_full.geojson
@@ -45,6 +46,7 @@ jobs:
           test -f deploy/assets/icons/gridrisk-atlas-512.png
           test -f deploy/js/locales/tr.js
           test -f deploy/js/locales/en.js
+          test -f deploy/GridAtlas3D/index.html
           test -f deploy/data/countries/IT/manifest.json
           test -f deploy/data/countries/GR/manifest.json
           grep -q '"start_url": "./?country=TR&lang=tr"' deploy/manifest.webmanifest
