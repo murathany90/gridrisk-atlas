@@ -2654,7 +2654,7 @@ main {
  
 .satellite-imagery-layer { pointer-events: none; }
 
-/* v3.13.0 GridAtlas 3D same-origin iframe integration */
+/* v3.14.0 GridAtlas 3D same-origin iframe integration */
 .gridAtlas3dView {
   width: 100%;
   height: 100%;

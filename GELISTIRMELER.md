@@ -1,3 +1,6 @@
+# v3.14.0 - GridAtlas 3D Digital Twin Integration
+- **Sürüm 3.14.0**: GridAtlas 3D, ana navigasyona lazy-loaded same-origin iframe olarak eklendi. `?view=gridatlas3d` deep-link'i, KPI gizleme, mobil beşli navigasyon ve GitHub Pages artifact doğrulaması eklendi; bağımsız model **DEMO / READ-ONLY / SIMULATION ONLY** olarak korunur.
+
 # v3.13.2 - 3D Offscreen Canvas Hotfix
 - MapLibre 3D container'ının workspace dışında/offscreen konumlanmasına neden olan CSS specificity problemi düzeltildi.
 - 3D canvas artık Leaflet ile aynı map viewport'unu kaplıyor.
