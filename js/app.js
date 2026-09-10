@@ -916,10 +916,25 @@
             request.requestKey,
             { visibleWindow: this.state.selectedTime },
           );
+                // Partial slices still feed the engine, but the source must
+                // not look fully healthy: mark WARN with a slice note.
+                const sliceFailures = Number(data?.metrics?.sliceFailures || 0),
+                  sliceTotal = Number(data?.metrics?.sliceTotal || 0);
+                let mtgStatus = data && data.length ? "ok" : "empty";
+                if (sliceFailures > 0 && data && data.length) {
+                  mtgStatus = "warn";
+                  TS.patchState("mtg-fci-frp", {
+                    status: "warn",
+                    note: T("thermal.note.mtgPartial", {
+                      failed: I.formatNumber(sliceFailures),
+                      total: I.formatNumber(sliceTotal),
+                    }),
+                  });
+                }
                 return {
                   group: "mtg",
                   result: {
-                    status: data && data.length ? "ok" : "empty",
+                    status: mtgStatus,
                     data: data || [],
                     merged: data || [],
                   },

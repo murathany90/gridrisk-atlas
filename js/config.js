@@ -134,8 +134,10 @@ window.AtmoApp = window.AtmoApp || {};
       // Live-probed: mtg_fd:frp answers small TIME-only scans fast but
       // bbox-combined or multi-thousand-row scans fail server-side, so MTG
       // is fetched TIME-only in sequential 30-minute slices over this
-      // recent window and clipped to the region client-side.
-      mtgHistoryHours: 3
+      // recent window and clipped to the region client-side.  Each slice
+      // has its own short timeout; the global WFS timeout is untouched.
+      mtgHistoryHours: 3,
+      mtgSliceTimeoutMs: 11000
     },
     mtgGeoColourWms: {
       label: 'EUMETSAT MTG-I GeoColour RGB',

@@ -130,6 +130,7 @@ for (const path of [
   "js/fire-detection.js",
   "js/map.js",
   "js/export.js",
+  "js/ui.js",
 ])
   vm.runInThisContext(read(path), { filename: path });
 
@@ -2683,6 +2684,89 @@ test("event detail static evidence labels resolve in both locales", () => {
   const block = source.ui.match(/const eventBlock = fireEvent[\s\S]*?: "";/);
   assert.ok(block && block[0].includes("detail.evPeakFrp"), "detail keeps peak FRP");
   assert.ok(block && !block[0].includes("analysis.maxFrp"), "duplicate Max FRP row removed from event detail");
+});
+
+test("mtg adapter: short per-slice timeout with honest partial metrics", async () => {
+  const TS = A.ThermalSources;
+  const mtg = TS.registry.get("mtg-fci-frp");
+  let calls = 0;
+  const timeouts = [];
+  const out = await withGetFeature(
+    () =>
+      mtg.load({
+        countryCode: "TR",
+        startTime: new Date("2026-09-10T19:00:00Z"),
+        endTime: new Date("2026-09-10T22:00:00Z"),
+      }),
+    async (opts) => {
+      calls++;
+      timeouts.push(opts.timeoutMs);
+      assert.equal(opts.bbox ?? null, null, "MTG slice query carries no server-side bbox");
+      if (calls === 1)
+        return {
+          features: [{
+            id: "m1",
+            geometry: { type: "Point", coordinates: [35.2, 39.1] },
+            properties: { Lat: 39.1, Lon: 35.2, FRP: 12, time: "2026-09-10T19:20:00Z" },
+          }],
+          pages: 1, totalMatched: 1, meta: {},
+        };
+      if (calls === 2) {
+        const e = new Error("HTTP 503");
+        e.kind = "HTTP_ERROR";
+        throw e;
+      }
+      return { features: [], pages: 1, totalMatched: 0, meta: {} };
+    },
+  );
+  assert.equal(calls, 6, "3h window is fetched as six slices");
+  assert.ok(timeouts.every((t) => t === 11000), `each slice has the short timeout (got ${timeouts})`);
+  assert.equal(out.length, 1, "successful slices still feed the engine");
+  assert.equal(out.metrics.sliceFailures, 1);
+  assert.equal(out.metrics.sliceTotal, 6);
+});
+
+test("kpi cards keep loading state until the primary FIRMS result settles", () => {
+  const TS = A.ThermalSources;
+  TS.patchState("nasa-firms", { status: "idle", lastSuccessfulAt: null, error: null });
+  const origGet = global.document.getElementById;
+  const els = {};
+  const stubEl = () => ({ textContent: "…", innerHTML: "", querySelectorAll: () => [], querySelector: () => null, classList: { toggle() {}, contains: () => false }, dataset: {} });
+  global.document.getElementById = (id) => (els[id] ||= stubEl());
+  const ui = new A.UIManager();
+  try {
+    ui.renderFireDetectionKpis([], new Date("2026-09-10T12:00:00Z"));
+    ui.renderImpact([]);
+    assert.ok(!("kpiHighConfidence" in els), "no high-confidence write before FIRMS settles");
+    assert.ok(!("kpiCriticalEvents" in els), "no critical write before FIRMS settles");
+    TS.patchState("nasa-firms", { status: "empty", lastSuccessfulAt: new Date().toISOString(), error: null });
+    ui.renderFireDetectionKpis([], new Date("2026-09-10T12:00:00Z"));
+    ui.renderImpact([]);
+    assert.equal(els.kpiHighConfidence.textContent, "0", "real computed zero is shown after settle");
+    assert.equal(els.kpiCriticalEvents.textContent, "0", "real computed zero is shown after settle");
+  } finally {
+    global.document.getElementById = origGet;
+    TS.patchState("nasa-firms", { status: "ok", lastSuccessfulAt: new Date().toISOString(), error: null });
+  }
+});
+
+test("legends use detection-state colors and verified sources only", () => {
+  assert.equal(A.MapManager.fireStateColor("HIGH_CONFIDENCE"), "#e53935");
+  assert.equal(A.MapManager.fireStateColor("PROBABLE"), "#fb8c00");
+  assert.equal(A.MapManager.fireStateColor("WATCH"), "#fdd835");
+  assert.equal(A.MapManager.fireStateColor("STALE"), "#90a4ae");
+  assert.ok(source.map.includes('data-legend="fires"'), "fire events legend toggles with the layer");
+  assert.ok(source.map.includes("GetLegendGraphic"), "burnt-area legend uses the official endpoint");
+  assert.ok(source.map.includes("${C.effisBurntAreaLayer}"), "legend layer comes from config, not a guess");
+  assert.ok(source.map.includes('class="substationSquare"'), "grid legend TM symbol matches the map marker");
+  for (const key of ["legend.fires", "legend.fireSize", "legend.fireNote", "legend.heat", "legend.heatP95",
+      "legend.heatDisplay", "legend.windNote", "map.tmLegend", "thermal.note.mtgPartial", "kpi.eventsShown"]) {
+    I.locale = "tr";
+    assert.ok(I.t(key).length > 0, `tr ${key}`);
+    I.locale = "en";
+    assert.ok(I.t(key).length > 0, `en ${key}`);
+  }
+  I.locale = "tr";
 });
 
 function evidenceGrid(lineFeatures) {

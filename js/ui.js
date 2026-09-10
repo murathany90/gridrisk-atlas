@@ -35,6 +35,15 @@
     return `${families.join(", ")} · ×${count}`;
   }
 
+  function firmsPrimarySettled() {
+    // KPI cards keep their "…" loading state until the primary FIRMS
+    // result has been attempted.  A zero is only shown when a real
+    // computation produced zero — never as a pre-data placeholder.
+    const st = A.ThermalSources?.state("nasa-firms");
+    if (!st) return true;
+    return (st.status !== "idle" && st.status !== "loading") || !!st.lastSuccessfulAt;
+  }
+
   function formatStaticEvidence(event) {
     const fmtKm = (v) => (v != null && Number.isFinite(Number(v)) ? ` · ${U.round(Number(v), 2)} km` : "");
     const classLabel = (code) => {
@@ -181,6 +190,7 @@
       });
       A.Events.on("mtgFrame", (x) => this.updateMtgTimeBadge(x));
       A.Events.on("firesRendered", (x) => {
+        if (!firmsPrimarySettled()) return;
         document.getElementById("kpiFireEvents").textContent = I.formatNumber(
           x.activeEvents ?? x.events ?? 0,
         );
@@ -699,6 +709,7 @@
     renderFireDetectionKpis(events, selectedTime) {
       // KPI cards are operational, so they must use the same active window as
       // grid-risk analysis rather than the engine's longer tracking memory.
+      if (!firmsPrimarySettled()) return;
       const list = A.app?.fireDetection?.visibleEvents
         ? A.app.fireDetection.visibleEvents(events || [], selectedTime)
         : (events || []).filter((event) => event.state !== "STATIC_SUPPRESSED" && event.state !== "CLOSED");
@@ -1003,6 +1014,7 @@
         `<p><strong>${T("summary.coverage")}:</strong> ${U.escapeHtml(I.countryCoverage(country.code))}</p><p><strong>${T("summary.rawFeature")}:</strong> ${I.formatNumber(m.rawFeatureCount || 0)}</p><p><strong>${T("summary.filter")}:</strong> line/minor_line/cable + substation · 50–550 kV</p><p><strong>${T("summary.core")}:</strong> ${I.formatNumber((c["400"] || 0) + (c["154"] || 0))} ${T("analysis.nearestLine").toLowerCase()} + ${I.formatNumber(c.substations || 0)} ${T("summary.substations")}</p><p><strong>${T("summary.license")}:</strong> ODbL 1.0 · © OpenStreetMap contributors</p>${status}`;
     }
     renderImpact(analyses) {
+      if (!firmsPrimarySettled()) return;
       const arr = analyses || [],
         critical = arr.filter((x) => x.riskScore >= 75),
         high = arr.filter((x) => x.riskScore >= 55 && x.riskScore < 75),

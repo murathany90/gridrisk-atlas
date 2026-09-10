@@ -218,7 +218,7 @@
         ...(st.metrics || {}),
       };
       metrics.confirmedEventCount = msSummary.confirmedBySource[def.sourceId] ?? null;
-      return { ...def, status, note: null, metrics, count: st.count, latency: st.latency, lastSuccessfulAt: st.lastSuccessfulAt, error: st.error };
+      return { ...def, status, note: st.note || null, metrics, count: st.count, latency: st.latency, lastSuccessfulAt: st.lastSuccessfulAt, error: st.error };
     });
   }
 
@@ -590,6 +590,11 @@
       const slices = mtgTimeSlices(window.from, window.to);
       const features = [];
       let failedSlices = 0;
+      // Live endpoint behavior: a slice usually answers in <1 s but large
+      // scans intermittently hang; each slice gets its own short timeout so
+      // one slow slice cannot stall the whole source.  Sequential on
+      // purpose: parallel bursts make the server shed load (HTTP 503).
+      const sliceTimeoutMs = C.eumetviewWfs?.mtgSliceTimeoutMs || 11000;
       for (const [sliceFrom, sliceTo] of slices) {
         try {
           const result = await wfs.getFeature({
@@ -598,6 +603,7 @@
             from: sliceFrom,
             to: sliceTo,
             signal,
+            timeoutMs: sliceTimeoutMs,
             count: 3000,
             maxPages: 2,
             cacheKey: `mtg-fci-frp:${countryCode || C.activeCountryCode}:${sliceFrom.toISOString()}:${sliceTo.toISOString()}`,
@@ -637,6 +643,7 @@
           validCount: out.length,
           deduplicatedCount: deduped.length,
           sliceFailures: failedSlices,
+          sliceTotal: slices.length,
         },
         enumerable: false,
       });

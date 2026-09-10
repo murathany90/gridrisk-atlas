@@ -821,7 +821,16 @@
     toggleFires(show) {
       if (show) {
         if (!this.map.hasLayer(this.fireLayer)) this.fireLayer.addTo(this.map);
-      } else this.map.removeLayer(this.fireLayer);
+        const color = this.constructor.fireStateColor;
+        this.makeLegend(
+          "fires",
+          T("legend.fires"),
+          `<div class="legendLine"><i class="dot" style="background:${color("HIGH_CONFIDENCE")}"></i><span>${T("fire.state.highConfidence")}</span></div><div class="legendLine"><i class="dot" style="background:${color("PROBABLE")}"></i><span>${T("fire.state.probable")}</span></div><div class="legendLine"><i class="dot" style="background:${color("WATCH")}"></i><span>${T("fire.state.watch")}</span></div><div class="legendLine"><i class="dot" style="background:${color("STALE")}"></i><span>${T("fire.state.stale")}</span></div><div class="sourceNote">${T("legend.fireSize")}<br>${T("legend.fireNote")}</div>`,
+        );
+      } else {
+        this.map.removeLayer(this.fireLayer);
+        document.querySelector('[data-legend="fires"]')?.remove();
+      }
       this.terrain3d?.syncFires();
     }
     setSlstrSource(sourceId, data, selectedTime) {
@@ -1039,6 +1048,7 @@
     toggleHeat(show) {
       if (!show) {
         if (this.frpHeat) this.map.removeLayer(this.frpHeat);
+        document.querySelector('[data-legend="heat"]')?.remove();
         return;
       }
       const candidates = this.fireVisible.filter(
@@ -1066,6 +1076,11 @@
         max: 1,
         pane: "riskPane",
       }).addTo(this.map);
+      this.makeLegend(
+        "heat",
+        T("legend.heat"),
+        `<div class="gradient" style="background:linear-gradient(90deg,rgba(253,216,53,0.9),rgba(251,140,0,0.9),rgba(229,57,53,0.9))"></div><div class="sourceNote">${T("legend.heatP95")}<br>${T("legend.heatDisplay")}</div>`,
+      );
     }
     setSmoke(data, variable) {
       this.airData = data || [];
@@ -1135,8 +1150,15 @@
     toggleWind(show) {
       if (show) {
         if (!this.map.hasLayer(this.windLayer)) this.windLayer.addTo(this.map);
-      } else if (this.map.hasLayer(this.windLayer))
+        this.makeLegend(
+          "wind",
+          T("layers.wind"),
+          `<div class="legendLine"><span class="windArrow" style="display:inline-block">↑</span><span>${T("legend.windNote")}</span></div>`,
+        );
+      } else if (this.map.hasLayer(this.windLayer)) {
         this.map.removeLayer(this.windLayer);
+        document.querySelector('[data-legend="wind"]')?.remove();
+      }
     }
     drawWindVector(point, direction, speed, level = "10m", validAt = null) {
       this.windVectorLayer.clearLayers();
@@ -1333,10 +1355,14 @@
         }),
       );
       this.effisBurntAreaLayer.addTo(this.map);
+      // Official EFFIS legend (GetLegendGraphic verified live: the burnt-area
+      // layer returns a real PNG; FWI returns a ServiceException, so FWI
+      // keeps its note-only legend and no color thresholds are invented).
+      const legendUrl = `${C.effisWms}?SERVICE=WMS&VERSION=1.1.1&REQUEST=GetLegendGraphic&LAYER=${encodeURIComponent(C.effisBurntAreaLayer)}&FORMAT=image/png`;
       this.makeLegend(
         "burntArea",
         T("map.burntTitle"),
-        `<div class="sourceNote">${T("map.burntNote", { date: U.dateOnlyUtc(d) })}</div>`,
+        `<div><img src="${legendUrl}" alt="EFFIS"></div><div class="sourceNote">${T("map.burntNote", { date: U.dateOnlyUtc(d) })}</div>`,
       );
     }
     latestAllowedMtgSlot() {
@@ -2346,7 +2372,7 @@
       this.makeLegend(
         "grid",
         T("map.gridTitle", { country: I.countryName(C.activeCountryCode) }),
-        `${active.map((k) => { const style = this.getEffectiveGridStyle(k); const border = style.color === "#ffffff" ? ";border:1px solid #334155" : ""; return `<div class="legendLine"><i style="background:${style.color}${border}"></i><span>${T(C.gridSources[k].labelKey) || C.gridSources[k].label}${k === "400" ? ` — ${T("map.gridColor400")}` : k === "154" ? ` — ${T("map.gridColor154")}` : ""}</span></div>`; }).join("")}<div class="sourceNote">${T("map.gridNote")}</div>`,
+        `${active.map((k) => { const style = this.getEffectiveGridStyle(k); const border = style.color === "#ffffff" ? ";border:1px solid #334155" : ""; return `<div class="legendLine"><i style="background:${style.color}${border}"></i><span>${T(C.gridSources[k].labelKey) || C.gridSources[k].label}${k === "400" ? ` — ${T("map.gridColor400")}` : k === "154" ? ` — ${T("map.gridColor154")}` : ""}</span></div>`; }).join("")}${active.includes("substations") ? `<div class="legendLine"><span class="substationSquare" style="display:inline-block"></span><span>${T("map.tmLegend")}</span></div>` : ""}<div class="sourceNote">${T("map.gridNote")}</div>`,
       );
     }
     riskSubstationCandidates(analyses) {
