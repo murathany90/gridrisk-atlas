@@ -2610,6 +2610,44 @@ test("fire detection: PERSISTENT_UNKNOWN is evidence only and never suppresses",
   assert.ok(engine.visibleEvents([event], at).length === 1, "unknown-persistence events stay visible");
 });
 
+test("layer panel: technical sensor layers live in collapsed Advanced group", () => {
+  const advancedAt = html.indexOf('data-layer-group="advanced"');
+  assert.ok(advancedAt > 0, "Advanced group exists");
+  const advancedTag = html.slice(advancedAt - 60, advancedAt + 40);
+  assert.ok(!advancedTag.includes("accordionOpen"), "Advanced group starts collapsed");
+  const advancedHtml = html.slice(advancedAt);
+  for (const id of ["layerFootprint", "layerEventEvolution", "layerSentinelSlstr", "layerSentinelSlstrA", "layerSentinelSlstrB", "layerMtgFrp", "layerMultiSensorConf"])
+    assert.ok(advancedHtml.includes(`id="${id}"`), `${id} is in Advanced group`);
+  const fireSection = html.slice(html.indexOf('data-layer-group="fire"'), html.indexOf('data-layer-group="grid"'));
+  for (const id of ["layerFires", "frpThreshold", "layerThermalEnvelope"])
+    assert.ok(fireSection.includes(`id="${id}"`), `${id} stays in main fire group`);
+  for (const id of ["layerMtgFrp", "layerSentinelSlstrA", "layerMultiSensorConf"])
+    assert.ok(!fireSection.includes(`id="${id}"`), `${id} moved out of main fire group`);
+});
+
+test("event detail labels resolve in both locales", () => {
+  for (const key of ["detail.evState", "detail.evFirst", "detail.evLatest", "detail.evCurrentFrp", "detail.evPeakFrp", "detail.evTrend", "detail.evSensors", "detail.evStatic", "layers.advancedGroup", "layers.advancedHint"]) {
+    I.locale = "tr";
+    assert.ok(I.t(key).length > 0, `tr ${key}`);
+    I.locale = "en";
+    assert.ok(I.t(key).length > 0, `en ${key}`);
+  }
+  I.locale = "tr";
+});
+
+test("fire detection: event carries the fields the detail panel renders", () => {
+  const engine = new A.FireDetectionEngine();
+  const at = "2026-08-02T12:00:00Z";
+  const [event] = engine.rebuild({ countryCode: "TR", selectedTime: at, observations: [
+    normDet({ detectionId: "d1", frpMw: 40, detectedAt: "2026-08-02T11:50:00Z" }),
+    normDet({ detectionId: "d2", sourceId: "sentinel3a-slstr", sensorFamily: "slstr", satellite: "S3A", product: "SLSTR L2P FRP", frpMw: 44, detectedAt: at }),
+  ] });
+  for (const key of ["state", "confidence", "firstSeen", "latestObservationAt", "currentFrp", "peakFrp", "frpTrend", "sensorFamilies", "independentSensorCount", "staticOverride"])
+    assert.ok(event[key] !== undefined && event[key] !== null, `event.${key} present for detail panel`);
+  assert.ok(Array.isArray(event.sensorFamilies) && event.sensorFamilies.length >= 2);
+  assert.ok("staticSource" in event && "persistenceEvidence" in event);
+});
+
 function evidenceGrid(lineFeatures) {
   const gr = new A.GridRepository();
   gr.setCountry("TR");

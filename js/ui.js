@@ -3,6 +3,47 @@
     C = A.CONFIG,
     I = A.I18n,
     T = (key, params) => I.t(key, params);
+
+  function evStateLabel(event) {
+    const labels = {
+      WATCH: T("fire.state.watch"),
+      PROBABLE: T("fire.state.probable"),
+      HIGH_CONFIDENCE: T("fire.state.highConfidence"),
+      STATIC_SUPPRESSED: T("fire.state.staticSuppressed"),
+      STALE: T("fire.state.stale"),
+    };
+    return labels[event?.state] || event?.state || "—";
+  }
+
+  function formatEventTime(value) {
+    const ms = Date.parse(value || "");
+    return Number.isFinite(ms) ? U.formatTrShortDateTime(new Date(ms)) : "—";
+  }
+
+  function formatFrpTrend(trend) {
+    if (!trend) return "—";
+    const parts = [trend.deltaFrp10, trend.deltaFrp20, trend.deltaFrp30].map(
+      (v) => (v == null || !Number.isFinite(Number(v)) ? "—" : `${Number(v) > 0 ? "+" : ""}${U.round(Number(v), 1)}`),
+    );
+    return `${trend.growing ? "↗" : "→"} ${parts.join(" / ")} MW`;
+  }
+
+  function formatSensorFamilies(event) {
+    const families = Array.isArray(event?.sensorFamilies) ? event.sensorFamilies.filter(Boolean) : [];
+    const count = event?.independentSensorCount ?? families.length;
+    if (!families.length) return "—";
+    return `${families.join(", ")} · ×${count}`;
+  }
+
+  function formatStaticEvidence(event) {
+    const fmtKm = (v) => (v != null && Number.isFinite(Number(v)) ? ` · ${U.round(Number(v), 2)} km` : "");
+    const reasons = event?.staticOverride?.reasons;
+    if (event?.staticOverride?.override && reasons?.length) return `override (${reasons.join("+")})`;
+    if (event?.staticSource) return `${event.staticSource.classification || "—"}${fmtKm(event.staticSource.distanceKm)}`;
+    if (event?.persistenceEvidence)
+      return `${event.persistenceEvidence.classification || "—"} · evidence${fmtKm(event.persistenceEvidence.distanceKm)}`;
+    return "—";
+  }
   class UIManager {
     constructor() {
       this.services = {
@@ -835,7 +876,7 @@
         ? `<div class="detailSection"><h3>${T("detail.gridAsset")}</h3><div class="metricGrid"><div class="metric"><small>${T("common.type")}</small><strong>${T(gridFeature.kind === "substation" ? "summary.substations" : "detail.overhead")}</strong></div><div class="metric"><small>${T("detail.gridClass")}</small><strong>${U.escapeHtml(gf.displayClass || (gf.gridClass ? T("detail.kvClass", { value: gf.gridClass }) : "—"))}</strong></div><div class="metric"><small>${T("detail.actualVoltage")}</small><strong>${U.escapeHtml(U.formatVoltage(gf.actualVoltageKv) || T("common.unknown"))}</strong></div><div class="metric"><small>${T("detail.lineName")}</small><strong>${U.escapeHtml(gf.name || "—")}</strong></div><div class="metric"><small>${T("common.reference")}</small><strong>${U.escapeHtml(gf.ref || "—")}</strong></div><div class="metric"><small>${T("detail.identifier")}</small><strong>${U.escapeHtml(gf.displayLabel || "—")}</strong></div><div class="metric"><small>${T("common.operator")}</small><strong>${U.escapeHtml(gf.operator || "—")}</strong></div></div><div class="sourceNote">${T("common.source")}: ${U.escapeHtml(gf.sourceProvider || "OpenStreetMap")} · ODbL 1.0</div></div>`
         : "";
       const eventBlock = fireEvent
-        ? `<div class="detailSection"><h3>${T("detail.cluster")}</h3><div class="metricGrid"><div class="metric"><small>${T("detail.eventDetections")}</small><strong>${I.formatNumber(fireEvent.count)}</strong></div><div class="metric"><small>${T("analysis.maxFrp")}</small><strong>${this.val(fireEvent.maxFrp, 1, " MW")}</strong></div>${histMetrics}</div><div class="sourceNote">${T("detail.clusterNote")}</div></div>`
+        ? `<div class="detailSection"><h3>${T("detail.cluster")}</h3><div class="metricGrid"><div class="metric"><small>${T("detail.evState")}</small><strong>${U.escapeHtml(evStateLabel(fireEvent))} · ${this.val(fireEvent.confidence ?? fireEvent.fireDetectionScore, 0, "")}</strong></div><div class="metric"><small>${T("detail.eventDetections")}</small><strong>${I.formatNumber(fireEvent.count)}</strong></div><div class="metric"><small>${T("detail.evFirst")}</small><strong>${formatEventTime(fireEvent.firstSeen || fireEvent.earliestDetectedAt)}</strong></div><div class="metric"><small>${T("detail.evLatest")}</small><strong>${formatEventTime(fireEvent.latestObservationAt || fireEvent.latestDetectedAt)}</strong></div><div class="metric"><small>${T("detail.evCurrentFrp")}</small><strong>${this.val(fireEvent.currentFrp ?? fireEvent.peakFrp, 1, " MW")}</strong></div><div class="metric"><small>${T("detail.evPeakFrp")}</small><strong>${this.val(fireEvent.peakFrp ?? fireEvent.maxFrp, 1, " MW")}</strong></div><div class="metric"><small>${T("analysis.maxFrp")}</small><strong>${this.val(fireEvent.maxFrp, 1, " MW")}</strong></div><div class="metric"><small>${T("detail.evTrend")}</small><strong>${U.escapeHtml(formatFrpTrend(fireEvent.frpTrend))}</strong></div><div class="metric"><small>${T("detail.evSensors")}</small><strong>${U.escapeHtml(formatSensorFamilies(fireEvent))}</strong></div><div class="metric"><small>${T("detail.evStatic")}</small><strong>${U.escapeHtml(formatStaticEvidence(fireEvent))}</strong></div>${histMetrics}</div><div class="sourceNote">${T("detail.clusterNote")}</div></div>`
         : "";
       const fireBlock =
         fire && !fireEvent
