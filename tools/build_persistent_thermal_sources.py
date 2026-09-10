@@ -170,12 +170,19 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         cells[cell_key(lat, lon, args.cell_metres)].append(row)
 
     osm = load_osm(args.osm)
+    min_unique_days = getattr(args, "min_unique_days", 2)
     features = []
     for key in sorted(cells):
         rows = cells[key]
         dates = [parse_time(row) for row in rows]
         dates = [date for date in dates if date]
         if len(rows) < args.min_detections:
+            continue
+        # A bare detection count is not enough: a short fire burst can pile
+        # up many observations in one cell within a day or two.  Require the
+        # cell to repeat across several unique days.
+        unique_days = len({date.date().isoformat() for date in dates})
+        if unique_days < min_unique_days:
             continue
         lat = statistics.fmean(float(row["_lat"]) for row in rows)
         lon = statistics.fmean(float(row["_lon"]) for row in rows)
@@ -188,9 +195,21 @@ def build(args: argparse.Namespace) -> dict[str, Any]:
         center = (lat, lon)
         distances = [distance_km(center, (float(row["_lat"]), float(row["_lon"]))) for row in rows]
         classification = "PERSISTENT_UNKNOWN"
-        nearest_osm = min(((distance_km(center, osm_center), kind) for osm_center, kind in osm), default=None)
-        if nearest_osm and nearest_osm[0] <= args.osm_radius_km:
-            classification = nearest_osm[1]
+        nearby_osm = sorted(
+            (distance_km(center, osm_center), kind)
+            for osm_center, kind in osm
+            if distance_km(center, osm_center) <= args.osm_radius_km
+        )
+        solar_nearby = any(kind == "STATIC_SOLAR_GLINT" for _, kind in nearby_osm)
+        industrial_nearby = any(kind == "STATIC_INDUSTRIAL" for _, kind in nearby_osm)
+        # Solar glint needs strong day dominance on top of OSM solar evidence.
+        # A night-dominant repeater next to a solar farm is heat from
+        # neighbouring industry, not panel glint, so it must not be labelled
+        # STATIC_SOLAR_GLINT.
+        if solar_nearby and day_count >= 3 and day_count >= 3 * night_count:
+            classification = "STATIC_SOLAR_GLINT"
+        elif industrial_nearby:
+            classification = "STATIC_INDUSTRIAL"
         properties = {
             "countryCode": args.country,
             "classification": classification,
@@ -229,6 +248,7 @@ def main() -> None:
     parser.add_argument("--osm", type=Path, help="Optional reviewed OSM GeoJSON extract")
     parser.add_argument("--cell-metres", type=float, default=500)
     parser.add_argument("--min-detections", type=int, default=5)
+    parser.add_argument("--min-unique-days", type=int, default=2)
     parser.add_argument("--osm-radius-km", type=float, default=1.0)
     parser.add_argument("--radius-padding-km", type=float, default=0.25)
     args = parser.parse_args()

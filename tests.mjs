@@ -2595,6 +2595,21 @@ test("fire detection: missing canonical history degrades to no suppression witho
   assert.notEqual(again.state, "STATIC_SUPPRESSED", "empty history also disables suppression");
 });
 
+test("fire detection: PERSISTENT_UNKNOWN is evidence only and never suppresses", () => {
+  const engine = new A.FireDetectionEngine();
+  engine.setPersistentThermalSources({ type: "FeatureCollection", features: [{
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [35.2, 38.6] },
+    properties: { classification: "PERSISTENT_UNKNOWN", radiusKm: 1, medianFrpMw: 2, frpMadMw: 1, p99FrpMw: 4, dayCount: 10, nightCount: 20 },
+  }] });
+  const at = "2026-08-02T12:00:00Z";
+  const [event] = engine.rebuild({ countryCode: "TR", selectedTime: at, observations: [normDet({ detectionId: "unknown", frpMw: 3, detectedAt: at })] });
+  assert.equal(event.staticSource, null);
+  assert.equal(event.persistenceEvidence?.classification, "PERSISTENT_UNKNOWN");
+  assert.notEqual(event.state, "STATIC_SUPPRESSED", "unknown persistence must not hard-suppress a new fire");
+  assert.ok(engine.visibleEvents([event], at).length === 1, "unknown-persistence events stay visible");
+});
+
 function evidenceGrid(lineFeatures) {
   const gr = new A.GridRepository();
   gr.setCountry("TR");

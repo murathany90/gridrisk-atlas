@@ -371,15 +371,32 @@
           activeThermalAreaKm2: activeThermal.activeThermalAreaKm2,
         };
         const match = staticMatch(event, this.staticFeatures);
-        if (match) {
-          const props = match.properties;
+        const matchClass = match
+          ? match.properties.classification || match.properties.staticClass || "PERSISTENT_UNKNOWN"
+          : null;
+        // Only facility-evidenced static classes suppress.  PERSISTENT_UNKNOWN
+        // (or any unrecognized class) is persistence evidence, never a hard
+        // suppression: a new real fire must not become STATIC_SUPPRESSED.
+        const hardStatic = !!match && (matchClass === "STATIC_INDUSTRIAL" || matchClass === "STATIC_SOLAR_GLINT");
+        if (hardStatic) {
           event.staticSource = {
-            classification: props.classification || props.staticClass || "PERSISTENT_UNKNOWN",
+            classification: matchClass,
             distanceKm: match.distanceKm,
-            metrics: props,
+            metrics: match.properties,
           };
-        } else event.staticSource = null;
-        const staticInfo = staticOverride(event, match);
+          event.persistenceEvidence = null;
+        } else if (match) {
+          event.staticSource = null;
+          event.persistenceEvidence = {
+            classification: matchClass,
+            distanceKm: match.distanceKm,
+            metrics: match.properties,
+          };
+        } else {
+          event.staticSource = null;
+          event.persistenceEvidence = null;
+        }
+        const staticInfo = hardStatic ? staticOverride(event, match) : { override: false, reasons: [], robustZ: null };
         event.staticOverride = staticInfo;
         const confidence = confidenceFor(event, referenceMs, staticInfo);
         event.fireDetectionScore = confidence.score;

@@ -70,6 +70,56 @@ class PersistentThermalSourceBuilderTests(unittest.TestCase):
         metadata = payload.get("metadata", {})
         self.assertTrue(metadata.get("historyStart") and metadata.get("historyEnd"), "dataset must record its historical window")
 
+    def test_two_day_burst_fails_unique_day_gate(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            history = root / "history.csv"
+            rows = ["latitude,longitude,acq_date,acq_time,frp,sourceId,satellite,daynight"]
+            for index in range(5):
+                rows.append(f"38.600{index},35.200{index},2026-08-01,10{index:02d},8,VIIRS_NOAA21_NRT,NOAA-21,D")
+            for index in range(5):
+                rows.append(f"38.600{index},35.200{index},2026-08-02,11{index:02d},9,VIIRS_NOAA20_NRT,NOAA-20,N")
+            history.write_text("\n".join(rows) + "\n", encoding="utf-8")
+            args = type("Args", (), {
+                "input": [history], "osm": None, "country": "TR", "cell_metres": 500,
+                "min_detections": 5, "min_unique_days": 5, "osm_radius_km": 1.0, "radius_padding_km": 0.25,
+            })()
+            result = MODULE.build(args)
+        self.assertEqual(len(result["features"]), 0, "10 detections on 2 days must not become persistent")
+
+    def test_night_dominant_solar_near_cell_is_not_solar_glint(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            history = root / "history.csv"
+            history.write_text(
+                "latitude,longitude,acq_date,acq_time,frp,sourceId,satellite,daynight\n"
+                "36.2630,33.7280,2026-09-03,1000,2,VIIRS_NOAA21_NRT,NOAA-21,D\n"
+                "36.2630,33.7280,2026-09-04,0130,2,VIIRS_NOAA20_NRT,NOAA-20,N\n"
+                "36.2630,33.7280,2026-09-05,0140,1,VIIRS_NOAA21_NRT,NOAA-21,N\n"
+                "36.2630,33.7280,2026-09-06,0150,2,VIIRS_SNPP_NRT,SNPP,N\n"
+                "36.2630,33.7280,2026-09-07,0200,1,VIIRS_NOAA21_NRT,NOAA-21,N\n",
+                encoding="utf-8",
+            )
+            osm = root / "osm.geojson"
+            osm.write_text(json.dumps({
+                "type": "FeatureCollection",
+                "features": [{
+                    "type": "Feature",
+                    "geometry": {"type": "Point", "coordinates": [33.728, 36.263]},
+                    "properties": {"power": "plant", "plant:source": "solar"},
+                }],
+            }), encoding="utf-8")
+            args = type("Args", (), {
+                "input": [history], "osm": osm, "country": "TR", "cell_metres": 500,
+                "min_detections": 5, "min_unique_days": 2, "osm_radius_km": 1.0, "radius_padding_km": 0.25,
+            })()
+            result = MODULE.build(args)
+        self.assertEqual(len(result["features"]), 1)
+        self.assertNotEqual(
+            result["features"][0]["properties"]["classification"], "STATIC_SOLAR_GLINT",
+            "night-dominant repeaters need industrial-grade evidence, not a solar label",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
