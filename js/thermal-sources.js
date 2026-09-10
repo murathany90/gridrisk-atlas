@@ -40,7 +40,7 @@
     if (opts.visibleWindow != null) {
       const end = opts.visibleWindow instanceof Date ? opts.visibleWindow.getTime() : Number(opts.visibleWindow);
       if (Number.isFinite(end)) {
-        const start = end - 24 * 3600e3;
+        const start = end - (C.fireDetection?.visibleObservationHours || 3) * 3600e3;
         metrics.visibleCount = list.filter((d) => {
           const t = d && d.detectedAt ? Date.parse(d.detectedAt) : NaN;
           return Number.isFinite(t) && t >= start && t <= end;
@@ -255,14 +255,15 @@
 
   function planThermalRequests({
     mode = getThermalMode(),
-    sentinel3a = true,
-    sentinel3b = true,
   } = {}) {
     if (mode === "FIRMS_ONLY") return { slstrIds: [], mtg: false };
     const slstrIds = [];
-    if (registry.isEnabled("sentinel3a-slstr") && sentinel3a)
+    // These are data-source switches, deliberately separate from the raw
+    // S3A/S3B map-marker toggles.  Hiding a diagnostic layer must never
+    // remove that sensor from the detection engine.
+    if (registry.isEnabled("sentinel3a-slstr"))
       slstrIds.push("sentinel3a-slstr");
-    if (registry.isEnabled("sentinel3b-slstr") && sentinel3b)
+    if (registry.isEnabled("sentinel3b-slstr"))
       slstrIds.push("sentinel3b-slstr");
     return { slstrIds, mtg: registry.isEnabled("mtg-fci-frp") };
   }
@@ -272,7 +273,7 @@
       selectedTime instanceof Date ? selectedTime : new Date(selectedTime);
     const t = Number.isFinite(d.getTime()) ? d.getTime() : Date.now();
     const end = new Date(t),
-      start = new Date(t - 24 * 3600e3);
+      start = new Date(t - (C.fireDetection?.eventTrackingHours || 48) * 3600e3);
     return `${countryCode || "?"}:${start.toISOString()}:${end.toISOString()}`;
   }
 
@@ -421,7 +422,7 @@
       const firms = A.FirmsAdapter;
       if (!firms || typeof firms.load !== "function")
         throw new Error("nasa-firms: A.FirmsAdapter is not available");
-      const data = await firms.load(signal);
+      const data = await firms.load(signal, { bbox, countryCode, startTime, endTime });
       return data;
     },
   };

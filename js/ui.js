@@ -13,6 +13,10 @@
         effis: { name: "Copernicus EFFIS FWI", state: "idle" },
         effisBurntArea: { nameKey: "service.effisBurnt", state: "idle" },
         mtg: { name: "EUMETSAT MTG GeoColour", state: "idle" },
+        thermalFirms: { name: "NASA FIRMS thermal", state: "idle" },
+        thermalMtg: { name: "MTG FCI thermal", state: "idle" },
+        thermalSlstr: { name: "Sentinel-3 SLSTR thermal", state: "idle" },
+        staticThermal: { name: "Persistent thermal history", state: "idle" },
         grid: { nameKey: "service.grid", state: "idle" },
         geocode: { name: "Geocoding", state: "idle" },
       };
@@ -130,7 +134,7 @@
       A.Events.on("mtgFrame", (x) => this.updateMtgTimeBadge(x));
       A.Events.on("firesRendered", (x) => {
         document.getElementById("kpiFireEvents").textContent = I.formatNumber(
-          x.events ?? 0,
+          x.activeEvents ?? x.events ?? 0,
         );
         document.getElementById("kpiDetectionsNote").textContent = T(
           "kpi.detections",
@@ -165,8 +169,8 @@
         "kpiCriticalEvents",
         "kpiRiskLines",
         "kpiRiskSubstations",
-        "kpiWildfirePm10",
-        "kpiWind",
+        "kpiHighConfidence",
+        "kpiNewEvents",
       ]) {
         const el = document.getElementById(id);
         if (el) el.textContent = "…";
@@ -502,6 +506,8 @@
           backfill: "service.backfill",
           loading: "service.loading",
           warn: "service.warn",
+          stale: "service.warn",
+          unavailable: "service.warn",
           idle: "service.idle",
         };
         body.innerHTML = Object.entries(this.services)
@@ -514,12 +520,16 @@
                     ? "status-bad"
                     : s.state === "no-frame" ||
                         s.state === "warn" ||
+                        s.state === "stale" ||
+                        s.state === "unavailable" ||
                         s.state === "backfill"
                       ? "status-warn"
                       : "status-idle",
               label = T(stateKey[s.state] || "service.idle"),
               name = s.nameKey ? T(s.nameKey) : s.name;
-            return `<tr><td>${U.escapeHtml(name)}</td><td><span class="statusDot ${cls}"></span>${label}</td><td>${s.last ? U.formatLocal(s.last) : "—"}</td><td>${s.latency != null ? (s.latency === 0 ? T("service.cache") : s.latency + " ms") : "—"}</td><td>${s.count == null ? "—" : I.formatNumber(s.count)}</td><td>${U.escapeHtml(s.note || "")}</td></tr>`;
+            const latestMs = Date.parse(s.latestObservationAt || "");
+            const latest = Number.isFinite(latestMs) ? U.formatLocal(new Date(latestMs)) : "—";
+            return `<tr><td>${U.escapeHtml(name)}</td><td><span class="statusDot ${cls}"></span>${label}</td><td>${latest}</td><td>${s.latency != null ? (s.latency === 0 ? T("service.cache") : s.latency + " ms") : "—"}</td><td>${s.count == null ? "—" : I.formatNumber(s.count)}</td><td>${U.escapeHtml(s.note || "")}</td></tr>`;
           })
           .join("");
       }
@@ -620,6 +630,9 @@
         w = (windData || []).filter((x) => Number.isFinite(x.speed));
       const wfEl = document.getElementById("kpiWildfirePm10"),
         windEl = document.getElementById("kpiWind");
+      // Smoke and wind remain optional support layers; they are intentionally
+      // no longer primary fire KPIs.
+      if (!wfEl || !windEl) return;
       if (wf.length) {
         const max = Math.max(...wf);
         wfEl.textContent = `${I.formatNumber(U.round(max, 1))} µg/m³`;
@@ -634,6 +647,23 @@
         windEl.parentElement.querySelector("small").textContent =
           `${T(C.windLevels[max.level]?.labelKey) || max.level} · ${Math.round(max.direction)}° ${U.cardinal(max.direction)}`;
       } else windEl.textContent = "—";
+    }
+    renderFireDetectionKpis(events, selectedTime) {
+      // KPI cards are operational, so they must use the same active window as
+      // grid-risk analysis rather than the engine's longer tracking memory.
+      const list = A.app?.fireDetection?.visibleEvents
+        ? A.app.fireDetection.visibleEvents(events || [], selectedTime)
+        : (events || []).filter((event) => event.state !== "STATIC_SUPPRESSED" && event.state !== "CLOSED");
+      const end = new Date(selectedTime || Date.now()).getTime();
+      const high = list.filter((event) => event.state === "HIGH_CONFIDENCE");
+      const newEvents = list.filter((event) => {
+        const first = Date.parse(event.firstSeen || event.detectedAt || "");
+        return Number.isFinite(first) && first >= end - 60 * 60e3 && first <= end;
+      });
+      const highEl = document.getElementById("kpiHighConfidence");
+      const newEl = document.getElementById("kpiNewEvents");
+      if (highEl) highEl.textContent = I.formatNumber(high.length);
+      if (newEl) newEl.textContent = I.formatNumber(newEvents.length);
     }
     openDetail(title, html) {
       this.closeQuickLayers();

@@ -6,7 +6,7 @@ import { gzipSync } from 'node:zlib';
 import { spawn } from 'node:child_process';
 
 const __dirname=path.dirname(fileURLToPath(import.meta.url));
-const APP_VERSION='3.14.0';
+const APP_VERSION='3.15.0';
 const PREFERRED_PORT=Number(process.env.PORT||8890);
 let ACTIVE_PORT=PREFERRED_PORT;
 const FIRMS_MAP_KEY=process.env.FIRMS_MAP_KEY||'';
@@ -52,7 +52,7 @@ async function firmsProxy(req,res,url){
     }finally{clearTimeout(timer);}
   }
 }
-async function staticFile(req,res,url){let rel=decodeURIComponent(url.pathname);if(rel==='/')rel='/index.html';const target=path.normalize(path.join(__dirname,rel));if(!target.startsWith(__dirname))return send(res,403,'Forbidden');try{const data=await fs.readFile(target),ext=path.extname(target),type=mime[ext]||'application/octet-stream',cacheControl='no-store';if((ext==='.geojson'||ext==='.js'||ext==='.css')&&String(req.headers['accept-encoding']||'').includes('gzip')&&data.length>4096){const gz=gzipSync(data);res.writeHead(200,{'Content-Type':type,'Content-Encoding':'gzip','Cache-Control':cacheControl,'Vary':'Accept-Encoding'});return res.end(gz);}res.writeHead(200,{'Content-Type':type,'Cache-Control':cacheControl});res.end(data);}catch(e){send(res,e.code==='ENOENT'?404:500,e.code==='ENOENT'?'Not found':'Server error');}}
+async function staticFile(req,res,url){let rel=decodeURIComponent(url.pathname);if(rel==='/')rel='/index.html';const target=path.normalize(path.join(__dirname,rel));if(!target.startsWith(__dirname))return send(res,403,'Forbidden');try{let data=await fs.readFile(target);if(rel==='/js/config.js'&&FIRMS_MAP_KEY)data=Buffer.from(data.toString('utf8').replace('__FIRMS_MAP_KEY__',FIRMS_MAP_KEY),'utf8');const ext=path.extname(target),type=mime[ext]||'application/octet-stream',cacheControl='no-store';if((ext==='.geojson'||ext==='.js'||ext==='.css')&&String(req.headers['accept-encoding']||'').includes('gzip')&&data.length>4096){const gz=gzipSync(data);res.writeHead(200,{'Content-Type':type,'Content-Encoding':'gzip','Cache-Control':cacheControl,'Vary':'Accept-Encoding'});return res.end(gz);}res.writeHead(200,{'Content-Type':type,'Cache-Control':cacheControl});res.end(data);}catch(e){send(res,e.code==='ENOENT'?404:500,e.code==='ENOENT'?'Not found':'Server error');}}
 const server=http.createServer(async(req,res)=>{const url=new URL(req.url,`http://${req.headers.host||'localhost'}`);if(url.pathname==='/api/health')return send(res,200,JSON.stringify({ok:true,app:'GridRisk Atlas',version:APP_VERSION,port:ACTIVE_PORT,firmsProxy:!!FIRMS_MAP_KEY}),'application/json; charset=utf-8');if(url.pathname==='/api/firms')return firmsProxy(req,res,url);if(url.pathname.startsWith('/api/tiles/'))return tileProxy(req,res,url);return staticFile(req,res,url);});
 function openBrowser(url){if(process.env.AUTO_OPEN!=='1')return;try{if(process.platform==='win32'){const c=spawn('cmd',['/c','start','',url],{detached:true,stdio:'ignore'});c.unref();}else if(process.platform==='darwin'){const c=spawn('open',[url],{detached:true,stdio:'ignore'});c.unref();}else{const c=spawn('xdg-open',[url],{detached:true,stdio:'ignore'});c.unref();}}catch(e){console.warn('Tarayıcı otomatik açılamadı:',e.message);}}
 function listen(port,attempt=0){

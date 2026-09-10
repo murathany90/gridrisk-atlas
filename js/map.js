@@ -101,6 +101,32 @@
   function mtgFmt(iso) {
     return iso ? iso.slice(11, 16) + " UTC" : "—";
   }
+  function currentThermalComponents(event, selectedTime) {
+    const cfg = C.fireDetection?.activeThermalArea || {};
+    const endMs = new Date(selectedTime).getTime();
+    const startMs = endMs - (cfg.observationMinutes || 60) * 60e3;
+    const diameterKm = cfg.maxComponentDiameterKm || 3;
+    const components = [];
+    const members = (event.members || event.observations || [])
+      .filter((item) => {
+        const detectedMs = Date.parse(item.detectedAt || "");
+        return Number.isFinite(item.lat) && Number.isFinite(item.lon) &&
+          Number.isFinite(detectedMs) && detectedMs >= startMs && detectedMs <= endMs;
+      })
+      .sort((a, b) => Date.parse(a.detectedAt) - Date.parse(b.detectedAt));
+    for (const member of members) {
+      let target = components.find((component) =>
+        component.every((other) => U.haversineKm(other, member) <= diameterKm),
+      );
+      if (!target) {
+        target = [];
+        components.push(target);
+      }
+      target.push(member);
+    }
+    return components;
+  }
+
   class MtgFrameManager {
     constructor(cfg, handlers) {
       this.cfg = cfg;
@@ -301,6 +327,9 @@
           U.insideRegion({ lat: ev.lat, lon: ev.lon }),
       );
     }
+    static fireStateColor(state) {
+      return ({ HIGH_CONFIDENCE: "#e53935", PROBABLE: "#fb8c00", WATCH: "#fdd835", STALE: "#90a4ae" })[state] || "#fdd835";
+    }
     constructor() {
       this.map = null;
       this.renderer = null;
@@ -313,6 +342,8 @@
       this.fireAll = [];
       this.fireVisible = [];
       this.fireEventsVisible = [];
+      this.fireEventsActive = [];
+      this.fireDetectionEvents = [];
       this.currentSelectedTime = new Date();
       this.frpHeat = null;
       this.smokeLayer = null;
@@ -559,6 +590,8 @@
       this.fireAll = [];
       this.fireVisible = [];
       this.fireEventsVisible = [];
+      this.fireEventsActive = [];
+      this.fireDetectionEvents = [];
       this.fireLayer.clearLayers();
       if (this.frpHeat) {
         this.map.removeLayer(this.frpHeat);
@@ -604,6 +637,10 @@
       this.fireAll = (data || []).filter(U.insideRegion.bind(U));
       this.renderFires(selectedTime);
     }
+    setFireDetectionEvents(events, selectedTime) {
+      this.fireDetectionEvents = (events || []).filter(U.insideRegion.bind(U));
+      this.renderFires(selectedTime);
+    }
     renderFires(selectedTime) {
       this.currentSelectedTime = new Date(selectedTime);
       this._sparkCache.clear();
@@ -612,25 +649,46 @@
         this.map.removeLayer(this.frpHeat);
         this.frpHeat = null;
       }
-      const end = Math.min(
-          this.currentSelectedTime.getTime(),
-          Date.now() + 15 * 60e3,
-        ),
-        start = end - 24 * 3600e3;
-      this.fireVisible = this.fireAll.filter((f) => {
-        const t = Date.parse(f.detectedAt);
-        return t >= start && t <= end;
-      });
-      const allEvents = U.clusterFires(this.fireVisible);
-      this.fireEventsVisible = allEvents.filter(
-        (ev) => ev.maxFrp >= this.frpThreshold,
-      );
+      // The thermal display window is anchored to the selected timeline time,
+      // including historical playback.  Raw observations are still rejected
+      // when they occur after that selected instant.
+      const end = this.currentSelectedTime.getTime(),
+        start = end - (C.fireDetection?.visibleObservationHours || 3) * 3600e3;
+      let allEvents;
+      const usingDetectionEngine = this.fireDetectionEvents.length > 0;
+      if (usingDetectionEngine) {
+        const visible = A.app?.fireDetection?.visibleEvents
+          ? A.app.fireDetection.visibleEvents(this.fireDetectionEvents, new Date(end))
+          : this.fireDetectionEvents.filter((ev) => Date.parse(ev.latestObservationAt || ev.latestDetectedAt) >= start);
+        this.fireEventsActive = visible;
+        // Event history remains available to the engine, but presentation
+        // layers (including the FRP heat map) receive only the three-hour
+        // selected-time observation window.
+        this.fireVisible = visible.flatMap((ev) => ev.observations || []).filter((observation) => {
+          const detectedMs = Date.parse(observation.detectedAt || "");
+          return Number.isFinite(detectedMs) && detectedMs >= start && detectedMs <= end;
+        });
+        allEvents = visible;
+        this.fireEventsVisible = visible.filter(
+          (ev) => this.frpThreshold <= 0 || (Number.isFinite(ev.maxFrp) && ev.maxFrp >= this.frpThreshold),
+        );
+      } else {
+        this.fireVisible = this.fireAll.filter((f) => {
+          const t = Date.parse(f.detectedAt);
+          return t >= start && t <= end;
+        });
+        allEvents = U.clusterFires(this.fireVisible);
+        this.fireEventsActive = allEvents;
+        this.fireEventsVisible = allEvents.filter(
+          (ev) => this.frpThreshold <= 0 || ev.maxFrp >= this.frpThreshold,
+        );
+      }
       const slider = document.getElementById("timeSlider"),
         reference = U.timeReference(
           this.currentSelectedTime,
           slider ? Number(slider.value) : 0,
         );
-      if (this.zoom() < 9) {
+      if (usingDetectionEngine || this.zoom() < 9) {
         if (!this._fireDetailBound) {
           this._fireDetailBound = true;
           document.addEventListener(
@@ -670,7 +728,7 @@
               color: "#fff",
               weight: 1.2,
               opacity,
-              fillColor: U.frpColor(ev.maxFrp),
+              fillColor: usingDetectionEngine ? this.constructor.fireStateColor(ev.state) : U.frpColor(ev.maxFrp),
               fillOpacity: opacity * 0.92,
             });
           const tooltipOptions = {
@@ -756,6 +814,7 @@
         detections: this.fireVisible.length,
         events: this.fireEventsVisible.length,
         eventsTotal: allEvents.length,
+        activeEvents: this.fireEventsActive.length,
       });
       this.terrain3d?.syncFires();
     }
@@ -773,7 +832,7 @@
       this[cacheKey] = (data || []).filter(U.insideRegion.bind(U));
       layer.clearLayers();
       const end = new Date(selectedTime || this.currentSelectedTime),
-        start = end.getTime() - 24 * 3600e3;
+        start = end.getTime() - (C.fireDetection?.visibleObservationHours || 3) * 3600e3;
       const visible = this[cacheKey].filter((f) => {
         const t = Date.parse(f.detectedAt);
         if (!Number.isFinite(t) || t < start || t > end.getTime()) return false;
@@ -818,7 +877,7 @@
       this.mtgFrpData = (data || []).filter(U.insideRegion.bind(U));
       this.mtgFrpLayer.clearLayers();
       const end = new Date(selectedTime || this.currentSelectedTime),
-        start = end.getTime() - 24 * 3600e3;
+        start = end.getTime() - (C.fireDetection?.visibleObservationHours || 3) * 3600e3;
       for (const f of this.mtgFrpData) {
         const t = Date.parse(f.detectedAt);
         if (!Number.isFinite(t) || t < start || t > end.getTime()) continue;
@@ -1803,31 +1862,51 @@
       if (!show || !events?.length) return;
       let count = 0;
       for (const ev of events) {
-        const members = (ev.members || []).filter(
-          (m) => Number.isFinite(m.lat) && Number.isFinite(m.lon),
-        );
-        if (members.length < 2) continue;
-        const maxTi = members.reduce(
-          (mx, m) =>
-            Math.max(mx, Number(m.brightTi4) || 0, Number(m.brightTi5) || 0),
-          0,
-        );
-        if (maxTi <= 0) continue;
-        const hull = U.convexHull2D(members);
-        if (hull.length < 3) continue;
-        const hue = maxTi > 360 ? 30 : maxTi > 320 ? 15 : 0;
-        const light = U.clamp(55 + (maxTi - 300) * 0.3, 35, 75);
-        const coords = hull.map((p) => [p.lat, p.lon]);
-        coords.push(coords[0]);
-        L.polygon(coords, {
-          pane: "firePane",
-          color: `hsl(${hue},90%,${light}%)`,
-          weight: 2,
-          fillColor: `hsl(${hue},85%,${light + 8}%)`,
-          fillOpacity: 0.18,
-          interactive: false,
-        }).addTo(this.thermalEnvelopeLayer);
-        count++;
+        // Build local components only from current pixels.  In particular,
+        // never draw one broad convex hull across the full tracking history.
+        for (const members of currentThermalComponents(ev, this.currentSelectedTime)) {
+          if (members.length < 2) continue;
+          const maxTi = members.reduce(
+            (mx, m) => Math.max(mx, Number(m.brightTi4) || 0, Number(m.brightTi5) || 0),
+            0,
+          );
+          const maxFrp = members.reduce((mx, m) => Math.max(mx, Number(m.frpMw ?? m.frp) || 0), 0);
+          const hue = maxTi > 360 || maxFrp > 100 ? 30 : maxTi > 320 || maxFrp > 30 ? 15 : 0;
+          const light = maxTi > 0
+            ? U.clamp(55 + (maxTi - 300) * 0.3, 35, 75)
+            : U.clamp(48 + Math.sqrt(maxFrp || 0), 45, 68);
+          const hull = U.convexHull2D(members);
+          if (hull.length >= 3) {
+            const coords = hull.map((p) => [p.lat, p.lon]);
+            coords.push(coords[0]);
+            L.polygon(coords, {
+              pane: "firePane",
+              color: `hsl(${hue},90%,${light}%)`,
+              weight: 2,
+              fillColor: `hsl(${hue},85%,${light + 8}%)`,
+              fillOpacity: 0.18,
+              interactive: false,
+            }).addTo(this.thermalEnvelopeLayer);
+          } else {
+            // A pair has no honest hull.  Show its observed footprints rather
+            // than inventing a perimeter between distant sensor pixels.
+            for (const member of members) {
+              const area = Number(member.effectivePixelAreaKm2);
+              if (!Number.isFinite(area) || area <= 0) continue;
+              const radiusMetres = Math.sqrt(area / Math.PI) * 1000;
+              L.circle([member.lat, member.lon], {
+                pane: "firePane",
+                radius: radiusMetres,
+                color: `hsl(${hue},90%,${light}%)`,
+                weight: 1,
+                fillColor: `hsl(${hue},85%,${light + 8}%)`,
+                fillOpacity: 0.12,
+                interactive: false,
+              }).addTo(this.thermalEnvelopeLayer);
+            }
+          }
+          count++;
+        }
       }
       if (count) {
         this.thermalEnvelopeLayer.addTo(this.map);
@@ -1946,6 +2025,10 @@
         `<strong>${T("map.eventCluster")}</strong> · ${T("summary.detections", { count: I.formatNumber(ev.count) })}`,
         T("sparkline.title"),
       ];
+      if (ev.state) {
+        const labels = { WATCH: T("fire.state.watch"), PROBABLE: T("fire.state.probable"), HIGH_CONFIDENCE: T("fire.state.highConfidence"), STATIC_SUPPRESSED: T("fire.state.staticSuppressed"), STALE: T("fire.state.stale") };
+        out.push(`<small><strong>${U.escapeHtml(labels[ev.state] || ev.state)}</strong>${ev.fireDetectionScore != null ? ` · Skor ${ev.fireDetectionScore}` : ""}</small>`);
+      }
       const spark = this.fireSparklineData(ev, reference);
       if (spark) out.push(this.fireFrpChart(spark));
       else out.push(T("sparkline.empty"));

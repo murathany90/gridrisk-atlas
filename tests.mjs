@@ -121,11 +121,13 @@ for (const path of [
   "js/i18n.js",
   "js/config.js",
   "js/utils.js",
+  "js/api.js",
   "js/countries.js",
   "js/grid.js",
   "js/eumetview-wfs.js",
   "js/thermal-sources.js",
   "js/thermal-association.js",
+  "js/fire-detection.js",
   "js/map.js",
   "js/export.js",
 ])
@@ -134,15 +136,16 @@ for (const path of [
 const A = global.AtmoApp;
 const I = A.I18n;
 const U = A.Utils;
+const NativeFirmsAdapter = A.FirmsAdapter;
 const tests = [];
 const test = (name, fn) => tests.push({ name, fn });
 
 A.I18n.applyDocument(global.document);
 
-test("brand, subtitle and v3.14.0 are synchronized", () => {
+test("brand, subtitle and v3.15.0 are synchronized", () => {
   assert.equal(A.CONFIG.appName, "GridRisk Atlas");
-  assert.equal(A.CONFIG.appVersion, "3.14.0");
-  assert.equal(pkg.version, "3.14.0");
+  assert.equal(A.CONFIG.appVersion, "3.15.0");
+  assert.equal(pkg.version, "3.15.0");
   assert.equal(document.title.includes("GridRisk Atlas"), true);
   assert.match(html, /<h1[^>]*data-i18n="app\.name"[^>]*>\s*GridRisk Atlas/);
   assert.ok(html.includes("Satellite Wildfire &amp; Grid Risk Intelligence"));
@@ -946,7 +949,7 @@ test("thermal source registry contracts (config defaults, adapter registration, 
   assert.equal(registry.isEnabled("mtg-fci-frp"), true, "MTG enabled after successful EUMETView probe");
 
   const cfg = A.CONFIG.thermalSources;
-  assert.equal(cfg.mode, "SEPARATE_SOURCES");
+  assert.equal(cfg.mode, "MULTI_SOURCE");
   assert.deepEqual(cfg.enabled, {
     firms: true,
     sentinel3a: true,
@@ -954,7 +957,7 @@ test("thermal source registry contracts (config defaults, adapter registration, 
     mtg: true,
     msg: false,
   });
-  assert.equal(A.CONFIG.thermalFusion.enabled, false);
+  assert.equal(A.CONFIG.thermalFusion.enabled, true);
   assert.deepEqual(A.CONFIG.thermalFusion.association.viirsToSlstr, {
     maxDistanceKm: 2.5,
     maxTimeMinutes: 90,
@@ -968,8 +971,8 @@ test("thermal source registry contracts (config defaults, adapter registration, 
     maxTimeMinutes: 45,
   });
   const legacy = A.CONFIG.thermal;
-  assert.equal(legacy.mode, "SEPARATE_SOURCES");
-  assert.equal(legacy.fusion.enabled, false);
+  assert.equal(legacy.mode, "MULTI_SOURCE");
+  assert.equal(legacy.fusion.enabled, true);
   assert.equal(legacy.sources["nasa-firms"].enabled, true);
   assert.equal(legacy.sources["nasa-firms"].required, true);
   assert.equal(legacy.sources["sentinel3a-slstr"].featureFlag, true);
@@ -1027,7 +1030,7 @@ test("thermal: computeThermalMetrics computes deduplicated/threshold/visible/lat
   });
   assert.equal(m.deduplicatedCount, 5);
   assert.equal(m.thresholdCount, 3, "frp >= 30 counted; null frp ignored");
-  assert.equal(m.visibleCount, 5, "all within the 24h visible window");
+  assert.equal(m.visibleCount, 1, "only observations in the three-hour visible window count");
   assert.equal(m.latestObservationAt, "2026-08-02T23:00:00Z");
   const outsideWindow = TS.computeThermalMetrics(detections.slice(0, 2), {
     frpThreshold: 30,
@@ -1352,7 +1355,7 @@ test("thermal: Sentinel-3 SLSTR adapters normalize GeoJSON to the shared model",
   assert.equal(out.metrics.deduplicatedCount, 2, "SLSTR deduplicatedCount is deduped.length");
 });
 
-test("thermal: SLSTR adapter drops features outside the region and without FRP/geometry", async () => {
+test("thermal: SLSTR adapter preserves null FRP while dropping invalid location or time", async () => {
   const s3a = A.ThermalSources.registry.get("sentinel3a-slstr");
   const outside = {
     ...wfsPage1.features[0],
@@ -1367,6 +1370,10 @@ test("thermal: SLSTR adapter drops features outside the region and without FRP/g
     geometry: null,
     properties: { ...wfsPage1.features[0].properties, Lat: null, Lon: null },
   };
+  const noFrp = {
+    ...wfsPage1.features[0],
+    properties: { ...wfsPage1.features[0].properties, FRP: null, FRPerr: null },
+  };
   const out = await withGetFeature(
     () =>
       s3a.load({
@@ -1375,12 +1382,13 @@ test("thermal: SLSTR adapter drops features outside the region and without FRP/g
         startTime: new Date("2026-08-01T00:00:00Z"),
         endTime: new Date("2026-08-02T00:00:00Z"),
       }),
-    async () => ({ features: [outside, noTime, noGeom], pages: 1, totalMatched: 3, meta: {} }),
+    async () => ({ features: [outside, noTime, noGeom, noFrp], pages: 1, totalMatched: 4, meta: {} }),
   );
-  assert.equal(out.length, 0, "all three invalid features filtered out");
-  assert.equal(out.metrics.rawCount, 3, "rawCount counts all WFS features, even filtered ones");
-  assert.equal(out.metrics.validCount, 0, "validCount counts only kept detections");
-  assert.equal(out.metrics.deduplicatedCount, 0);
+  assert.equal(out.length, 1, "a located, dated observation survives even without FRP");
+  assert.equal(out[0].frpMw, null, "missing FRP is a low-confidence raw observation, not a filter condition");
+  assert.equal(out.metrics.rawCount, 4, "rawCount counts all WFS features, even filtered ones");
+  assert.equal(out.metrics.validCount, 1, "validCount counts the retained null-FRP observation");
+  assert.equal(out.metrics.deduplicatedCount, 1);
 });
 
 test("thermal: SLSTR adapter keeps the best record when duplicates overlap in the window", async () => {
@@ -1580,19 +1588,19 @@ test("thermal: MTG adapter keeps only real WFS features inside the region", asyn
   assert.equal(out.length, 0);
 });
 
-test("thermal: runtime modes activate alternates while fusion stays config-locked until MULTI_SOURCE", () => {
+test("thermal: automatic runtime defaults to multi-source while legacy modes remain testable", () => {
   const TS = A.ThermalSources;
-  assert.equal(A.CONFIG.thermalSources.mode, "SEPARATE_SOURCES");
-  assert.equal(A.CONFIG.thermalFusion.enabled, false);
-  assert.equal(A.CONFIG.thermal.mode, "SEPARATE_SOURCES", "legacy alias stays in sync");
-  assert.equal(A.CONFIG.thermal.fusion.enabled, false);
+  assert.equal(A.CONFIG.thermalSources.mode, "MULTI_SOURCE");
+  assert.equal(A.CONFIG.thermalFusion.enabled, true);
+  assert.equal(A.CONFIG.thermal.mode, "MULTI_SOURCE", "legacy alias stays in sync");
+  assert.equal(A.CONFIG.thermal.fusion.enabled, true);
   assert.deepEqual(TS.THERMAL_MODES, [
     "FIRMS_ONLY",
     "SEPARATE_SOURCES",
     "MULTI_SOURCE",
   ]);
   localStorage.removeItem("thermalMode");
-  assert.equal(TS.getMode(), "SEPARATE_SOURCES", "localStorage unset falls back to config");
+  assert.equal(TS.getMode(), "MULTI_SOURCE", "localStorage unset falls back to automatic config");
   assert.equal(TS.setMode("MULTI_SOURCE"), "MULTI_SOURCE");
   assert.equal(localStorage.getItem("thermalMode"), "MULTI_SOURCE");
   assert.equal(
@@ -1602,15 +1610,15 @@ test("thermal: runtime modes activate alternates while fusion stays config-locke
   );
   assert.equal(TS.setMode("FIRMS_ONLY"), "FIRMS_ONLY");
   assert.equal(A.CONFIG.thermalFusion.enabled, false, "fusion deactivates outside MULTI_SOURCE");
-  assert.equal(TS.setMode("BOGUS"), "SEPARATE_SOURCES", "invalid mode falls back to config default");
-  assert.equal(A.CONFIG.thermalFusion.enabled, false);
-  TS.setMode("SEPARATE_SOURCES");
+  assert.equal(TS.setMode("BOGUS"), "MULTI_SOURCE", "invalid mode falls back to config default");
+  assert.equal(A.CONFIG.thermalFusion.enabled, true);
+  TS.setMode("MULTI_SOURCE");
   const appSrc = source.app;
   assert.ok(
     /loadThermalSources/.test(appSrc),
     "orchestrator wired after its dedicated commit",
   );
-  const fnStart = appSrc.indexOf("async loadThermalSources()");
+  const fnStart = appSrc.indexOf("async loadThermalSources({ includeSlstr = true, includeMtg = true } = {})");
   assert.ok(fnStart !== -1, "loadThermalSources method exists");
   const sliced = appSrc.slice(fnStart);
   const earlyReturn = sliced.indexOf("getMode() === \"FIRMS_ONLY\"");
@@ -1648,7 +1656,7 @@ test("thermal: FIRMS_ONLY plans zero alternate requests and never touches EUMETV
     });
     assert.deepEqual(plan, { slstrIds: [], mtg: false }, "no alternate-source query in FIRMS_ONLY");
   } finally {
-    TS.setMode("SEPARATE_SOURCES");
+    TS.setMode("MULTI_SOURCE");
   }
 });
 
@@ -1676,7 +1684,7 @@ test("thermal: SEPARATE_SOURCES plans both SLSTR satellites and MTG after probe 
   assert.equal(firmsOnly.mtg, false, "MTG is never requested in FIRMS_ONLY");
 });
 
-test("thermal: per-source flags restrict SLSTR WFS queries and disabled sensors never query", async () => {
+test("thermal: raw source map controls do not restrict automatic SLSTR detection", async () => {
   const TS = A.ThermalSources;
   const req = {
     bbox,
@@ -1695,7 +1703,7 @@ test("thermal: per-source flags restrict SLSTR WFS queries and disabled sensors 
   await withGetFeature(() => TS.loadSlstrGroup(req, ["sentinel3a-slstr"]), handler);
   assert.deepEqual(calls, ["copernicus:sentinel3a_slstr_level2_frp"]);
   const planB = TS.planThermalRequests({ mode: "SEPARATE_SOURCES", sentinel3a: true, sentinel3b: false });
-  assert.deepEqual(planB.slstrIds, ["sentinel3a-slstr"]);
+  assert.deepEqual(planB.slstrIds, ["sentinel3a-slstr", "sentinel3b-slstr"]);
   calls.length = 0;
   await withGetFeature(() => TS.loadSlstrGroup(req, []), handler);
   assert.deepEqual(calls, [], "no enabled sensor means no WFS request");
@@ -2421,6 +2429,157 @@ test("association: three sources mutually within their thresholds form one event
   assert.equal(events.length, 1, "all three sources pairwise in range share one event");
   assert.equal(events[0].observationCount, 3);
   assert.equal(events[0].independentSensorCount, 3);
+});
+
+test("FIRMS historical requests cover a 48-hour mid-day window with DATE and three calendar days", async () => {
+  const originalFetch = global.fetch;
+  const calls = [];
+  global.fetch = async (url) => {
+    calls.push(String(url));
+    return {
+      ok: true,
+      status: 200,
+      text: async () => "latitude,longitude,acq_date,acq_time,frp\\n39,35,2026-08-10,1200,4\\n",
+    };
+  };
+  try {
+    await NativeFirmsAdapter.loadSingle(
+      "VIIRS_NOAA21_NRT",
+      "25,35,45,43",
+      3,
+      new AbortController().signal,
+      "test-map-key",
+      {
+        startTime: new Date("2026-08-08T12:00:00Z"),
+        endTime: new Date("2026-08-10T12:00:00Z"),
+      },
+    );
+    assert.equal(calls.length, 1);
+    assert.match(calls[0], /\/3\/2026-08-08$/);
+  } finally {
+    global.fetch = originalFetch;
+  }
+});
+
+test("fire detection: low-FRP temporal growth survives display filtering and keeps a stable event id", () => {
+  const engine = new A.FireDetectionEngine();
+  const at = "2026-08-02T10:30:00Z";
+  const observations = [4, 8, 14, 23].map((frpMw, index) => normDet({
+    detectionId: `mtg-${index}`,
+    sourceId: "mtg-fci-frp",
+    sensorFamily: "mtg",
+    satellite: "MTG-I1",
+    product: "MTG FCI FRP",
+    frpMw,
+    detectedAt: `2026-08-02T10:${String(index * 10).padStart(2, "0")}:00Z`,
+  }));
+  const first = engine.rebuild({ observations, countryCode: "TR", selectedTime: at });
+  assert.equal(first.length, 1, "all consecutive MTG frames form one tracked event");
+  assert.ok(first[0].state === "PROBABLE" || first[0].state === "HIGH_CONFIDENCE");
+  assert.equal(first[0].peakFrp, 23, "sub-30 MW observations remain in the detection engine");
+  assert.equal(first[0].mtg.deltaFrp30, 19);
+  assert.equal(first[0].mtg.consecutiveFrames, 4);
+  const id = first[0].id;
+  const next = engine.rebuild({ observations: [...observations, normDet({
+    detectionId: "mtg-4", sourceId: "mtg-fci-frp", sensorFamily: "mtg", satellite: "MTG-I1", product: "MTG FCI FRP", frpMw: 28, detectedAt: at,
+  })], countryCode: "TR", selectedTime: at });
+  assert.equal(next[0].id, id, "event identity does not reset on rebuild");
+});
+
+test("fire detection: visible window is selected-time based while 48-hour event memory remains available", () => {
+  const engine = new A.FireDetectionEngine();
+  const selected = "2026-08-02T15:00:00Z";
+  const rows = [
+    normDet({ detectionId: "old", detectedAt: "2026-08-02T10:00:00Z", frpMw: 60 }),
+    normDet({ detectionId: "new", detectedAt: "2026-08-02T14:40:00Z", frpMw: 12, lat: 39.7, lon: 35.8 }),
+  ];
+  const events = engine.rebuild({ observations: rows, countryCode: "TR", selectedTime: selected });
+  assert.equal(events.length, 2, "event tracking retains history older than the map window");
+  const visible = engine.visibleEvents(events, selected);
+  assert.equal(visible.length, 1);
+  assert.equal(visible[0].observations[0].detectionId, "new");
+});
+
+test("fire detection: a recent high-confidence event has a controlled stale fallback", () => {
+  const engine = new A.FireDetectionEngine();
+  const start = "2026-08-02T12:20:00Z";
+  engine.rebuild({ countryCode: "TR", selectedTime: start, observations: [
+    normDet({ detectionId: "v", frpMw: 40, detectedAt: "2026-08-02T12:00:00Z" }),
+    normDet({ detectionId: "s", sourceId: "sentinel3a-slstr", sensorFamily: "slstr", satellite: "S3A", product: "SLSTR L2P FRP", frpMw: 42, detectedAt: "2026-08-02T12:10:00Z" }),
+  ] });
+  const stale = engine.rebuild({ countryCode: "TR", selectedTime: "2026-08-02T13:50:00Z", observations: [] });
+  assert.equal(stale.length, 1);
+  assert.equal(stale[0].state, "STALE");
+  assert.equal(engine.visibleEvents(stale, "2026-08-02T13:50:00Z").length, 1);
+  const expired = engine.rebuild({ countryCode: "TR", selectedTime: "2026-08-02T16:30:00Z", observations: [] });
+  assert.equal(expired.length, 0, "stale fallback expires at its configured limit");
+});
+
+test("fire detection: independent VIIRS + SLSTR raises confidence and static-source suppression can be overridden", () => {
+  const engine = new A.FireDetectionEngine();
+  const at = "2026-08-02T12:20:00Z";
+  const multi = engine.rebuild({
+    countryCode: "TR", selectedTime: at,
+    observations: [
+      normDet({ detectionId: "v", frpMw: 15, detectedAt: at }),
+      normDet({ detectionId: "s", sourceId: "sentinel3a-slstr", sensorFamily: "slstr", satellite: "S3A", product: "SLSTR L2P FRP", frpMw: 18, detectedAt: "2026-08-02T12:10:00Z" }),
+    ],
+  });
+  assert.equal(multi[0].independentSensorCount, 2, "platforms within VIIRS remain one family, SLSTR is independent");
+  assert.equal(multi[0].state, "HIGH_CONFIDENCE");
+
+  const staticEngine = new A.FireDetectionEngine();
+  staticEngine.setPersistentThermalSources({ type: "FeatureCollection", features: [{ type: "Feature", geometry: { type: "Point", coordinates: [35.2, 38.6] }, properties: { classification: "STATIC_INDUSTRIAL", radiusKm: 1, medianFrpMw: 8, frpMadMw: 2, p99FrpMw: 20, dayCount: 50, nightCount: 10 } }] });
+  const suppressed = staticEngine.rebuild({ countryCode: "TR", selectedTime: at, observations: [normDet({ detectionId: "static", frpMw: 10, detectedAt: at })] });
+  assert.equal(suppressed[0].state, "STATIC_SUPPRESSED");
+  assert.equal(staticEngine.visibleEvents(suppressed, at).length, 0, "suppressed events do not feed active map/risk output");
+  const anomaly = staticEngine.rebuild({ countryCode: "TR", selectedTime: at, observations: [
+    normDet({ detectionId: "static-v", frpMw: 50, detectedAt: at }),
+    normDet({ detectionId: "static-s", sourceId: "sentinel3a-slstr", sensorFamily: "slstr", satellite: "S3A", product: "SLSTR L2P FRP", frpMw: 55, detectedAt: "2026-08-02T12:10:00Z" }),
+  ] });
+  assert.notEqual(anomaly[0].state, "STATIC_SUPPRESSED", "large anomaly or independent evidence overrides static suppression");
+  assert.ok(anomaly[0].staticOverride.reasons.length > 0);
+});
+
+test("fire detection: nearby rebuilt clusters do not reuse one stable event id", () => {
+  const engine = new A.FireDetectionEngine();
+  engine.rebuild({
+    countryCode: "TR",
+    selectedTime: "2026-08-02T10:00:00Z",
+    observations: [normDet({ detectionId: "seed", detectedAt: "2026-08-02T10:00:00Z" })],
+  });
+  const events = engine.rebuild({
+    countryCode: "TR",
+    selectedTime: "2026-08-02T11:00:00Z",
+    observations: [
+      normDet({ detectionId: "west", lat: 38.56, detectedAt: "2026-08-02T11:00:00Z" }),
+      normDet({ detectionId: "east", lat: 38.64, detectedAt: "2026-08-02T11:00:00Z" }),
+    ],
+  });
+  assert.equal(events.length, 2);
+  assert.equal(new Set(events.map((event) => event.id)).size, 2, "one historic track cannot be claimed twice");
+});
+
+test("fire detection: a growing static footprint can override suppression without a high FRP", () => {
+  const engine = new A.FireDetectionEngine();
+  const at = "2026-08-02T12:00:00Z";
+  engine.setPersistentThermalSources({ type: "FeatureCollection", features: [{
+    type: "Feature",
+    geometry: { type: "Point", coordinates: [35.2, 38.6] },
+    properties: { classification: "STATIC_INDUSTRIAL", radiusKm: 1, medianFrpMw: 10, frpMadMw: 4, p99FrpMw: 100, dayCount: 10, nightCount: 10 },
+  }] });
+  const observations = [
+    normDet({ detectionId: "previous", frpMw: 10, detectedAt: "2026-08-02T10:50:00Z", effectivePixelAreaKm2: 1 }),
+    normDet({ detectionId: "current-1", frpMw: 10, detectedAt: "2026-08-02T11:31:00Z", effectivePixelAreaKm2: 1 }),
+    normDet({ detectionId: "current-2", frpMw: 10, detectedAt: "2026-08-02T11:41:00Z", effectivePixelAreaKm2: 1 }),
+    normDet({ detectionId: "current-3", frpMw: 10, detectedAt: "2026-08-02T11:51:00Z", effectivePixelAreaKm2: 1 }),
+  ];
+  const [event] = engine.rebuild({ countryCode: "TR", selectedTime: at, observations });
+  assert.equal(event.activePixelCount, 3);
+  assert.equal(event.activeThermalAreaKm2, 3);
+  assert.notEqual(event.state, "STATIC_SUPPRESSED");
+  assert.ok(event.staticOverride.reasons.includes("pixel_growth"));
+  assert.ok(event.staticOverride.reasons.includes("thermal_area_growth"));
 });
 
 function evidenceGrid(lineFeatures) {

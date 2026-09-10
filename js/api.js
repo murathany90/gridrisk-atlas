@@ -349,7 +349,7 @@
     if (end == null) return null;
     const endMs = end instanceof Date ? end.getTime() : new Date(end).getTime();
     if (!Number.isFinite(endMs)) return null;
-    const start = endMs - 24 * 3600e3;
+    const start = endMs - (C.fireDetection?.visibleObservationHours || 3) * 3600e3;
     const out = (list || []).filter((d) => {
       const t = d && d.detectedAt ? Date.parse(d.detectedAt) : NaN;
       return Number.isFinite(t) && t >= start && t <= endMs;
@@ -381,6 +381,22 @@
     return metrics;
   }
 
+  function firmsDateSegment(opts, days) {
+    const requestedEnd = opts?.endTime || opts?.visibleWindow;
+    const endMs = requestedEnd instanceof Date ? requestedEnd.getTime() : Date.parse(requestedEnd || "");
+    // Omitting DATE keeps FIRMS' most-recent NRT endpoint for the live view.
+    if (!Number.isFinite(endMs) || Math.abs(Date.now() - endMs) <= 15 * 60e3) return "";
+    // DATE is the first UTC calendar day in the request.  A 48-hour window
+    // that begins mid-day spans three calendar dates, so prefer startTime
+    // when it is supplied instead of silently dropping the first partial day.
+    const requestedStart = opts?.startTime;
+    const startMs = requestedStart instanceof Date ? requestedStart.getTime() : Date.parse(requestedStart || "");
+    const firstDay = new Date(Number.isFinite(startMs)
+      ? startMs
+      : endMs - Math.max(0, days - 1) * 24 * 3600e3);
+    return `/${firstDay.toISOString().slice(0, 10)}`;
+  }
+
   A.FirmsAdapter = {
     source() {
       return localStorage.getItem("firmsSource") || "AUTO";
@@ -392,11 +408,12 @@
     isAuto() {
       return this.source() === "AUTO";
     },
-    async loadSingle(source, bbox, days, signal, key) {
-      const url = `${C.firmsBase}/${encodeURIComponent(key)}/${source}/${bbox}/${days}`;
+    async loadSingle(source, bbox, days, signal, key, opts = {}) {
+      const dateSegment = firmsDateSegment(opts, days);
+      const url = `${C.firmsBase}/${encodeURIComponent(key)}/${source}/${bbox}/${days}${dateSegment}`;
       const { data, meta } = await U.fetchText(url, {
         signal,
-        cacheKey: `firms:${C.activeCountryCode}:${source}:${bbox}`,
+        cacheKey: `firms:${C.activeCountryCode}:${source}:${bbox}:${dateSegment || "latest"}`,
         ttl: C.cacheTtl.firms,
       });
       const rows = U.parseCsv(data),
@@ -420,7 +437,7 @@
     },
     async loadAll(signal, opts = {}) {
       const bbox = U.regionBboxString(),
-        days = 2,
+        days = 3,
         key = C.firmsMapKey;
       if (!key || key === "__FIRMS_MAP_KEY__") {
         const e = new Error(T("api.mapKeyMissing"));
@@ -458,7 +475,7 @@
           }
           const timer = setTimeout(() => ctrl.abort("timeout"), 20000);
           const sKey = key;
-          return this.loadSingle(s, bbox, days, ctrl.signal, sKey).finally(() =>
+          return this.loadSingle(s, bbox, days, ctrl.signal, sKey, opts).finally(() =>
             clearTimeout(timer),
           );
         }),
@@ -542,7 +559,7 @@
     },
     async load(signal, opts = {}) {
       const bbox = U.regionBboxString(),
-        days = 2,
+        days = 3,
         key = C.firmsMapKey;
       if (!key || key === "__FIRMS_MAP_KEY__") {
         const e = new Error(T("api.mapKeyMissing"));
@@ -568,10 +585,10 @@
         });
       try {
         const { data, meta, counts } = await U.fetchText(
-          `${C.firmsBase}/${encodeURIComponent(key)}/${source}/${bbox}/${days}`,
+          `${C.firmsBase}/${encodeURIComponent(key)}/${source}/${bbox}/${days}${firmsDateSegment(opts, days)}`,
           {
             signal,
-            cacheKey: `firms:${C.activeCountryCode}:${source}:${bbox}`,
+            cacheKey: `firms:${C.activeCountryCode}:${source}:${bbox}:${firmsDateSegment(opts, days) || "latest"}`,
             ttl: C.cacheTtl.firms,
           },
         ).then(async (r) => {

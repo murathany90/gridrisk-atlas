@@ -148,7 +148,7 @@
   A.Utils = {
     clamp(v,min,max){return Math.min(max,Math.max(min,v));},
     round(v,d=2){const p=10**d;return Math.round(v*p)/p;},
-    toNum(v){const n=Number(v);return Number.isFinite(n)?n:null;},
+    toNum(v){if(v==null||v==='')return null;const n=Number(v);return Number.isFinite(n)?n:null;},
     escapeHtml(s){return String(s??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));},
     formatLocal(date){return new Intl.DateTimeFormat(A.I18n?.intlLocale?.()||'tr-TR',{timeZone:A.activeCountry?.().timezone||'Europe/Istanbul',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false,timeZoneName:'short'}).format(date);},
     formatUtc(date){return new Intl.DateTimeFormat(A.I18n?.intlLocale?.()||'tr-TR',{timeZone:'UTC',day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit',hour12:false,timeZoneName:'short'}).format(date);},

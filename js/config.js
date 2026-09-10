@@ -2,7 +2,7 @@ window.AtmoApp = window.AtmoApp || {};
 (function(A){
   A.CONFIG = {
     appName: 'GridRisk Atlas',
-    appVersion: '3.14.0',
+    appVersion: '3.15.0',
     activeCountryCode: 'TR',
     defaultCenter: [39.0, 35.2],
     defaultZoom: 6,
@@ -39,7 +39,9 @@ window.AtmoApp = window.AtmoApp || {};
     cacheTtl: { air: 30*60*1000, weather: 60*60*1000, geocode: 60*60*1000, firms: 7*60*1000, grid: 24*60*60*1000 },
     firmsSources: ['VIIRS_NOAA21_NRT','VIIRS_NOAA20_NRT','VIIRS_SNPP_NRT','MODIS_NRT'],
     thermalSources: {
-      mode: 'SEPARATE_SOURCES',
+      // Source selection is automatic.  The source diagnostics remain available
+      // in Settings, but it must never change the detection decision path.
+      mode: 'MULTI_SOURCE',
       enabled: {
         firms: true,
         sentinel3a: true,
@@ -56,11 +58,59 @@ window.AtmoApp = window.AtmoApp || {};
       }
     },
     thermalFusion: {
-      enabled: false,
+      enabled: true,
       association: {
         viirsToSlstr: { maxDistanceKm: 2.5, maxTimeMinutes: 90 },
         viirsToMtg: { maxDistanceKm: 4, maxTimeMinutes: 30 },
         slstrToMtg: { maxDistanceKm: 4, maxTimeMinutes: 45 }
+      }
+    },
+    fireDetection: {
+      // These scopes deliberately have different jobs: presentation, event
+      // memory and long-term static-source learning must not be conflated.
+      visibleObservationHours: 3,
+      eventTrackingHours: 48,
+      staleHighConfidenceMinutes: 180,
+      association: {
+        radiusKm: 5,
+        maxClusterDiameterKm: 8,
+        maxGapHours: 6
+      },
+      activeThermalArea: {
+        // Visualization only: nearby current pixels may be grouped, but
+        // remote observations must never be joined into one apparent fire.
+        observationMinutes: 60,
+        maxComponentDiameterKm: 3
+      },
+      confidence: {
+        watch: 25,
+        probable: 50,
+        highConfidence: 70,
+        freshMinutes: 60,
+        recentMinutes: 180,
+        growingMtgFrames: 3
+      },
+      staticSource: {
+        cellMeters: 500,
+        // A static location is only suppressed when a canonical historical
+        // dataset is present.  Values are operational configuration, not
+        // scientific constants.
+        anomalyMadMultiplier: 4,
+        anomalyP99Multiplier: 1.35,
+        minFrpGrowthMw: 10,
+        minActivePixelGrowth: 2,
+        minThermalAreaGrowthKm2: 1,
+        overrideIndependentFamilies: 2
+      },
+      polling: {
+        mtgMs: 10 * 60 * 1000,
+        firmsMs: 30 * 60 * 1000,
+        slstrMs: 60 * 60 * 1000
+      },
+      serviceHealth: {
+        firmsStaleMinutes: 240,
+        mtgStaleMinutes: 45,
+        slstrStaleMinutes: 720
       }
     },
     satelliteImagery: {

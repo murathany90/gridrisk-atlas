@@ -5,7 +5,7 @@
 [![CI](https://github.com/murathany90/gridrisk-atlas/actions/workflows/ci.yml/badge.svg)](https://github.com/murathany90/gridrisk-atlas/actions/workflows/ci.yml)
 [![Deploy to GitHub Pages](https://github.com/murathany90/gridrisk-atlas/actions/workflows/pages.yml/badge.svg)](https://github.com/murathany90/gridrisk-atlas/actions/workflows/pages.yml)
 
-> Sürüm / Version: **v3.14.0** | [Canlı demo / Live demo](https://gridriskatlas.com/) | Arayüz / Interface: **Türkçe + English**
+> Sürüm / Version: **v3.15.0** | [Canlı demo / Live demo](https://gridriskatlas.com/) | Arayüz / Interface: **Türkçe + English**
 
 > Not: Eski GitHub Pages adresi `https://murathany90.github.io/gridrisk-atlas/` yeni canonical domaine yönlendirilir.
 
@@ -29,7 +29,7 @@ GridRisk Atlas combines satellite fire observations, atmospheric models and real
 ## Özellikler / Features
 
 - Sayfa yenilenmeden çalışan bağımsız ülke ve dil seçicileri; `?country=TR|ES|FR|PT|IT|GR&lang=tr|en` URL durumu.
-- FIRMS tespitlerini 5 km/6 saat penceresinde olaylara kümeleme ve varsayılan 30 MW FRP filtresi.
+- Birleşik yangın olay motoru: tüm düşük/eksik FRP gözlemlerini 48 saatlik hafızada 5 km/6 saat penceresinde complete-link korumasıyla izler; 30 MW FRP yalnız harita görünüm filtresidir ve şebeke riskine asla uygulanmaz.
 - Çoklu kaynak termal tespit altyapısı: kayıt (registry), EUMETView WFS istemcisi, Sentinel-3A/B SLSTR adapterları ve özellik bayrağı ardında isteğe bağlı MTG FCI FRP kaynağı; kaynaklar arası eşleştirme (association) aynı olayı gösterir ama FRP'leri asla toplamaz.
 - Yangın–hat/TM yakınlığı, FRP, tespit yaşı, varlık sınıfı ve rüzgâr doğrultusunu kullanan operasyonel öncelik skoru.
 - CAMS yangın kaynaklı PM10 yayılımı, Open-Meteo rüzgârı, EFFIS doğrulama katmanları ve MTG uydu zaman çizelgesi.
@@ -52,7 +52,7 @@ Dil sayı ve tarih biçimini (`tr-TR` veya `en-GB`), ülke ise saat dilimini bel
 ## Veri kaynakları / Data sources
 
 - **NASA FIRMS:** NOAA-21, NOAA-20 ve Suomi-NPP VIIRS NRT termal tespitleri; isteğe bağlı MODIS NRT. FIRMS noktası yangın perimetresi değildir.
-- **EUMETView WFS (Sentinel-3 SLSTR):** `copernicus:sentinel3a_slstr_level2_frp` ve `copernicus:sentinel3b_slstr_level2_frp` katmanları üzerinden 24 saatlik FRP tespitleri; uydu geçiş sıklığı nedeniyle tespit boşlukları normaldir.
+- **EUMETView WFS (Sentinel-3 SLSTR):** `copernicus:sentinel3a_slstr_level2_frp` ve `copernicus:sentinel3b_slstr_level2_frp` katmanları üzerinden 48 saatlik takip penceresinde FRP tespitleri; uydu geçiş sıklığı nedeniyle tespit boşlukları normaldir.
 - **EUMETView WFS (MTG FCI FRP):** `mtg_fd:frp` katmanı; raster WMS ürünü sayısal FRP olarak işlenmez, yalnızca gerçek WFS özellikleri kullanılır.
 - **Copernicus EFFIS:** Fire Weather Index ve NRT yanmış alan/doğrulama WMS katmanları. Haritadaki algoritmik poligon resmî saha perimetresi değildir.
 - **CAMS Europe / Open-Meteo:** Yangın kaynaklı PM10 model tahmini. Model çıktısı ölçüm istasyonu gözlemi değildir.
@@ -101,11 +101,15 @@ Ana GridRisk Atlas sayfası, GridAtlas 3D'yi same-origin iframe içinde yalnız 
 
 ## Çoklu kaynak termal tespit / Multi-source thermal detections
 
-Termal tespit kaynakları `js/thermal-sources.js` içindeki kayıt (registry) üzerinden yönetilir. Varsayılan `SEPARATE_SOURCES` modu FIRMS'ı mevcut davranışıyla korur ve Sentinel-3A/3B SLSTR tespitlerini ayrı katmanlarda sorgular; MTG FCI FRP ayrı bir `featureFlag` gerektirir. Mod **Ayarlar / Settings → Termal Kaynak Modu** bölümünden seçilir ve ülke/dilden bağımsız olarak `localStorage.thermalMode` içinde saklanır.
+Termal tespit kaynakları `js/thermal-sources.js` içindeki kayıt (registry) üzerinden yönetilir. Normal kullanıcı akışında mod seçimi yoktur: FIRMS, Sentinel-3A/B SLSTR ve doğrulanmış MTG FCI FRP otomatik yüklenir ve tek olay motoruna girer. Ham kaynak katmanları tanı/ileri kullanım içindir; olay kararı kaynak seçiminden bağımsızdır.
 
-- **Modlar:** `FIRMS_ONLY` yalnız NASA FIRMS kullanır ve hiçbir EUMETView isteği yapmaz; `SEPARATE_SOURCES` Sentinel-3 SLSTR tespitlerini kendi katmanlarında gösterir (varsayılan); `MULTI_SOURCE` (beta) kaynaklar arası doğrulama eşleştirmesini etkinleştirir — fusion yalnızca bu modda devrededir. FRP hiçbir modda toplanmaz veya ortalanmaz.
+- **Görünüm ve risk ayrımı:** Harita seçili zamana göre son 3 saati gösterir. Olay kimliği, trend ve güven puanı son 48 saatlik gözlem hafızasından türetilir. `WATCH`, `PROBABLE`, `HIGH_CONFIDENCE`, `STATIC_SUPPRESSED` ve kontrollü `STALE` durumları ayrı tutulur; yalnız aktif durumlar şebeke analizine gider.
+- **FIRMS tarih sorgusu:** Geçmiş timeline seçimi resmi `DATE` yolu ile üç UTC takvim gününü ister ve ardından 48 saatlik kesin pencereye indirger; canlı görünüm güncel NRT yolunu korur.
+- **Kalıcı termal kaynaklar:** `tools/build_persistent_thermal_sources.py` yalnız sağlanan kanonik geçmişten ~500 m hücre GeoJSON'u üretir. Gerçek ve gözden geçirilmiş OSM etiketleriyle solar/industrial sınıflaması yapar; artefakt yoksa servis `unavailable` olur ve bastırma kapalı kalır.
+
+- **Birleştirme:** FRP hiçbir kaynakta toplanmaz veya ortalanmaz. VIIRS platformları tek sensör ailesi sayılır; bağımsız aile ya da ardışık MTG trendi güveni yükseltir.
 - **Kaynak orkestrasyonu:** FIRMS her zaman önce yüklenir ve render edilir; Sentinel-3 SLSTR istekleri ona engel olamaz. Her kaynak kendi `js/eumetview-wfs.js` istemcisi üzerinden EUMETView WFS `GetFeature` çağrısı yapar — `time=` parametresi güvenilmez olduğu için filtre her zaman `cql_filter` içinde `BBOX(...) AND time >= ... AND time <= ...` biçiminde kurulur.
-- Timeline değiştiğinde Sentinel/MTG yalnız seçili ana göre son 24 saatlik pencere için (yeniden) sorgulanır; pencere normalize edilmiş bir anahtarla tekilleştirilir, aynı pencere tekrar istenmez, oynatma adımlarında ağ isteği yapılmaz ve eski istek sonuçları sıra (seq) denetimiyle uygulanmaz.
+- Timeline değiştiğinde Sentinel/MTG seçili ana göre son 48 saatlik takip penceresi için (yeniden) sorgulanır; pencere normalize edilmiş bir anahtarla tekilleştirilir, aynı pencere tekrar istenmez, oynatma adımlarında ağ isteği yapılmaz ve eski istek sonuçları sıra (seq) denetimiyle uygulanmaz.
 - `map` kanalları: tek bir uydunun başarısızlığı diğerini engellemez (`loadSlstrGroup`). Etkin uyduların tamamı yüklenemezse status `error`, biri çalışırsa `warn`, hepsi boşsa `empty` döner; alt kaynak bayrağı kapatılan uydu için istek yapılmaz.
 - Bir kaynak hatası `state.fireData`'ya dokunmaz; FIRMS markerları güncel kalır.
 - **Kaynaklar arası eşleştirme (association):** Aynı olay farklı uydulardan göründüğünde `observations` içinde gruplanır; FRP asla toplanmaz veya ortalanmaz, `maxFrpMw` sonlu gözlemlerin maksimumudur. Eşikler config'de tanımlıdır: VIIRS→SLSTR 2.5 km / 90 dk, VIIRS→MTG 4 km / 30 dk, SLSTR→MTG 4 km / 45 dk.

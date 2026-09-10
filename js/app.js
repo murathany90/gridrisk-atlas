@@ -8,6 +8,7 @@
       this.ui = new A.UIManager();
       this.map = new A.MapManager();
       this.grid = new A.GridRepository();
+      this.fireDetection = new A.FireDetectionEngine();
       this.state = {
         countryCode: "TR",
         countrySeq: 0,
@@ -20,6 +21,7 @@
         wildfireSummaryData: [],
         fireData: [],
         fireEvents: [],
+        fireDetectionEvents: [],
         fireImpacts: [],
         windData: [],
         surfaceWindData: [],
@@ -59,6 +61,7 @@
       this.playTimer = null;
       this.thermalTimer = null;
       this._thermalWindowKey = null;
+      this.sourcePollers = [];
       this.lastApiCall = 0;
       this.resizeT = null;
       this.countryManager = new A.CountryManager(this);
@@ -135,6 +138,7 @@
       clearTimeout(this.moveTimer);
       clearTimeout(this.timeTimer);
       clearTimeout(this.thermalTimer);
+      this.stopSourcePolling();
       this._thermalWindowKey = null;
     }
     resetCountryState(code) {
@@ -148,6 +152,7 @@
         wildfireSummaryData: [],
         fireData: [],
         fireEvents: [],
+        fireDetectionEvents: [],
         fireImpacts: [],
         windData: [],
         surfaceWindData: [],
@@ -158,6 +163,7 @@
         multiSensorEvents: [],
       });
       this._thermalWindowKey = null;
+      this.fireDetection.reset(code);
       if (A.ThermalSources) {
         const altIds = ["sentinel3a-slstr", "sentinel3b-slstr", "mtg-fci-frp", "multi-sensor"];
         for (const id of altIds) {
@@ -194,6 +200,7 @@
         this.map.toggleEffisBurntArea(true, this.state.selectedTime);
       if (this.state.satelliteImageryMode !== "none")
         this.map.setSatelliteImagery(this.state.satelliteImageryMode, this.state.selectedTime);
+      await this.loadPersistentThermalSources(code, this.state.countryAbortController?.signal);
       if (C.firmsMapKey && C.firmsMapKey !== "__FIRMS_MAP_KEY__")
         this.loadFirms().finally(() => this.loadThermalSources());
       else {
@@ -217,13 +224,47 @@
         if (dep) dep.hidden = !on;
       });
       this.syncThermalModeUI();
+      this.startSourcePolling();
       this.ui.setUpdated();
+    }
+    async loadPersistentThermalSources(countryCode, signal) {
+      const url = `data/countries/${encodeURIComponent(countryCode)}/persistent_thermal_sources.geojson?v=${encodeURIComponent(C.appVersion)}`;
+      try {
+        const { data, meta } = await U.fetchJson(url, {
+          signal,
+          cacheKey: `persistent-thermal:${countryCode}:${C.appVersion}`,
+          ttl: C.cacheTtl.grid,
+        });
+        if (countryCode !== this.state.countryCode || !data || data.type !== "FeatureCollection") return;
+        this.fireDetection.setPersistentThermalSources(data);
+        A.Events.emit("service", {
+          id: "staticThermal",
+          state: data.features?.length ? "ok" : "warn",
+          latency: meta.cached ? 0 : meta.latency,
+          count: data.features?.length || 0,
+          latestObservationAt: data.metadata?.historyEnd || null,
+          note: data.features?.length ? "offline canonical history" : "canonical history is empty",
+        });
+      } catch (error) {
+        if (signal?.aborted || countryCode !== this.state.countryCode) return;
+        // Absence is an explicit degraded mode.  Never fabricate a mask and
+        // never suppress an event merely because history is unavailable.
+        this.fireDetection.setPersistentThermalSources([]);
+        this.fireDetection.staticDatasetStatus = "unavailable";
+        A.Events.emit("service", {
+          id: "staticThermal",
+          state: "unavailable",
+          count: 0,
+          note: "canonical history unavailable; static suppression disabled",
+        });
+      }
     }
     restoreSettings() {
       document.getElementById("firmsSource").value = A.FirmsAdapter.source();
-      const thermalMode = A.ThermalSources.getMode();
+      const thermalMode = "MULTI_SOURCE";
       document.getElementById("thermalModeSelect").value = thermalMode;
       A.ThermalSources.setMode(thermalMode);
+      document.getElementById("thermalModeSelect").closest("article")?.setAttribute("hidden", "hidden");
       this.syncThermalModeUI();
       const wl = localStorage.getItem("windLevel");
       if (C.windLevels[wl]) this.state.windLevel = wl;
@@ -295,22 +336,12 @@
         .addEventListener("change", (e) => {
           this.state.slstrAEnabled = e.target.checked;
           this.map.toggleSentinelSlstrSource("sentinel3a-slstr", e.target.checked);
-          if (
-            e.target.checked &&
-            A.ThermalSources.getMode() !== "FIRMS_ONLY"
-          )
-            this.loadThermalSources();
         });
       document
         .getElementById("layerSentinelSlstrB")
         .addEventListener("change", (e) => {
           this.state.slstrBEnabled = e.target.checked;
           this.map.toggleSentinelSlstrSource("sentinel3b-slstr", e.target.checked);
-          if (
-            e.target.checked &&
-            A.ThermalSources.getMode() !== "FIRMS_ONLY"
-          )
-            this.loadThermalSources();
         });
       document
         .getElementById("layerMtgFrp")
@@ -356,7 +387,7 @@
         this.map.setSlstrSource("sentinel3b-slstr", this.map.slstrBData, this.state.selectedTime);
         this.map.setMtgFrp(this.map.mtgFrpData, this.state.selectedTime);
         this.map.setMultiSensor(this.state.multiSensorEvents, this.state.selectedTime);
-        this.state.fireEvents = this.map.fireEventsVisible;
+        this.state.fireEvents = this.map.fireEventsActive;
         this.updateImpact();
         this.renderFireLayers();
         const el = document.getElementById("frpCount");
@@ -520,12 +551,22 @@
       document
         .getElementById("healthCheckBtn")
         .addEventListener("click", () => this.healthCheck(true));
-      document.getElementById("refreshAllBtn").addEventListener("click", () => {
+      document.getElementById("refreshAllBtn").addEventListener("click", async () => {
         A.Cache.clear();
-        this.loadSmokeGrid();
-        this.loadWindGrid(true);
-        if (C.firmsMapKey && C.firmsMapKey !== "__FIRMS_MAP_KEY__")
-          this.loadFirms();
+        // Static classification is part of the thermal pipeline.  Refresh it
+        // before rebuilding events, but degrade explicitly when no canonical
+        // history artifact has been published for this country.
+        await this.loadPersistentThermalSources(
+          this.state.countryCode,
+          this.state.countryAbortController?.signal,
+        );
+        await Promise.all([
+          this.loadSmokeGrid(),
+          this.loadWindGrid(true),
+          C.firmsMapKey && C.firmsMapKey !== "__FIRMS_MAP_KEY__" ? this.loadFirms() : Promise.resolve(),
+        ]);
+        await this.loadThermalSources();
+        this.rebuildFireDetection();
         this.ui.toast(T("toast.cacheRefresh"));
       });
       document
@@ -616,7 +657,7 @@
       this.state.selectedTime = d;
       this.ui.setTime(d);
       this.map.renderFires(d);
-      this.state.fireEvents = this.map.fireEventsVisible;
+      this.state.fireEvents = this.map.fireEventsActive;
       if (this.state.heatEnabled) this.map.toggleHeat(true);
       if (this.state.fwiEnabled)
         this.map.toggleFwi(true, d);
@@ -801,6 +842,8 @@
       try {
         const data = await A.FirmsAdapter.load(ctrl.signal, {
           visibleWindow: this.state.selectedTime,
+          endTime: this.state.selectedTime,
+          startTime: new Date(this.state.selectedTime.getTime() - (C.fireDetection?.eventTrackingHours || 48) * 3600e3),
         });
         if (seq !== this.reqSeq.firms || countryCode !== this.state.countryCode)
           return;
@@ -809,12 +852,9 @@
         );
         this.map.setFires(this.state.fireData, this.state.selectedTime);
         this.map.toggleFires(this.state.firesEnabled);
-        this.state.fireEvents = this.map.fireEventsVisible;
+        this.rebuildFireDetection();
         if (this.state.heatEnabled) this.map.toggleHeat(true);
-        this.updateImpact();
-        this.ui.renderExportSummary(this.state);
         this.ui.setUpdated();
-        this.renderFireLayers();
         this.rebuildThermalAssociation();
       } catch (e) {
         if (e.kind === "ABORTED" || countryCode !== this.state.countryCode)
@@ -829,14 +869,17 @@
         this.ui.toast(`FIRMS: ${e.kind || e.message}`, "warn");
       }
     }
-    async loadThermalSources() {
+    async loadThermalSources({ includeSlstr = true, includeMtg = true } = {}) {
       if (A.ThermalSources.getMode() === "FIRMS_ONLY") return;
       const TS = A.ThermalSources;
       const plan = TS.planThermalRequests({
         mode: TS.getMode(),
-        sentinel3a: this.state.slstrAEnabled,
-        sentinel3b: this.state.slstrBEnabled,
       });
+      // Pollers may refresh just one source.  Preserve the other source's
+      // last successful observations so the unified engine can use a
+      // controlled stale fallback instead of momentarily losing corroboration.
+      if (!includeSlstr) plan.slstrIds = [];
+      if (!includeMtg) plan.mtg = false;
       if (!plan.slstrIds.length && !plan.mtg) return;
       this.controllers.thermal?.abort();
       const ctrl = new AbortController();
@@ -846,7 +889,7 @@
       const request = {
         bbox: [A.CONFIG.regionBounds.west, A.CONFIG.regionBounds.south, A.CONFIG.regionBounds.east, A.CONFIG.regionBounds.north],
         countryCode,
-        startTime: new Date(this.state.selectedTime.getTime() - 24 * 3600e3),
+        startTime: new Date(this.state.selectedTime.getTime() - (C.fireDetection?.eventTrackingHours || 48) * 3600e3),
         endTime: this.state.selectedTime,
         signal: ctrl.signal,
       };
@@ -933,12 +976,13 @@
           this.map.toggleSentinelSlstrSource("sentinel3b-slstr", this.state.slstrBEnabled);
         }
       }
-      if (mtgRes) {
+      if (mtgRes && mtgRes.status !== "error" && mtgRes.status !== "aborted") {
         this.state.mtgFrpData = mtgRes.merged;
         this.map.setMtgFrp(mtgRes.merged, this.state.selectedTime);
         if (this.state.mtgFrpEnabled) this.map.toggleMtgFrp(true);
       }
       this.renderThermalLayers();
+      this.rebuildFireDetection();
       this.rebuildThermalAssociation();
     }
     rebuildThermalAssociation() {
@@ -982,6 +1026,74 @@
       const span = document.getElementById("multiSensorCount");
       if (span) span.textContent = ms.confirmedEventCount > 0 ? I.formatNumber(ms.confirmedEventCount) : "";
     }
+    rebuildFireDetection() {
+      if (!this.fireDetection || !this.map) return;
+      const events = this.fireDetection.rebuild({
+        countryCode: this.state.countryCode,
+        selectedTime: this.state.selectedTime,
+        observations: [
+          ...(this.state.fireData || []),
+          ...(this.state.slstrData || []),
+          ...(this.state.mtgFrpData || []),
+        ],
+      });
+      this.state.fireDetectionEvents = events;
+      this.map.setFireDetectionEvents(events, this.state.selectedTime);
+      // Deliberately use the active engine output, not the FRP-display-filtered
+      // markers.  A display threshold must never remove risk evidence.
+      this.state.fireEvents = this.map.fireEventsActive || [];
+      this.updateImpact();
+      this.renderFireLayers();
+      this.ui.renderFireDetectionKpis(events, this.state.selectedTime);
+      this.ui.renderExportSummary(this.state);
+      this.reportThermalHealth();
+    }
+    reportThermalHealth() {
+      const TS = A.ThermalSources;
+      if (!TS) return;
+      const health = C.fireDetection?.serviceHealth || {};
+      const referenceMs = this.state.selectedTime.getTime();
+      const rows = [
+        ["thermalFirms", "nasa-firms", health.firmsStaleMinutes || 240],
+        ["thermalMtg", "mtg-fci-frp", health.mtgStaleMinutes || 45],
+      ];
+      const slstrStates = [TS.state("sentinel3a-slstr"), TS.state("sentinel3b-slstr")];
+      const latestOf = (states) => states.map((state) => state.metrics?.latestObservationAt).filter(Boolean).sort().at(-1) || null;
+      const emit = (id, states, staleMinutes) => {
+        const latestObservationAt = latestOf(states);
+        const latestMs = Date.parse(latestObservationAt || "");
+        const rawState = states.some((state) => state.status === "error")
+          ? "error"
+          : states.some((state) => state.status === "unavailable")
+            ? "unavailable"
+            : states.some((state) => state.status === "loading")
+              ? "loading"
+              : states.some((state) => state.status === "stale")
+                ? "stale"
+                : states.some((state) => state.status === "warn")
+                  ? "warn"
+                  : states.every((state) => state.status === "empty")
+                    ? "empty"
+                    : "ok";
+        const stale = Number.isFinite(latestMs) && referenceMs - latestMs > staleMinutes * 60e3;
+        const lastSuccess = states.map((state) => state.lastSuccessfulAt).filter(Boolean).sort().at(-1) || null;
+        const errors = states.map((state) => state.error).filter(Boolean);
+        const count = states.reduce((sum, state) => sum + (Number.isFinite(state.count) ? state.count : 0), 0);
+        const ageMinutes = Number.isFinite(latestMs) ? Math.max(0, Math.round((referenceMs - latestMs) / 60000)) : null;
+        A.Events.emit("service", {
+          id,
+          state: stale && rawState === "ok" ? "stale" : rawState,
+          latency: states.map((state) => state.latency).filter(Number.isFinite).at(-1) ?? null,
+          count,
+          latestObservationAt,
+          lastSuccess,
+          observationAgeMinutes: ageMinutes,
+          note: errors[0] || (latestObservationAt ? `latest observation ${ageMinutes} min ago` : "no successful observation"),
+        });
+      };
+      for (const [id, sourceId, staleMinutes] of rows) emit(id, [TS.state(sourceId)], staleMinutes);
+      emit("thermalSlstr", slstrStates, health.slstrStaleMinutes || 720);
+    }
     scheduleThermalReload(ms) {
       if (A.ThermalSources.getMode() === "FIRMS_ONLY") return;
       const key = A.ThermalSources.thermalWindowKey(
@@ -995,6 +1107,27 @@
         () => this.loadThermalSources(),
         ms == null ? 400 : ms,
       );
+    }
+    stopSourcePolling() {
+      for (const timer of this.sourcePollers || []) clearInterval(timer);
+      this.sourcePollers = [];
+    }
+    startSourcePolling() {
+      this.stopSourcePolling();
+      const polling = C.fireDetection?.polling || {};
+      const nearLive = () => Math.abs(Date.now() - this.state.selectedTime.getTime()) <= 15 * 60e3;
+      const guarded = (job) => async () => {
+        if (!nearLive() || document.hidden) return;
+        try { await job(); } catch (_) {}
+      };
+      if (polling.mtgMs)
+        this.sourcePollers.push(setInterval(guarded(() => this.loadThermalSources({ includeSlstr: false })), polling.mtgMs));
+      if (polling.firmsMs && C.firmsMapKey && C.firmsMapKey !== "__FIRMS_MAP_KEY__")
+        this.sourcePollers.push(setInterval(guarded(() => this.loadFirms()), polling.firmsMs));
+      // SLSTR uses the same request orchestration but is deliberately less
+      // frequent than MTG, avoiding duplicate rapid WFS scans.
+      if (polling.slstrMs)
+        this.sourcePollers.push(setInterval(guarded(() => this.loadThermalSources({ includeMtg: false })), polling.slstrMs));
     }
     renderThermalLayers() {
       if (!this.map) return;
@@ -1080,7 +1213,7 @@
     }
     updateImpact() {
       if (!this.grid.loadedCore) return;
-      this.state.fireEvents = (this.map.fireEventsVisible || []).filter(
+      this.state.fireEvents = (this.map.fireEventsActive || []).filter(
         (event) => event.countryCode === this.state.countryCode,
       );
       this.state.fireImpacts = this.grid.analyzeEvents(
