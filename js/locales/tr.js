@@ -714,5 +714,18 @@
     "fire.state.highConfidence": "Yüksek Güven",
     "fire.state.staticSuppressed": "Sabit kaynak bastırıldı",
     "fire.state.stale": "Eski gözlem",
+    "fire.static.industrial": "Endüstriyel sabit kaynak",
+    "fire.static.solar": "Solar parlama adayı",
+    "fire.static.unknown": "Kalıcı bilinmeyen kaynak",
+    "detail.evidenceTag": "kalıcılık kanıtı",
+    "detail.overrideTag": "anomali — yeniden alarm",
+    "static.reason.frp_p99": "P99 üstü FRP",
+    "static.reason.frp_mad": "sağlam FRP anomalisi",
+    "static.reason.frp_growth": "FRP artışı",
+    "static.reason.pixel_growth": "piksel artışı",
+    "static.reason.thermal_area_growth": "termal alan büyümesi",
+    "static.reason.independent_sensors": "bağımsız sensör teyidi",
+    "static.reason.night_anomaly": "gece anomalisi",
+    "static.reason.spatial_novelty": "alan dışı yayılım",
   };
 })((window.AtmoApp = window.AtmoApp || {}));

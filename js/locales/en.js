@@ -716,5 +716,18 @@
     "fire.state.highConfidence": "High confidence",
     "fire.state.staticSuppressed": "Static source suppressed",
     "fire.state.stale": "Stale observation",
+    "fire.static.industrial": "Industrial static source",
+    "fire.static.solar": "Solar glint candidate",
+    "fire.static.unknown": "Persistent unknown source",
+    "detail.evidenceTag": "persistence evidence",
+    "detail.overrideTag": "anomaly — re-alarm",
+    "static.reason.frp_p99": "FRP above P99",
+    "static.reason.frp_mad": "robust FRP anomaly",
+    "static.reason.frp_growth": "FRP growth",
+    "static.reason.pixel_growth": "pixel growth",
+    "static.reason.thermal_area_growth": "thermal area growth",
+    "static.reason.independent_sensors": "independent sensor confirmation",
+    "static.reason.night_anomaly": "night anomaly",
+    "static.reason.spatial_novelty": "spread outside footprint",
   };
 })((window.AtmoApp = window.AtmoApp || {}));

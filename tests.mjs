@@ -1179,6 +1179,7 @@ test("thermal: MTG adapter normalizes a mock GetFeature response to the shared m
   const TS = A.ThermalSources;
   const mtg = TS.registry.get("mtg-fci-frp");
   assert.ok(mtg, "mtg-fci-frp registered");
+  let calls = 0;
   const out = await withGetFeature(
     () =>
       mtg.load({
@@ -1188,7 +1189,10 @@ test("thermal: MTG adapter normalizes a mock GetFeature response to the shared m
         endTime: new Date("2026-08-02T00:00:00Z"),
       }),
     async (opts) => {
+      calls++;
       assert.equal(opts.typeNames, "mtg_fd:frp", "probe-confirmed real layer name used");
+      assert.equal(opts.bbox ?? null, null, "MTG slice query carries no server-side bbox");
+      if (calls > 1) return { features: [], pages: 1, totalMatched: 0, meta: {} };
       return {
         features: [
           {
@@ -1244,6 +1248,7 @@ test("thermal: MTG adapter normalizes a mock GetFeature response to the shared m
   assert.equal(out.metrics.rawCount, 3, "rawCount is result.features.length");
   assert.equal(out.metrics.validCount, 2, "validCount after normalize + country filter");
   assert.equal(out.metrics.deduplicatedCount, 2, "deduplicatedCount is deduped.length");
+  assert.equal(calls, 6, "24h caller window is fetched as six 30-minute MTG slices");
 });
 
 test("thermal: multi-sensor metrics count families and per-product confirmations", () => {
@@ -2646,6 +2651,38 @@ test("fire detection: event carries the fields the detail panel renders", () => 
     assert.ok(event[key] !== undefined && event[key] !== null, `event.${key} present for detail panel`);
   assert.ok(Array.isArray(event.sensorFamilies) && event.sensorFamilies.length >= 2);
   assert.ok("staticSource" in event && "persistenceEvidence" in event);
+});
+
+test("mtg adapter: bounded TIME-only window split into 30-minute slices", () => {
+  const TS = A.ThermalSources;
+  const to = new Date("2026-09-10T22:00:00Z");
+  const wide = TS.mtgHistoryWindow(new Date(to.getTime() - 48 * 3600e3), to);
+  assert.equal(wide.to.toISOString(), to.toISOString());
+  assert.ok(to.getTime() - wide.from.getTime() <= 3 * 3600e3 + 1000, "48h caller window is capped for MTG");
+  assert.equal(wide.capped, true);
+  const slices = TS.mtgTimeSlices(wide.from, wide.to);
+  assert.ok(slices.length >= 5 && slices.length <= 7, `3h in ~30min slices (got ${slices.length})`);
+  assert.equal(slices[0][0].toISOString(), wide.from.toISOString());
+  assert.equal(slices.at(-1)[1].toISOString(), wide.to.toISOString());
+  for (const [a, b] of slices) assert.ok(b - a <= 30 * 60e3 + 1000);
+  const cql = A.EumetviewWfs.buildCql({ bbox: null, from: wide.from, to: wide.to });
+  assert.ok(!/BBOX/i.test(cql), "MTG query carries no server-side bbox");
+  assert.ok(/time >=/.test(cql), "MTG query keeps the TIME filter");
+});
+
+test("event detail static evidence labels resolve in both locales", () => {
+  for (const key of ["fire.static.industrial", "fire.static.solar", "fire.static.unknown", "detail.evidenceTag", "detail.overrideTag",
+      "static.reason.frp_p99", "static.reason.frp_mad", "static.reason.frp_growth", "static.reason.pixel_growth",
+      "static.reason.thermal_area_growth", "static.reason.independent_sensors", "static.reason.night_anomaly", "static.reason.spatial_novelty"]) {
+    I.locale = "tr";
+    assert.ok(I.t(key).length > 0, `tr ${key}`);
+    I.locale = "en";
+    assert.ok(I.t(key).length > 0, `en ${key}`);
+  }
+  I.locale = "tr";
+  const block = source.ui.match(/const eventBlock = fireEvent[\s\S]*?: "";/);
+  assert.ok(block && block[0].includes("detail.evPeakFrp"), "detail keeps peak FRP");
+  assert.ok(block && !block[0].includes("analysis.maxFrp"), "duplicate Max FRP row removed from event detail");
 });
 
 function evidenceGrid(lineFeatures) {

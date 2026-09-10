@@ -545,6 +545,31 @@
     });
   }
 
+  function mtgHistoryWindow(startTime, endTime) {
+    // Live-probed 2026-09-10: the mtg_fd:frp table answers TIME-only filters
+    // in ~300 ms but bbox-combined queries hit HTTP 503 / 60 s timeouts, so
+    // the MTG adapter queries TIME-only over a bounded recent window and
+    // filters to the region client-side (insideRegion in load()).
+    const hours = C.eumetviewWfs?.mtgHistoryHours || 6;
+    const to = endTime instanceof Date ? endTime : new Date(endTime || Date.now());
+    const earliest = new Date(to.getTime() - hours * 3600e3);
+    const wanted = startTime ? new Date(startTime) : earliest;
+    const from = new Date(Math.max(wanted.getTime(), earliest.getTime()));
+    return { from, to, capped: wanted.getTime() < earliest.getTime() };
+  }
+
+  function mtgTimeSlices(from, to, sliceMs = 30 * 60e3) {
+    const out = [];
+    let cursor = new Date(from).getTime();
+    const end = new Date(to).getTime();
+    while (cursor < end) {
+      const next = Math.min(cursor + sliceMs, end);
+      out.push([new Date(cursor), new Date(next)]);
+      cursor = next;
+    }
+    return out;
+  }
+
   const mtgFrpAdapter = {
     id: "mtg-fci-frp",
     label: "MTG FCI FRP",
@@ -555,48 +580,67 @@
     async discover() {
       return { layers: ["mtg_fd:frp"] };
     },
-    async load({ bbox, countryCode, startTime, endTime, signal } = {}) {
+    async load({ countryCode, startTime, endTime, signal } = {}) {
       const wfs = A.EumetviewWfs;
       if (!wfs) throw new Error("mtg-fci-frp: A.EumetviewWfs is not available");
-      const from = startTime || new Date(Date.now() - 24 * 3600e3);
-      const to = endTime || new Date();
-      const box = bbox || regionBboxArray();
-      const result = await wfs.getFeature({
-        typeNames: "mtg_fd:frp",
-        bbox: box,
-        from,
-        to,
-        signal,
-        cacheKey: `mtg-fci-frp:${countryCode || C.activeCountryCode}:${from.toISOString()}:${to.toISOString()}`,
-      });
-        const features = result.features || [];
-        const out = [];
-        for (const f of features) {
-          const raw = mtgFeatureToRaw(f);
-          if (!raw) continue;
-          const d = U.normalizeFireDetection(raw, {
-            sourceId: "mtg-fci-frp",
-            source: mtgFrpAdapter.label,
-            product: "MTG FCI FRP",
-            sensor: "FCI",
-            sensorFamily: "mtg",
-            satellite: raw.Satellite || "MTG-I1",
-            countryCode: countryCode || C.activeCountryCode,
+      const window = mtgHistoryWindow(startTime, endTime);
+      // Sequential 30-minute TIME-only slices: large scans on mtg_fd:frp
+      // intermittently return HTTP 503, so one failed slice must not fail
+      // the whole source.  Region filtering stays client-side (insideRegion).
+      const slices = mtgTimeSlices(window.from, window.to);
+      const features = [];
+      let failedSlices = 0;
+      for (const [sliceFrom, sliceTo] of slices) {
+        try {
+          const result = await wfs.getFeature({
+            typeNames: "mtg_fd:frp",
+            bbox: null,
+            from: sliceFrom,
+            to: sliceTo,
+            signal,
+            count: 3000,
+            maxPages: 2,
+            cacheKey: `mtg-fci-frp:${countryCode || C.activeCountryCode}:${sliceFrom.toISOString()}:${sliceTo.toISOString()}`,
           });
-          if (!d || !d.lat || !d.lon || !d.detectedAt) continue;
-          if (!U.insideRegion(d)) continue;
-          out.push(d);
+          features.push(...(result.features || []));
+        } catch (e) {
+          if (signal?.aborted) throw e;
+          failedSlices++;
         }
-        const deduped = U.deduplicateDetections(out);
-        Object.defineProperty(deduped, "metrics", {
-          value: {
-            rawCount: features.length,
-            validCount: out.length,
-            deduplicatedCount: deduped.length,
-          },
-          enumerable: false,
+      }
+      if (!features.length && failedSlices > 0) {
+        const err = new Error("mtg-fci-frp: all time slices failed");
+        err.kind = "SLICE_ERROR";
+        throw err;
+      }
+      const out = [];
+      for (const f of features) {
+        const raw = mtgFeatureToRaw(f);
+        if (!raw) continue;
+        const d = U.normalizeFireDetection(raw, {
+          sourceId: "mtg-fci-frp",
+          source: mtgFrpAdapter.label,
+          product: "MTG FCI FRP",
+          sensor: "FCI",
+          sensorFamily: "mtg",
+          satellite: raw.Satellite || "MTG-I1",
+          countryCode: countryCode || C.activeCountryCode,
         });
-        return deduped;
+        if (!d || !d.lat || !d.lon || !d.detectedAt) continue;
+        if (!U.insideRegion(d)) continue;
+        out.push(d);
+      }
+      const deduped = U.deduplicateDetections(out);
+      Object.defineProperty(deduped, "metrics", {
+        value: {
+          rawCount: features.length,
+          validCount: out.length,
+          deduplicatedCount: deduped.length,
+          sliceFailures: failedSlices,
+        },
+        enumerable: false,
+      });
+      return deduped;
     },
   };
   registry.register(mtgFrpAdapter);
@@ -658,6 +702,8 @@
     setMode: setThermalMode,
     planThermalRequests,
     thermalWindowKey,
+    mtgHistoryWindow,
+    mtgTimeSlices,
     orchestratorStatusKey,
     associationSources,
     state: (sourceId) => {

@@ -130,7 +130,12 @@ window.AtmoApp = window.AtmoApp || {};
       maxPages: 20,
       timeoutMs: 30000,
       cacheTtlMs: 7 * 60 * 1000,
-      timeField: 'time'
+      timeField: 'time',
+      // Live-probed: mtg_fd:frp answers small TIME-only scans fast but
+      // bbox-combined or multi-thousand-row scans fail server-side, so MTG
+      // is fetched TIME-only in sequential 30-minute slices over this
+      // recent window and clipped to the region client-side.
+      mtgHistoryHours: 3
     },
     mtgGeoColourWms: {
       label: 'EUMETSAT MTG-I GeoColour RGB',
