@@ -2582,6 +2582,19 @@ test("fire detection: a growing static footprint can override suppression withou
   assert.ok(event.staticOverride.reasons.includes("thermal_area_growth"));
 });
 
+test("fire detection: missing canonical history degrades to no suppression without failing", () => {
+  const engine = new A.FireDetectionEngine();
+  assert.equal(engine.staticDatasetStatus, "unavailable");
+  const at = "2026-08-02T12:00:00Z";
+  const [event] = engine.rebuild({ countryCode: "TR", selectedTime: at, observations: [normDet({ detectionId: "nodegraded", frpMw: 10, detectedAt: at })] });
+  assert.equal(event.staticSource, null);
+  assert.notEqual(event.state, "STATIC_SUPPRESSED", "without canonical history nothing is suppressed");
+  engine.setPersistentThermalSources([]);
+  assert.equal(engine.staticDatasetStatus, "empty");
+  const [again] = engine.rebuild({ countryCode: "TR", selectedTime: at, observations: [normDet({ detectionId: "nodegraded2", frpMw: 10, detectedAt: at })] });
+  assert.notEqual(again.state, "STATIC_SUPPRESSED", "empty history also disables suppression");
+});
+
 function evidenceGrid(lineFeatures) {
   const gr = new A.GridRepository();
   gr.setCountry("TR");

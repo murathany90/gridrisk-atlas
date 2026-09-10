@@ -52,6 +52,24 @@ class PersistentThermalSourceBuilderTests(unittest.TestCase):
         self.assertEqual(properties["medianFrpMw"], 14)
         self.assertGreaterEqual(properties["p99FrpMw"], 29)
 
+    def test_committed_tr_canonical_dataset_matches_runtime_schema(self):
+        dataset = Path(__file__).resolve().parents[1] / "data" / "countries" / "TR" / "persistent_thermal_sources.geojson"
+        self.assertTrue(dataset.is_file(), "TR canonical persistent-thermal dataset must be committed")
+        payload = json.loads(dataset.read_text(encoding="utf-8"))
+        self.assertEqual(payload.get("type"), "FeatureCollection")
+        features = payload.get("features", [])
+        self.assertGreater(len(features), 0, "canonical dataset must not ship empty")
+        required = {"classification", "radiusKm", "detectionCount", "uniqueDetectionDays", "dayCount", "nightCount", "medianFrpMw", "p99FrpMw", "centroidVarianceKm2", "historyStart", "historyEnd"}
+        allowed_classes = {"STATIC_SOLAR_GLINT", "STATIC_INDUSTRIAL", "PERSISTENT_UNKNOWN"}
+        for feature in features:
+            properties = feature.get("properties", {})
+            self.assertTrue(required.issubset(properties), f"missing runtime properties: {required - set(properties)}")
+            self.assertIn(properties.get("classification"), allowed_classes)
+            self.assertGreaterEqual(properties.get("detectionCount", 0), 1)
+            self.assertGreaterEqual(properties.get("radiusKm", 0), 0)
+        metadata = payload.get("metadata", {})
+        self.assertTrue(metadata.get("historyStart") and metadata.get("historyEnd"), "dataset must record its historical window")
+
 
 if __name__ == "__main__":
     unittest.main()
