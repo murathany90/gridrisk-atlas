@@ -383,7 +383,7 @@
       Object.assign(metrics, list.metrics);
     const now = new Date();
     patchState(sourceId, {
-      status: list.length ? "ok" : "empty",
+      status: opts.status || (list.length ? "ok" : "empty"),
       data: list,
       error: null,
       lastSuccessfulAt: now.toISOString(),

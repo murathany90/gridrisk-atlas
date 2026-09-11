@@ -908,33 +908,34 @@
             .load("mtg-fci-frp", request)
             .then(
               (data) => {
+                // Partial slices still feed the engine, but the source must
+                // not look fully healthy: report WARN with a slice note in
+                // the same seq-guarded write, so a stale request can never
+                // overwrite fresher source state.
+                const sliceFailures = Number(data?.metrics?.sliceFailures || 0),
+                  sliceTotal = Number(data?.metrics?.sliceTotal || 0),
+                  partial = sliceFailures > 0 && data && data.length > 0;
           TS.setResult(
             "mtg-fci-frp",
             seq,
             data || [],
             request.latency,
             request.requestKey,
-            { visibleWindow: this.state.selectedTime },
+            {
+              visibleWindow: this.state.selectedTime,
+              status: partial ? "warn" : undefined,
+              note: partial
+                ? T("thermal.note.mtgPartial", {
+                    failed: I.formatNumber(sliceFailures),
+                    total: I.formatNumber(sliceTotal),
+                  })
+                : undefined,
+            },
           );
-                // Partial slices still feed the engine, but the source must
-                // not look fully healthy: mark WARN with a slice note.
-                const sliceFailures = Number(data?.metrics?.sliceFailures || 0),
-                  sliceTotal = Number(data?.metrics?.sliceTotal || 0);
-                let mtgStatus = data && data.length ? "ok" : "empty";
-                if (sliceFailures > 0 && data && data.length) {
-                  mtgStatus = "warn";
-                  TS.patchState("mtg-fci-frp", {
-                    status: "warn",
-                    note: T("thermal.note.mtgPartial", {
-                      failed: I.formatNumber(sliceFailures),
-                      total: I.formatNumber(sliceTotal),
-                    }),
-                  });
-                }
                 return {
                   group: "mtg",
                   result: {
-                    status: mtgStatus,
+                    status: partial ? "warn" : data && data.length ? "ok" : "empty",
                     data: data || [],
                     merged: data || [],
                   },

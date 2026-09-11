@@ -2769,6 +2769,57 @@ test("legends use detection-state colors and verified sources only", () => {
   I.locale = "tr";
 });
 
+test("time slider: playback never leaks future observations into the engine", () => {
+  const engine = new A.FireDetectionEngine();
+  const selected = "2026-08-01T12:00:00Z";
+  const events = engine.rebuild({ countryCode: "TR", selectedTime: selected, observations: [
+    normDet({ detectionId: "past", frpMw: 40, detectedAt: "2026-08-01T11:00:00Z" }),
+    normDet({ detectionId: "future", frpMw: 90, detectedAt: "2026-08-02T11:00:00Z", lat: 39.0, lon: 36.0 }),
+  ] });
+  assert.equal(events.length, 1, "observation after selectedTime is rejected");
+  assert.equal(events[0].observations[0].detectionId, "past");
+  assert.ok(!events.some((e) => e.observations.some((o) => o.detectionId === "future")));
+});
+
+test("time slider: selected-time 3h visible slice of the 48h event memory", () => {
+  const engine = new A.FireDetectionEngine();
+  const selected = "2026-08-02T12:00:00Z";
+  const events = engine.rebuild({ countryCode: "TR", selectedTime: selected, observations: [
+    normDet({ detectionId: "old", frpMw: 60, detectedAt: "2026-08-01T00:00:00Z", lat: 38.0, lon: 35.0 }),
+    normDet({ detectionId: "new", frpMw: 60, detectedAt: "2026-08-02T11:30:00Z", lat: 39.0, lon: 36.0 }),
+  ] });
+  assert.equal(events.length, 2, "48h memory retains the old event");
+  const visible = engine.visibleEvents(events, selected);
+  assert.equal(visible.length, 1, "only the 3h selected-time slice is visible");
+  assert.equal(visible[0].observations[0].detectionId, "new");
+});
+
+test("time slider: timeline range, steps and now control exist", () => {
+  const slider = html.match(/<input[^>]*id="timeSlider"[^>]*>/);
+  assert.ok(slider, "timeSlider exists");
+  assert.ok(/min="-48"/.test(slider[0]) && /max="12"/.test(slider[0]), "-48h..+12h range");
+  for (const id of ["playBtn", "stepBackBtn", "stepForwardBtn", "nowBtn", "selectedTimeLocal", "selectedTimeUtc"])
+    assert.ok(html.includes(`id="${id}"`), `${id} present`);
+});
+
+test("setResult honors a caller status override without breaking the seq guard", () => {
+  const TS = A.ThermalSources;
+  TS.setLoading("mtg-fci-frp", 41);
+  assert.equal(
+    TS.setResult("mtg-fci-frp", 41, [{ detectedAt: "2026-09-10T20:00:00Z", frp: 5 }], 7, "k",
+      { status: "warn", note: "1/6", visibleWindow: new Date("2026-09-10T22:00:00Z") }),
+    true,
+  );
+  assert.equal(TS.state("mtg-fci-frp").status, "warn");
+  assert.equal(TS.state("mtg-fci-frp").note, "1/6");
+  assert.equal(TS.setResult("mtg-fci-frp", 41, [], 7, "k2", {}), true);
+  assert.equal(TS.state("mtg-fci-frp").status, "empty", "no override falls back to ok/empty");
+  TS.setLoading("mtg-fci-frp", 42);
+  assert.equal(TS.setResult("mtg-fci-frp", 41, [{ detectedAt: "2026-09-10T20:00:00Z", frp: 5 }], 7, "k3", { status: "warn" }), false,
+    "stale seq never overwrites fresher source state");
+  assert.equal(TS.state("mtg-fci-frp").status, "loading");
+});
+
 function evidenceGrid(lineFeatures) {
   const gr = new A.GridRepository();
   gr.setCountry("TR");
