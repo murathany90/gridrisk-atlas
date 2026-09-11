@@ -2802,6 +2802,14 @@ test("time slider: timeline range, steps and now control exist", () => {
     assert.ok(html.includes(`id="${id}"`), `${id} present`);
 });
 
+test("frp slider handler keeps the clarified markers/risk-independent text", () => {
+  const at = source.app.indexOf('frpThreshold").addEventListener("input"');
+  assert.ok(at > 0, "frp slider input binding exists");
+  const block = source.app.slice(at, at + 1400);
+  assert.ok(block.includes("kpi.eventsShown"), "slider count uses the clarified template");
+  assert.ok(!block.includes("ui.eventsOnly"), "legacy count text no longer overwrites it");
+});
+
 test("setResult honors a caller status override without breaking the seq guard", () => {
   const TS = A.ThermalSources;
   TS.setLoading("mtg-fci-frp", 41);

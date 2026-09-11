@@ -392,8 +392,9 @@
         this.renderFireLayers();
         const el = document.getElementById("frpCount");
         if (el)
-          el.textContent = T("ui.eventsOnly", {
-            count: I.formatNumber(this.state.fireEvents.length),
+          el.textContent = T("kpi.eventsShown", {
+            shown: I.formatNumber(this.map.fireEventsVisible.length),
+            total: I.formatNumber(this.map.fireEventsActive.length),
           });
       });
       document
