@@ -2839,6 +2839,65 @@ test("setResult honors a caller status override without breaking the seq guard",
   assert.equal(TS.state("mtg-fci-frp").status, "loading");
 });
 
+function riskWatchPair() {
+  const gr = evidenceGrid([EVIDENCE_LINE, {
+    type: "Feature",
+    geometry: { type: "LineString", coordinates: [[29.93, 39.9], [29.93, 40.1]] },
+    properties: { countryCode: "TR", gridClass: "154", actualVoltageKv: 154, name: "FAR-154" },
+  }]);
+  const engine = new A.FireDetectionEngine();
+  const at = "2026-08-05T12:00:00Z";
+  const events = engine.rebuild({ countryCode: "TR", selectedTime: at, observations: [
+    normDet({ detectionId: "hi", frpMw: 200, lat: 36.95, lon: 28.64, detectedAt: "2026-08-05T11:50:00Z" }),
+    normDet({ detectionId: "lo", frpMw: 2, lat: 40.0, lon: 29.86, detectedAt: "2026-08-05T11:50:00Z" }),
+  ] });
+  const byId = Object.fromEntries(events.map((e) => [e.observations[0].detectionId, e]));
+  const out = gr.analyzeEvents(events, 25, new Date(at), []);
+  return { gr, out, byId };
+}
+
+test("risk: WATCH events never become critical", () => {
+  const { byId, out } = riskWatchPair();
+  assert.equal(byId.hi.state, "WATCH", "single detection stays WATCH");
+  const hi = out.find((a) => a.event.observations[0].detectionId === "hi");
+  assert.ok(hi.riskScore >= 75, `raw score untouched (${hi.riskScore})`);
+  assert.equal(hi.riskBand.level, "medium", "WATCH band capped at medium");
+});
+
+test("risk: KPI counts only assets of events with riskScore >= 35", () => {
+  const { out } = riskWatchPair();
+  const TS = A.ThermalSources;
+  TS.patchState("nasa-firms", { status: "ok", lastSuccessfulAt: new Date().toISOString(), error: null });
+  const origGet = global.document.getElementById;
+  const els = {};
+  global.document.getElementById = (id) => (els[id] ||= { textContent: "…", innerHTML: "", querySelectorAll: () => [], querySelector: () => null, classList: { toggle() {}, contains: () => false }, dataset: {} });
+  try {
+    new A.UIManager().renderImpact(out);
+    assert.equal(els.kpiRiskLines.textContent, "1", "only the >=35 event line counted");
+    assert.equal(els.kpiRiskSubstations.textContent, "0", "no substation assets involved");
+  } finally {
+    global.document.getElementById = origGet;
+  }
+});
+
+test("risk: ring tooltip shows score, state, FRP, sensors and components", () => {
+  const { out } = riskWatchPair();
+  const hi = out.find((a) => a.event.observations[0].detectionId === "hi");
+  const lo = out.find((a) => a.event.observations[0].detectionId === "lo");
+  const view = Object.create(A.MapManager.prototype, { frpThreshold: { value: 30 } });
+  const html = view.riskRingTooltip(hi);
+  assert.ok(html.includes(String(hi.riskScore)), "score shown");
+  assert.ok(html.includes(hi.riskBand.label), "band label shown");
+  assert.ok(html.includes("200"), "FRP shown");
+  assert.ok(html.includes("viirs") || html.includes("×1"), "sensor family shown");
+  assert.ok(html.includes("VERT-154"), "nearest line shown");
+  for (const key of ["risk.tipScore", "risk.tipComponents", "risk.tipNearest"])
+    assert.ok(html.includes(I.t(key)), `label ${key} shown`);
+  const loHtml = view.riskRingTooltip(lo);
+  assert.ok(loHtml.includes(I.t("risk.tipFrpHidden")), "sub-threshold event notes the FRP display filter");
+  assert.ok(!html.includes(I.t("risk.tipFrpHidden")), "above-threshold event has no filter note");
+});
+
 function evidenceGrid(lineFeatures) {
   const gr = new A.GridRepository();
   gr.setCountry("TR");

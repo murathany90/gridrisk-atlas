@@ -1023,9 +1023,14 @@
         subKeys = new Set(),
         downwindLineKeys = new Set(),
         downwindSubKeys = new Set();
-      for (const a of arr) {
+      // KPI counters only credit assets of events worth acting on
+      // (riskScore >= 35); the table and summary below keep the full set.
+      const scored = arr.filter((x) => (x.riskScore ?? 0) >= 35);
+      for (const a of scored) {
         for (const x of a.affectedLines || []) lineKeys.add(x.key);
         for (const x of a.affectedSubstations || []) subKeys.add(x.key);
+      }
+      for (const a of arr) {
         if (a.riskScore >= 35) {
           for (const x of a.downwindAssets?.lines || [])
             downwindLineKeys.add(x.key);

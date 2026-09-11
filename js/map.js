@@ -2401,6 +2401,64 @@
       }
       return [...selected.values()];
     }
+    riskFireState(state) {
+      return (
+        {
+          WATCH: T("fire.state.watch"),
+          PROBABLE: T("fire.state.probable"),
+          HIGH_CONFIDENCE: T("fire.state.highConfidence"),
+          STATIC_SUPPRESSED: T("fire.state.staticSuppressed"),
+          STALE: T("fire.state.stale"),
+        }[state] || state || "—"
+      );
+    }
+    riskRingTooltip(a) {
+      const ev = a.event || {},
+        families = Array.isArray(ev.sensorFamilies) ? ev.sensorFamilies.filter(Boolean) : [],
+        latest = ev.latestObservationAt || ev.latestDetectedAt,
+        nearestLine = a.nearestLine,
+        nearestSub = a.nearestSubstation,
+        nearest =
+          a.nearestAssetKind === "substation" && nearestSub
+            ? { label: nearestSub.feature.props?.name || nearestSub.feature.props?.displayLabel || T("detail.substation"), km: nearestSub.distanceKm }
+            : nearestLine
+              ? { label: nearestLine.feature.props?.name || nearestLine.feature.props?.ref || nearestLine.feature.props?.displayLabel || T("detail.line"), km: nearestLine.distanceKm }
+              : null,
+        hiddenByFrp = this.frpThreshold > 0 && !(Number.isFinite(ev.maxFrp) && ev.maxFrp >= this.frpThreshold),
+        rows = [
+          `<span>${T("risk.tipScore")}</span><span><strong>${I.formatNumber(a.riskScore)}</strong> · ${U.escapeHtml(a.riskBand?.label || "")}</span>`,
+          `<span>${T("risk.tipState")}</span><span>${U.escapeHtml(this.riskFireState(ev.state))}</span>`,
+          `<span>${T("risk.tipFrp")}</span><span>${I.formatNumber(U.round(ev.currentFrp ?? ev.peakFrp ?? ev.maxFrp, 1))} / ${I.formatNumber(U.round(ev.peakFrp ?? ev.maxFrp, 1))} MW</span>`,
+          `<span>${T("risk.tipLatest")}</span><span>${latest ? U.formatLocal(new Date(latest)) : "—"}</span>`,
+          `<span>${T("risk.tipSensors")}</span><span>${families.length ? `${U.escapeHtml(families.join(", "))} · ×${ev.independentSensorCount ?? families.length}` : "—"}</span>`,
+          `<span>${T("risk.tipNearest")}</span><span>${nearest ? `${U.escapeHtml(nearest.label)} · ${U.round(Number(nearest.km), 2)} km` : "—"}</span>`,
+          `<span>${T("risk.tipComponents")}</span><span>${T("risk.compDistance")}:${a.distanceScore ?? "—"} ${T("risk.compFrp")}:${a.frpScore ?? "—"} ${T("risk.compAge")}:${a.ageScore ?? "—"} ${T("risk.compAsset")}:${a.assetScore ?? "—"} ${T("risk.compWind")}:${a.windScore ?? "—"}</span>`,
+        ];
+      if (hiddenByFrp) rows.push(`<span class="fire-popup-full">${T("risk.tipFrpHidden")}</span>`);
+      return `<strong>${T("risk.tipEvent")}</strong><div class="fire-popup-metrics">${rows.join("")}</div>`;
+    }
+    riskAssetName(props, fallbackKey) {
+      const p = props || {};
+      return p.name || p.ref || p.displayLabel || T(fallbackKey);
+    }
+    riskLineTooltip(a, l) {
+      const p = l?.feature?.props || {},
+        ev = a.event || {};
+      return `<strong>${U.escapeHtml(this.riskAssetName(p, "detail.line"))}</strong><div class="fire-popup-metrics">` +
+        `<span>${T("risk.tipVoltage")}</span><span>${U.escapeHtml(p.displayClass || (p.gridClass ? T("detail.kvClass", { value: p.gridClass }) : T("common.unknown")))}</span>` +
+        `<span>${T("risk.tipEventScore")}</span><span><strong>${I.formatNumber(a.riskScore)}</strong> · ${U.escapeHtml(a.riskBand?.label || "")}</span>` +
+        `<span>${T("risk.tipEventFrp")}</span><span>${I.formatNumber(U.round(ev.maxFrp, 1))} MW</span>` +
+        `<span>${T("risk.tipDistance")}</span><span>${U.round(Number(l?.distanceKm), 2)} km</span></div>`;
+    }
+    riskSubstationTooltip(a, s) {
+      const p = s?.feature?.props || {},
+        ev = a.event || {};
+      return `<strong>${U.escapeHtml(this.riskAssetName(p, "detail.substation"))}</strong><div class="fire-popup-metrics">` +
+        `<span>${T("risk.tipVoltage")}</span><span>${U.escapeHtml(p.displayClass || (p.gridClass ? T("detail.kvClass", { value: p.gridClass }) : p.actualVoltageKv ? U.formatVoltage(p.actualVoltageKv) : T("common.unknown")))}</span>` +
+        `<span>${T("risk.tipEventScore")}</span><span><strong>${I.formatNumber(a.riskScore)}</strong> · ${U.escapeHtml(a.riskBand?.label || "")}</span>` +
+        `<span>${T("risk.tipEventFrp")}</span><span>${I.formatNumber(U.round(ev.maxFrp, 1))} MW</span>` +
+        `<span>${T("risk.tipDistance")}</span><span>${U.round(Number(s?.distanceKm), 2)} km</span></div>`;
+    }
     setFireImpacts(analyses, show = true) {
       this.lastRiskAnalyses = analyses || [];
       this.lastRiskVisible = show;
@@ -2415,7 +2473,7 @@
       for (const a of analyses || []) {
         if (!U.insideRegion({ lat: a.event.lat, lon: a.event.lon })) continue;
         const c = U.riskColor(a.riskBand?.level || "watch");
-        if (a.riskBand && a.riskScore >= 20) {
+        if (a.riskBand && a.riskScore >= 35) {
           const r = U.clamp(
             7 + (100 - a.riskScore) * -0.015 + a.event.count * 0.25,
             7,
@@ -2429,11 +2487,13 @@
             weight: a.riskScore >= 75 ? 3 : 2,
             fill: false,
             opacity: 0.95,
-            interactive: false,
-          }).addTo(this.riskLayer);
+            interactive: true,
+          })
+            .bindTooltip(this.riskRingTooltip(a), { sticky: true })
+            .addTo(this.riskLayer);
           rendered = true;
         }
-        if (a.riskScore >= 55) {
+        if (a.riskBand?.level === "high" || a.riskBand?.level === "critical") {
           const l = a.nearest?.line;
           if (l) {
             L.polyline(
@@ -2459,9 +2519,11 @@
                 color: c,
                 weight: 5,
                 opacity: 0.95,
-                interactive: false,
+                interactive: true,
               },
-            ).addTo(this.riskAssetLayer);
+            )
+              .bindTooltip(this.riskLineTooltip(a, l), { sticky: true })
+              .addTo(this.riskAssetLayer);
             rendered = true;
           }
         }
@@ -2472,15 +2534,17 @@
         L.marker([s.feature.lat, s.feature.lon], {
           pane: "riskPane",
           icon: this.riskSubstationIcon(),
-          interactive: false,
-        }).addTo(this.riskAssetLayer);
+          interactive: true,
+        })
+          .bindTooltip(this.riskSubstationTooltip(a, s), { sticky: true })
+          .addTo(this.riskAssetLayer);
         rendered = true;
       }
       if (rendered)
         this.makeLegend(
           "risk",
           T("map.riskTitle"),
-          `${C.riskScoreBands.map((b) => `<div class="legendLine"><i class="dot" style="background:${U.riskColor(b.level)}"></i><span>${b.min}+ · ${T(`risk.${b.level}`)}</span></div>`).join("")}<div class="legendLine"><span class="substationSquare substation-risk" style="display:inline-block"></span><span>${T("map.substationRisk", { distance: C.substationRiskDisplayDistanceKm })}</span></div><div class="sourceNote">${T("map.riskNote", { distance: C.substationRiskDisplayDistanceKm })}</div>`,
+          `${C.riskScoreBands.map((b) => `<div class="legendLine"><i class="dot" style="background:${U.riskColor(b.level)}"></i><span>${b.min}+ · ${T(`risk.${b.level}`)}</span></div>`).join("")}<div class="legendLine"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;border:2px solid #fff;background:transparent"></span><span>${T("legend.riskRing")}</span></div><div class="legendLine"><i style="height:4px;background:#ff7043"></i><span>${T("legend.riskLineHi")}</span></div><div class="legendLine"><span class="substationSquare substation-risk" style="display:inline-block"></span><span>${T("map.substationRisk", { distance: C.substationRiskDisplayDistanceKm })}</span></div><div class="sourceNote">${T("legend.riskFrpNote")}<br>${T("map.riskNote", { distance: C.substationRiskDisplayDistanceKm })}</div>`,
         );
       this.terrain3d?.syncRisk();
     }

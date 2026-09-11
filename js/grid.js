@@ -534,7 +534,11 @@
             0,
             100,
           ),
-          scoreBand = U.riskScoreBand(score),
+          // A WATCH event never becomes critical: cap its band at medium
+          // while keeping the raw score for sorting and ring sizing.
+          scoreBand = U.riskScoreBand(
+            event.state === "WATCH" ? Math.min(score, 54) : score,
+          ),
           evidence = nearest?.line
             ? this.buildLineEvidence({
                 event,
@@ -554,6 +558,11 @@
           affectedSubstations: [...subs.values()],
           riskScore: score,
           riskBand: scoreBand,
+          distanceScore,
+          frpScore,
+          ageScore,
+          assetScore,
+          windScore,
           ageHours: age,
           wind,
           downwindDirection,
