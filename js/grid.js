@@ -361,7 +361,7 @@
         `${f.satellite || ""}|${f.instrument || f.sensor || ""}|${f.product || ""}|${f.detectedAt || ""}|${f.lat ?? ""}|${f.lon ?? ""}`
       );
     }
-    buildLineEvidence({ event, score, riskBand, lineKey, memberAnalyses }) {
+    buildLineEvidence({ event, score, rawRiskScore, riskBand, lineKey, memberAnalyses }) {
       const candidates = [];
       for (const ma of memberAnalyses) {
         const line = (ma.assets.lines || []).find((x) => x.key === lineKey);
@@ -391,6 +391,7 @@
         lineId: lineKey,
         eventId: event.id,
         riskScore: score,
+        rawRiskScore: rawRiskScore ?? score,
         riskLevel: riskBand?.level || "watch",
         triggerDetectionId: f.detectionId || f.id || null,
         triggerSource: f.source || f.sourceName || null,
@@ -527,22 +528,26 @@
           )
             windScore = Math.max(windScore, 3);
         }
-        const score = U.clamp(
+        const rawRiskScore = U.clamp(
             Math.round(
               distanceScore + frpScore + ageScore + assetScore + windScore,
             ),
             0,
             100,
           ),
-          // A WATCH event never becomes critical: cap its band at medium
-          // while keeping the raw score for sorting and ring sizing.
-          scoreBand = U.riskScoreBand(
-            event.state === "WATCH" ? Math.min(score, 54) : score,
-          ),
+          // A WATCH event never reads as critical/high anywhere: the
+          // operational score caps at 54 (medium) while rawRiskScore keeps
+          // the uncapped value for audit. PROBABLE/HIGH are untouched.
+          riskScore =
+            event.state === "WATCH"
+              ? Math.min(rawRiskScore, 54)
+              : rawRiskScore,
+          scoreBand = U.riskScoreBand(riskScore),
           evidence = nearest?.line
             ? this.buildLineEvidence({
                 event,
-                score,
+                score: riskScore,
+                rawRiskScore,
                 riskBand: scoreBand,
                 lineKey: nearest.line.feature.assetKey,
                 memberAnalyses,
@@ -556,7 +561,8 @@
           band,
           affectedLines: [...lines.values()],
           affectedSubstations: [...subs.values()],
-          riskScore: score,
+          riskScore,
+          rawRiskScore,
           riskBand: scoreBand,
           distanceScore,
           frpScore,

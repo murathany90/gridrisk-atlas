@@ -593,6 +593,8 @@
     "risk.watch": "Watch",
     "risk.tipEvent": "Grid priority event",
     "risk.tipScore": "Risk score",
+    "risk.tipRawScore": "Raw score",
+    "risk.tipEffScore": "Operational",
     "risk.tipState": "Fire state",
     "risk.tipFrp": "Current / peak FRP",
     "risk.tipLatest": "Latest detection",

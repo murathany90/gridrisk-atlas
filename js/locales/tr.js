@@ -590,6 +590,8 @@
     "risk.watch": "İzleme",
     "risk.tipEvent": "Şebeke öncelik olayı",
     "risk.tipScore": "Risk skoru",
+    "risk.tipRawScore": "Ham skor",
+    "risk.tipEffScore": "Operasyonel",
     "risk.tipState": "Yangın durumu",
     "risk.tipFrp": "Güncel / tepe FRP",
     "risk.tipLatest": "Son tespit",

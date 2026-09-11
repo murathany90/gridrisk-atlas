@@ -2860,8 +2860,11 @@ test("risk: WATCH events never become critical", () => {
   const { byId, out } = riskWatchPair();
   assert.equal(byId.hi.state, "WATCH", "single detection stays WATCH");
   const hi = out.find((a) => a.event.observations[0].detectionId === "hi");
-  assert.ok(hi.riskScore >= 75, `raw score untouched (${hi.riskScore})`);
+  assert.ok(hi.rawRiskScore >= 75, `raw score preserved (${hi.rawRiskScore})`);
+  assert.ok(hi.riskScore <= 54, `operational score capped (${hi.riskScore})`);
   assert.equal(hi.riskBand.level, "medium", "WATCH band capped at medium");
+  assert.equal(out[0], hi, "sorting uses the operational score");
+  assert.equal(hi.evidence.riskScore, hi.riskScore, "evidence carries the operational score");
 });
 
 test("risk: KPI counts only assets of events with riskScore >= 35", () => {
@@ -2875,6 +2878,7 @@ test("risk: KPI counts only assets of events with riskScore >= 35", () => {
     new A.UIManager().renderImpact(out);
     assert.equal(els.kpiRiskLines.textContent, "1", "only the >=35 event line counted");
     assert.equal(els.kpiRiskSubstations.textContent, "0", "no substation assets involved");
+    assert.equal(els.kpiCriticalEvents.textContent, "0", "capped WATCH is never critical");
   } finally {
     global.document.getElementById = origGet;
   }
@@ -2893,6 +2897,7 @@ test("risk: ring tooltip shows score, state, FRP, sensors and components", () =>
   assert.ok(html.includes("VERT-154"), "nearest line shown");
   for (const key of ["risk.tipScore", "risk.tipComponents", "risk.tipNearest"])
     assert.ok(html.includes(I.t(key)), `label ${key} shown`);
+  assert.ok(html.includes(I.t("risk.tipRawScore")) && html.includes(String(hi.rawRiskScore)), "raw vs operational score shown");
   const loHtml = view.riskRingTooltip(lo);
   assert.ok(loHtml.includes(I.t("risk.tipFrpHidden")), "sub-threshold event notes the FRP display filter");
   assert.ok(!html.includes(I.t("risk.tipFrpHidden")), "above-threshold event has no filter note");

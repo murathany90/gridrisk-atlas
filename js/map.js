@@ -2427,6 +2427,9 @@
         hiddenByFrp = this.frpThreshold > 0 && !(Number.isFinite(ev.maxFrp) && ev.maxFrp >= this.frpThreshold),
         rows = [
           `<span>${T("risk.tipScore")}</span><span><strong>${I.formatNumber(a.riskScore)}</strong> · ${U.escapeHtml(a.riskBand?.label || "")}</span>`,
+          ...(a.rawRiskScore != null && a.rawRiskScore !== a.riskScore
+            ? [`<span>${T("risk.tipRawScore")}</span><span>${I.formatNumber(a.rawRiskScore)} · ${T("risk.tipEffScore")}: ${I.formatNumber(a.riskScore)}</span>`]
+            : []),
           `<span>${T("risk.tipState")}</span><span>${U.escapeHtml(this.riskFireState(ev.state))}</span>`,
           `<span>${T("risk.tipFrp")}</span><span>${I.formatNumber(U.round(ev.currentFrp ?? ev.peakFrp ?? ev.maxFrp, 1))} / ${I.formatNumber(U.round(ev.peakFrp ?? ev.maxFrp, 1))} MW</span>`,
           `<span>${T("risk.tipLatest")}</span><span>${latest ? U.formatLocal(new Date(latest)) : "—"}</span>`,
