@@ -2810,6 +2810,17 @@ test("frp slider handler keeps the clarified markers/risk-independent text", () 
   assert.ok(!block.includes("ui.eventsOnly"), "legacy count text no longer overwrites it");
 });
 
+test("tooltip age prefers the event latest over FIRMS-only area history", () => {
+  const at = source.map.indexOf("firesEventTooltip(ev, history, reference");
+  assert.ok(at > 0, "event tooltip exists");
+  const block = source.map.slice(at, at + 2600);
+  assert.ok(
+    block.includes("ev.latestDetectedAt || h.last"),
+    "tooltip last-seen uses the event latest (all sensors) first",
+  );
+  assert.ok(!block.includes("h.last || ev.latestDetectedAt"), "stale FIRMS history no longer masks it");
+});
+
 test("setResult honors a caller status override without breaking the seq guard", () => {
   const TS = A.ThermalSources;
   TS.setLoading("mtg-fci-frp", 41);

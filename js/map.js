@@ -2079,7 +2079,11 @@
         else if (first)
           rows.push(`<span>${T("sparkline.firstLast")}</span><span>${first}</span>`);
       }
-      const age = U.formatAgeShort(h.last || ev.latestDetectedAt, reference);
+      // The event's own latest detection (all sensor families) takes
+      // precedence: area history is FIRMS-only and goes stale while an
+      // event lives on MTG/SLSTR, which made the tooltip show the FIRMS
+      // silence instead of the event's real age.
+      const age = U.formatAgeShort(ev.latestDetectedAt || h.last, reference);
       if (age)
         rows.push(
           `<span>${T("sparkline.lastSeen")}</span><span>${U.escapeHtml(age)}</span>`,
