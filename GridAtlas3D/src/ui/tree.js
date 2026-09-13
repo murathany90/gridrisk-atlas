@@ -2,7 +2,7 @@
 // Faz 1: v0.3 tek dosyanin moduler karsiligi. Davranis korunur, gorsel degisiklik yok.
 import { $, bayName, esc } from '../core/utils.js';
 import { layers } from '../core/state.js';
-import { get, assets, electrical, voltageLevels, voltageProfiles } from '../data/station.js';
+import { assets, electrical, voltageLevels, voltageProfiles } from '../data/station.js';
 import { on, Events } from '../core/bus.js';
 
 // UI — tree, overview, inspector, trends and synchronized selection.

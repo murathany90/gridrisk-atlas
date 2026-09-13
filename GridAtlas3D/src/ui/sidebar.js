@@ -4,8 +4,8 @@
 import { $, $$, esc, clamp, bayName } from '../core/utils.js';
 import { state } from '../core/state.js';
 import { on, Events } from '../core/bus.js';
-import { get, rootAsset, electrical, edges, switchTypes, voltageText, stateText } from '../data/station.js';
-import { trainingConfig, formatSignal, signalSpec } from '../electrical/electrical.js';
+import { get, rootAsset, switchTypes, voltageText, stateText } from '../data/station.js';
+import { signalSpec } from '../electrical/electrical.js';
 
 const TABS = {
   inspect: [['assets', 'Varlıklar'], ['equipment', 'Ekipman'], ['view', 'Görünüm']],

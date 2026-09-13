@@ -3,7 +3,7 @@
 import * as THREE from 'three';
 import { ctx } from '../core/context.js';
 import { PHASES } from '../core/utils.js';
-import { get, rootAsset, profileFor, site, network } from '../data/station.js';
+import { get, profileFor, site, network } from '../data/station.js';
 import { geometry, material, mesh, box, cyl, rod, insulator, base, phase, nameplate, colors, v } from './materials.js';
 import { owningAsset } from './visibility.js';
 import { placementOf } from '../data/placement.js';

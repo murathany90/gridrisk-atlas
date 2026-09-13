@@ -1,7 +1,7 @@
 // GridAtlas 3D v0.4 — src/main.js
 // Faz 1: v0.3 tek dosyanin moduler karsiligi. Davranis korunur, gorsel degisiklik yok.
 import { $, esc } from './core/utils.js';
-import { config, state, diagnostics } from './core/state.js';
+import { config, diagnostics } from './core/state.js';
 import { ctx } from './core/context.js';
 import { assets, electrical, edges } from './data/station.js';
 import { topology, updateMeasurements } from './electrical/electrical.js';
