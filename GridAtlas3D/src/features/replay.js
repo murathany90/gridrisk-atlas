@@ -5,17 +5,17 @@ import { state } from '../core/state.js';
 import { ctx } from '../core/context.js';
 import { get, assets, defaults, bays, network } from '../data/station.js';
 import { topology, updateMeasurements, calculatePath } from '../electrical/electrical.js';
-import { addEvent, renderEvents, replay } from './events.js';
+import { addEvent, renderEvents, replay, ensureBottomOpen } from './events.js';
 import { commandSwitch, switchAnimations } from './training.js';
 import { selectAsset, refreshVisuals } from '../scene/selection.js';
 import { renderDetail, updateDetailValues } from '../ui/detail.js';
-import { setBottomTab } from '../ui/tabs.js';
+
 
 function normalOperation(log=true){
  replay.playing=false;replay.time=0;replay.step=0;replay.started=false;switchAnimations.length=0;state.switchBusy=false;state.sourceActive=true;state.sourceOutages.clear();state.reverseFlow=false;state.alarm=false;state.overload=false;state.alarmAck=false;state.quality=false;$('#setting-quality').checked=false;
  assets.forEach(a=>a.state=defaults.get(a.assetId));ctx.movingContacts.forEach(m=>{m.progress=get(m.assetId).state==='OPEN'?1:0;m.initialized=false;});topology();updateMeasurements(true);refreshVisuals();renderDetail();updateReplayUI();renderEvents();if(log)addEvent('normal','Normal Operation · Yerel senaryo sıfırlandı');
 }
-function startReplay(){normalOperation(false);replay.started=true;replay.playing=true;setBottomTab('events');addEvent('normal','Replay başlatıldı · Normal Operation');updateReplayUI();toast('Arıza tekrar senaryosu başladı. 3D saha ve tek-hat birlikte güncellenir.');}
+function startReplay(){normalOperation(false);replay.started=true;replay.playing=true;ensureBottomOpen();addEvent('normal','Replay başlatıldı · Normal Operation');updateReplayUI();toast('Arıza tekrar senaryosu başladı. 3D saha ve tek-hat birlikte güncellenir.');}
 const replaySteps=[
  {at:1.5,run:()=>{state.alarm=true;addEvent('alarm','400 kV Line-01 · Faz-toprak arızası','LINE-400-01');refreshVisuals();}},
  {at:3,run:()=>addEvent('alarm','Protection Trip · Hat koruması açma sinyali','CB-401')},

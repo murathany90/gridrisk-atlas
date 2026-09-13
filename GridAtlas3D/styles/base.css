@@ -1,4 +1,4 @@
-:root{color-scheme:dark;--bg:#0e151b;--panel:#141d25;--raised:#1b2730;--line:#293640;--text:#e3eaf0;--muted:#90a1ae;--accent:#8dd8c5;--hv:#e4b779;--lv:#83b9df;--danger:#ec8c7f;--left:246px;--right:286px;--bottom:188px;font-family:Inter,"Segoe UI",Arial,sans-serif;font-size:12px}
+:root{color-scheme:dark;--bg:#0e151b;--panel:#141d25;--raised:#1b2730;--line:#293640;--text:#e3eaf0;--muted:#90a1ae;--accent:#8dd8c5;--hv:#e4b779;--lv:#83b9df;--danger:#ec8c7f;--left:300px;--right:340px;--bottom:188px;font-family:Inter,"Segoe UI",Arial,sans-serif;font-size:12px}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--text);overflow:hidden}
 button,input,select{font:inherit}

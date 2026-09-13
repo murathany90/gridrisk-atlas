@@ -10,6 +10,7 @@ import { focusAsset } from './scene.js';
 import { updateSymbol } from '../sld/sld.js';
 import { updateWireVisibility, rebuildDebug, updatePhaseBatches } from './wires.js';
 import { renderDetail, updateStatus } from '../ui/detail.js';
+import { showDetailForMode } from '../ui/sidebar.js';
 import { assetSelected, isAssetVisible } from './visibility.js';
 
 function refreshVisuals(){
@@ -32,7 +33,7 @@ function refreshVisuals(){
  for(const [action,on] of [['energy',state.path],['xray',state.xray],['cutaway',state.cutaway],['explode-tr',state.exploded],['phase-spread',state.spread],['measure',state.measure],['labels',state.labels],['zones',state.zone!=='none']])$$(`[data-action="${action}"]`).forEach(b=>{b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));});
  const modes=[];if(state.isolate)modes.push('YALNIZ GÖSTER / '+get(state.isolate.id).tag);if(state.path)modes.push('ENERJİ YOLU / '+state.pathIds.size+' ekipman');if(state.xray)modes.push('X-RAY');if(state.cutaway)modes.push('KABİN KESİTİ');if(state.exploded)modes.push('PATLATILMIŞ GÖRÜNÜM');if(state.spread)modes.push('FAZLAR AYRI');if(state.zone!=='none')modes.push('KORUMA BÖLGESİ');if(state.mode==='training')modes.push('SIMULATION ONLY');$('#scene-mode').textContent=modes.join(' · ');$('#scene-mode').classList.toggle('hidden',!modes.length);updateStatus();
 }
-function selectAsset(id,focus=true){const a=get(id);if(!a)return;state.selected=a.assetId;state.trend=rootAsset(a).type==='transformer'?'p':'voltage';$('.right-panel').scrollTop=0;if(state.path)calculatePath();renderDetail();refreshVisuals();if(focus)focusAsset(a.assetId);const sldEl=$('#sld [data-asset="'+(a.parent||a.assetId)+'"]');if(sldEl&&state.bottom==='sld')sldEl.scrollIntoView({block:'nearest',inline:'nearest'});const tree=$(`.tree-item[data-asset="${a.assetId}"]`);if(tree){let p=tree.parentElement;while(p&&p!==$('#asset-tree')){if(p.tagName==='DETAILS')p.open=true;p=p.parentElement;}tree.scrollIntoView({block:'nearest'});}if(innerWidth<=900){document.body.classList.add('mobile-right');document.body.classList.remove('mobile-left');}}
-function clearSelection(){$('.right-panel').scrollTop=0;state.selected=null;state.hover=null;if(ctx.hoverBox)ctx.hoverBox.visible=false;$('#tooltip').classList.add('hidden');renderDetail();refreshVisuals();}
+function selectAsset(id,focus=true){const a=get(id);if(!a)return;state.selected=a.assetId;state.trend=rootAsset(a).type==='transformer'?'p':'voltage';const leftBody=$('.left-body');if(leftBody)leftBody.scrollTop=0;if(state.path)calculatePath();renderDetail();showDetailForMode();refreshVisuals();if(focus)focusAsset(a.assetId);const sldEl=$('#sld [data-asset="'+(a.parent||a.assetId)+'"]');if(sldEl)sldEl.scrollIntoView({block:'nearest',inline:'nearest'});const tree=$(`.tree-item[data-asset="${a.assetId}"]`);if(tree){let p=tree.parentElement;while(p&&p!==$('#asset-tree')){if(p.tagName==='DETAILS')p.open=true;p=p.parentElement;}tree.scrollIntoView({block:'nearest'});}if(innerWidth<=900){document.body.classList.add('mobile-left');document.body.classList.remove('mobile-right');}}
+function clearSelection(){const leftBody=$('.left-body');if(leftBody)leftBody.scrollTop=0;state.selected=null;state.hover=null;if(ctx.hoverBox)ctx.hoverBox.visible=false;$('#tooltip').classList.add('hidden');renderDetail();refreshVisuals();}
 
 export { refreshVisuals, selectAsset, clearSelection };

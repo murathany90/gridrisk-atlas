@@ -1,17 +1,17 @@
 .bottom-panel{background:#111b23;border-top:1px solid var(--line);min-height:0;display:flex;flex-direction:column;overflow:hidden}
 .bottom-head{display:flex;align-items:center;height:35px;flex-shrink:0;border-bottom:1px solid var(--line);padding:0 16px;gap:16px}
-.bottom-head .tabs{display:flex;height:100%;gap:18px}
-.bottom-head .tabs button{position:relative;padding:0 3px;border:0;font-size:9px;letter-spacing:.8px;border-radius:0;background:transparent}
-.bottom-head .tabs button.active:after{content:"";position:absolute;height:2px;background:var(--accent);left:0;right:0;bottom:0}
-.bottom-head .bottom-meta{font-size:9px;color:var(--muted);flex:1}
+.bottom-title{font-size:10px;letter-spacing:1px}
+.bottom-title span{color:var(--muted)}
+.bottom-head .bottom-meta{font-size:9px;color:var(--muted);flex:1;white-space:nowrap}
 .bottom-head>button{padding:3px 6px;min-height:24px}
-#sld-container{flex:1;min-height:0;overflow:auto;padding:4px 12px}
-#sld{display:block;width:100%;height:100%;min-width:950px;min-height:125px}
+#sld{display:block;width:100%;height:auto;min-width:280px}
 #sld .wire{stroke:#596976;stroke-width:1.5;fill:none}
 #sld .wire.live{stroke:#80b4a4}
 #sld .asset{cursor:pointer;outline:none}
 #sld .asset .hit{fill:transparent;stroke:transparent;rx:4}
-#sld .asset text{font-family:Consolas,monospace;fill:#a2b4c1;font-size:8px;text-anchor:middle}
+#sld .asset text{font-family:Consolas,monospace;fill:#a2b4c1;font-size:11px;text-anchor:middle;paint-order:stroke;stroke:#111b23;stroke-width:3;stroke-linejoin:round}
+#sld .asset .sld-tag{font-size:14px;fill:#d2ddd9}
+#sld .asset .sld-name{font-size:11.5px}
 #sld .asset .symbol{stroke:#7e909e;stroke-width:1.6;fill:#111b23}
 #sld .asset.live .symbol{stroke:#8ac9b3}
 #sld .asset.open .symbol{stroke:var(--hv)}
@@ -19,8 +19,6 @@
 #sld .asset:hover .hit,#sld .asset:focus .hit{fill:#283b46;stroke:#728c9c}
 #sld .asset.selected text{fill:#ccf4e9}
 #sld .asset.path .symbol{stroke:#cee7a8;stroke-width:2.3}
-#sld .voltage-label{font-size:9px;letter-spacing:1px;fill:var(--hv)}
-#sld .voltage-label.lv{fill:var(--lv)}
 #events{overflow:auto;flex:1;font-size:10px}
 .event-row{display:grid;grid-template-columns:100px 110px 1fr 90px;align-items:center;gap:12px;width:100%;text-align:left;border-bottom:1px solid #25323c;padding:8px 22px;min-height:31px;border-radius:0;font-size:10px}
 .event-row time{color:var(--muted)}
@@ -32,16 +30,4 @@
 #replay-controls select{font-size:9px;padding:3px}
 .replay-track{height:3px;width:70px;background:#34434d}
 .replay-track i{display:block;height:100%;background:var(--accent);width:0}
-#sld{min-width:1450px;width:100%;height:715px;min-height:715px}
-#sld .asset text{font-size:11px}
-#sld .asset .sld-tag{font-size:10px;fill:#d2ddd9}
-#sld .voltage-label{font-size:13px}
-#sld .voltage-label.mv{fill:var(--mv)}
-.bottom-meta{display:flex;align-items:center;gap:4px}
-.bottom-meta button{font-size:9px;padding:3px 6px;min-height:23px;color:var(--accent)}
-.bottom-meta span{font-size:8px}
-#sld .asset text{font-size:11px;paint-order:stroke;stroke:#111b23;stroke-width:3;stroke-linejoin:round}
-#sld .asset .sld-tag{font-size:11px}
-#sld-zoom{font-size:9px;padding:2px;max-width:69px}
 .bottom-head{gap:10px}
-.bottom-head .bottom-meta{white-space:nowrap}

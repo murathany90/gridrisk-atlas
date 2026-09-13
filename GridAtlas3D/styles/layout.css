@@ -21,6 +21,9 @@ header{display:flex;align-items:center;justify-content:space-between;gap:20px;pa
 .toolbar .spacer{flex:1}
 .toolbar select{padding:5px;font-size:10px}
 .workspace{display:grid;grid-template-columns:var(--left) minmax(0,1fr) var(--right);min-height:0;position:relative;transition:grid-template-columns .2s}
+.resize-handle{position:absolute;top:0;bottom:0;right:var(--right);width:9px;margin-right:-4px;cursor:ew-resize;z-index:6;touch-action:none}
+.resize-handle:hover{background:#2b414d66}
+body.right-collapsed .resize-handle{display:none}
 .statusbar{display:flex;align-items:center;gap:22px;padding:0 18px;font-size:9px;color:#8da2b0;background:#101920;border-top:1px solid var(--line);white-space:nowrap}
 .statusbar .right{margin-left:auto}
 .statusbar .status-live{color:var(--accent)}
