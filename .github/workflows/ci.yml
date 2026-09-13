@@ -30,3 +30,19 @@ jobs:
 
       - name: Validate committed runtime datasets
         run: npm run validate:grid
+
+  gridatlas3d-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: GridAtlas3D/package-lock.json
+
+      - name: Build GridAtlas3D
+        run: |
+          npm ci --prefix GridAtlas3D
+          npm run build --prefix GridAtlas3D
