@@ -277,6 +277,7 @@
             : "",
       });
       this.setTime(A.app?.state?.selectedTime || new Date());
+      this.postGridAtlasContext();
       this.renderServices();
     }
     initialView() {
@@ -315,6 +316,20 @@
         );
       } catch {}
     }
+    postGridAtlasContext() {
+      const frame = document.getElementById("gridAtlas3dFrame");
+      if (!frame?.dataset.loaded) return;
+      try {
+        frame.contentWindow?.postMessage(
+          {
+            type: "gridatlas-context",
+            country: A.app?.state?.countryCode || "TR",
+            lang: I.locale || "tr",
+          },
+          location.origin,
+        );
+      } catch {}
+    }
     ensureGridAtlasFrame() {
       const frame = document.getElementById("gridAtlas3dFrame");
       if (!frame || frame.dataset.loaded) return frame;
@@ -326,6 +341,7 @@
           this.postGridAtlasVisibility(
             document.getElementById("view-gridatlas3d")?.classList.contains("active"),
           );
+          this.postGridAtlasContext();
         },
         { once: true },
       );

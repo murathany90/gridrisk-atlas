@@ -23,6 +23,18 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: GridAtlas3D/package-lock.json
+
+      - name: Build GridAtlas3D
+        run: |
+          npm ci --prefix GridAtlas3D
+          npm run build --prefix GridAtlas3D
+
       - name: Inject FIRMS MAP_KEY
         run: >
           sed -i
@@ -33,11 +45,12 @@ jobs:
         shell: bash
         run: |
           mkdir -p deploy/data
+          mkdir -p deploy/GridAtlas3D
           cp index.html deploy/
           cp manifest.webmanifest deploy/
           cp -r assets deploy/
           cp -r css js deploy/
-          cp -r GridAtlas3D deploy/
+          cp -r GridAtlas3D/dist/. deploy/GridAtlas3D/
           cp -r data/countries deploy/data/
           cp .nojekyll deploy/
           test ! -e deploy/spain_osm_power_grid_50kv_plus_full.geojson

@@ -1,0 +1,33 @@
+.bottom-panel{background:#111b23;border-top:1px solid var(--line);min-height:0;display:flex;flex-direction:column;overflow:hidden}
+.bottom-head{display:flex;align-items:center;height:35px;flex-shrink:0;border-bottom:1px solid var(--line);padding:0 16px;gap:16px}
+.bottom-title{font-size:10px;letter-spacing:1px}
+.bottom-title span{color:var(--muted)}
+.bottom-head .bottom-meta{font-size:9px;color:var(--muted);flex:1;white-space:nowrap}
+.bottom-head>button{padding:3px 6px;min-height:24px}
+#sld{display:block;width:100%;height:auto;min-width:260px}
+#sld .wire{stroke:#596976;stroke-width:1.5;fill:none}
+#sld .wire.live{stroke:#80b4a4}
+#sld .asset{cursor:pointer;outline:none}
+#sld .asset .hit{fill:transparent;stroke:transparent;rx:4}
+#sld .asset text{font-family:Consolas,monospace;fill:#a2b4c1;font-size:11px;text-anchor:middle;paint-order:stroke;stroke:#111b23;stroke-width:3;stroke-linejoin:round}
+#sld .asset .sld-tag{font-size:14px;fill:#d2ddd9}
+#sld .asset .sld-name{font-size:11.5px}
+#sld .asset .symbol{stroke:#7e909e;stroke-width:1.6;fill:#111b23}
+#sld .asset.live .symbol{stroke:#8ac9b3}
+#sld .asset.open .symbol{stroke:var(--hv)}
+#sld .asset.selected .hit{fill:#27443f;stroke:#7ccdb4}
+#sld .asset:hover .hit,#sld .asset:focus .hit{fill:#283b46;stroke:#728c9c}
+#sld .asset.selected text{fill:#ccf4e9}
+#sld .asset.path .symbol{stroke:#cee7a8;stroke-width:2.3}
+#events{overflow:auto;flex:1;font-size:10px}
+.event-row{display:grid;grid-template-columns:100px 110px 1fr 90px;align-items:center;gap:12px;width:100%;text-align:left;border-bottom:1px solid #25323c;padding:8px 22px;min-height:31px;border-radius:0;font-size:10px}
+.event-row time{color:var(--muted)}
+.event-row .severity{font-size:8px;letter-spacing:.6px;color:var(--accent)}
+.event-row.alarm .severity{color:var(--danger)}
+.event-row.warning .severity{color:var(--hv)}
+#replay-controls{display:flex;align-items:center;gap:5px;font-size:9px}
+#replay-controls button{font-size:9px;min-height:23px;padding:3px 7px}
+#replay-controls select{font-size:9px;padding:3px}
+.replay-track{height:3px;width:70px;background:#34434d}
+.replay-track i{display:block;height:100%;background:var(--accent);width:0}
+.bottom-head{gap:10px}

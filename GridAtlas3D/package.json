@@ -1,0 +1,19 @@
+{
+  "name": "gridatlas-3d",
+  "version": "0.6.0",
+  "private": true,
+  "type": "module",
+  "description": "GridAtlas 3D — 400/154/33 kV trafo merkezi dijital ikizi (TM-01). Faz 1: tek dosyalı v0.3 prototipin modüler ES Module + Vite yapısı. Görsel/fonksiyonel davranış korunur.",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "sync-vendor": "node scripts/sync-vendor.mjs"
+  },
+  "dependencies": {
+    "three": "0.160.1"
+  },
+  "devDependencies": {
+    "vite": "^5.4.8"
+  }
+}
