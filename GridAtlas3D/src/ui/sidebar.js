@@ -116,7 +116,7 @@ function updateSideLive() {
   updateTrainEquipLive();
 }
 on(Events.MODE_CHANGED, () => { renderSidebarTabs(); });
-on(Events.TOPOLOGY_CHANGED, () => { renderPathPanel(); });
+on(Events.PATH_CHANGED, () => { renderPathPanel(); });
 on(Events.MEASUREMENTS_UPDATED, () => { updateSideLive(); });
 function initSidebarResize() {
   const handle = document.querySelector('[data-resize="right"]');

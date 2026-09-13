@@ -9,7 +9,6 @@ import { calculatePath } from '../electrical/electrical.js';
 import { focusAsset } from './scene.js';
 import { updateSymbol } from '../sld/sld.js';
 import { updateWireVisibility, rebuildDebug, updatePhaseBatches } from './wires.js';
-import { updateStatus } from '../ui/detail.js';
 import { emit, Events } from '../core/bus.js';
 
 import { assetSelected, isAssetVisible } from './visibility.js';
@@ -32,9 +31,9 @@ function refreshVisuals(){
  $$('#sld .wire[data-edge]').forEach(el=>{const e=edges[+el.dataset.edge];el.classList.toggle('live',ctx.liveTerminals.has(node(e.a,e.pa))&&ctx.liveTerminals.has(node(e.b,e.pb)));});
  $$('[data-voltage]').forEach(b=>b.classList.toggle('active',b.dataset.voltage===state.voltage));$$('[data-phase]').forEach(b=>b.classList.toggle('active',b.dataset.phase===state.phase));
  for(const [action,on] of [['energy',state.path],['xray',state.xray],['cutaway',state.cutaway],['explode-tr',state.exploded],['phase-spread',state.spread],['measure',state.measure],['labels',state.labels],['zones',state.zone!=='none']])$$(`[data-action="${action}"]`).forEach(b=>{b.classList.toggle('active',on);b.setAttribute('aria-pressed',String(on));});
- const modes=[];if(state.isolate)modes.push('YALNIZ GÖSTER / '+get(state.isolate.id).tag);if(state.path)modes.push('ENERJİ YOLU / '+state.pathIds.size+' ekipman');if(state.xray)modes.push('X-RAY');if(state.cutaway)modes.push('KABİN KESİTİ');if(state.exploded)modes.push('PATLATILMIŞ GÖRÜNÜM');if(state.spread)modes.push('FAZLAR AYRI');if(state.zone!=='none')modes.push('KORUMA BÖLGESİ');if(state.mode==='training')modes.push('SIMULATION ONLY');$('#scene-mode').textContent=modes.join(' · ');$('#scene-mode').classList.toggle('hidden',!modes.length);updateStatus();
+ const modes=[];if(state.isolate)modes.push('YALNIZ GÖSTER / '+get(state.isolate.id).tag);if(state.path)modes.push('ENERJİ YOLU / '+state.pathIds.size+' ekipman');if(state.xray)modes.push('X-RAY');if(state.cutaway)modes.push('KABİN KESİTİ');if(state.exploded)modes.push('PATLATILMIŞ GÖRÜNÜM');if(state.spread)modes.push('FAZLAR AYRI');if(state.zone!=='none')modes.push('KORUMA BÖLGESİ');if(state.mode==='training')modes.push('SIMULATION ONLY');$('#scene-mode').textContent=modes.join(' · ');$('#scene-mode').classList.toggle('hidden',!modes.length);
 }
-function selectAsset(id,focus=true){const a=get(id);if(!a)return;state.selected=a.assetId;state.trend=rootAsset(a).type==='transformer'?'p':'voltage';const leftBody=$('.left-body');if(leftBody)leftBody.scrollTop=0;if(state.path)calculatePath();emit(Events.ASSET_SELECTED,{assetId:a.assetId,focus});refreshVisuals();if(focus)focusAsset(a.assetId);if(innerWidth<=900){document.body.classList.add('mobile-left');document.body.classList.remove('mobile-right');}}
+function selectAsset(id,focus=true){const a=get(id);if(!a)return;state.selected=a.assetId;state.trend=rootAsset(a).type==='transformer'?'p':'voltage';const leftBody=$('.left-body');if(leftBody)leftBody.scrollTop=0;if(state.path){calculatePath();emit(Events.PATH_CHANGED,{});}emit(Events.ASSET_SELECTED,{assetId:a.assetId,focus});refreshVisuals();if(focus)focusAsset(a.assetId);if(innerWidth<=900){document.body.classList.add('mobile-left');document.body.classList.remove('mobile-right');}}
 function clearSelection(){const leftBody=$('.left-body');if(leftBody)leftBody.scrollTop=0;state.selected=null;state.hover=null;if(ctx.hoverBox)ctx.hoverBox.visible=false;$('#tooltip').classList.add('hidden');emit(Events.ASSET_SELECTED,{assetId:null});refreshVisuals();}
 
 export { refreshVisuals, selectAsset, clearSelection };

@@ -18,7 +18,7 @@ function buildGraph(){
 }
 function traverse(graph,start){const seen=new Set(),queue=[...start];for(let i=0;i<queue.length;i++){const n=queue[i];if(seen.has(n))continue;seen.add(n);for(const next of graph.get(n)||[])if(!seen.has(next))queue.push(next);}return seen;}
 function topology(){
- ctx.adjacency=buildGraph();ctx.liveTerminals=traverse(ctx.adjacency,sourceNodes());electrical.forEach(a=>{a.terminalEnergized.in=ctx.liveTerminals.has(node(a.assetId,'in'));a.terminalEnergized.out=ctx.liveTerminals.has(node(a.assetId,'out'));a.energized=a.terminalEnergized.in||a.terminalEnergized.out;});assets.filter(a=>a.parent||a.linkedAsset).forEach(a=>a.energized=get(a.parent||a.linkedAsset).energized);prepareFlowNetwork();solveFlows();if(state.path)calculatePath();emit(Events.TOPOLOGY_CHANGED,{});
+ ctx.adjacency=buildGraph();ctx.liveTerminals=traverse(ctx.adjacency,sourceNodes());electrical.forEach(a=>{a.terminalEnergized.in=ctx.liveTerminals.has(node(a.assetId,'in'));a.terminalEnergized.out=ctx.liveTerminals.has(node(a.assetId,'out'));a.energized=a.terminalEnergized.in||a.terminalEnergized.out;});assets.filter(a=>a.parent||a.linkedAsset).forEach(a=>a.energized=get(a.parent||a.linkedAsset).energized);prepareFlowNetwork();solveFlows();if(state.path){calculatePath();emit(Events.PATH_CHANGED,{});}emit(Events.TOPOLOGY_CHANGED,{});
 }
 function calculatePath(){
  const selected=rootAsset(get(state.selected)),a=get(selected?.linkedAsset)||selected||get(network.sourceTag),start=node(a.assetId,'in'),roots=sourceNodes(),parents=new Map(roots.map(n=>[n,null])),queue=[...roots];for(let i=0;i<queue.length;i++){if(queue[i]===start)break;for(const n of ctx.adjacency.get(queue[i])||[])if(!parents.has(n)){parents.set(n,queue[i]);queue.push(n);}}

@@ -7,6 +7,7 @@ export const Events = {
   MODE_CHANGED: 'mode:changed',
   TOPOLOGY_CHANGED: 'topology:changed',
   MEASUREMENTS_UPDATED: 'measurements:updated',
+  PATH_CHANGED: 'path:changed',
   LANGUAGE_CHANGED: 'language:changed',
   COUNTRY_CHANGED: 'country:changed'
 };
