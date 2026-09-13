@@ -204,7 +204,9 @@ test("GridAtlas 3D is an isolated, lazy-loaded Pages runtime", () => {
   assert.match(source.app, /showView\(this\.ui\.initialView\(\)\)/);
   assert.match(css, /body\.gridAtlas3dMode \.kpiBar/);
   assert.match(css, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\) auto/);
-  assert.match(pagesWorkflow, /cp -r GridAtlas3D deploy\//);
+  assert.match(pagesWorkflow, /npm ci --prefix GridAtlas3D/);
+  assert.match(pagesWorkflow, /npm run build --prefix GridAtlas3D/);
+  assert.match(pagesWorkflow, /GridAtlas3D\/dist\/\. deploy\/GridAtlas3D\//);
   assert.match(pagesWorkflow, /test -f deploy\/GridAtlas3D\/index\.html/);
   assert.equal(I.t("nav.gridatlas3d"), "🏭 GridAtlas 3D");
   I.locale = "en";
