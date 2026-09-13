@@ -3,10 +3,13 @@
 // Aynı assets/edges verisinden üretilir; elektriksel model değişmez.
 import { $, esc, clamp } from '../core/utils.js';
 import { get, electrical, assets, edges, bays } from '../data/station.js';
+import { on, Events } from '../core/bus.js';
 
 // SLD — SVG symbols generated from the same assets and edges.
 const sldPositions = new Map();
+const sldSpans = new Map();
 function sldPosition(tag, x, y) { sldPositions.set(get(tag).assetId, { x, y }); }
+function sldSpanOf(asset) { return sldSpans.get(asset.assetId); }
 function buildSLD() {
   sldPositions.clear();
   const put = (tag, x, y) => sldPosition(tag, x, y);
@@ -20,14 +23,14 @@ function buildSLD() {
     put(bay.dsB, x, y0 + 10 * st);
     put(bay.earth, x + (i % 2 ? 48 : -48), y0 + 6 * st);
   }
-  for (const [tag, y] of [['BUS-400-A', 1180], ['BUS-400-B', 1240]]) { put(tag, BUS_X, y); get(tag).sldSpan = BUS_SPAN; }
+  for (const [tag, y] of [['BUS-400-A', 1180], ['BUS-400-B', 1240]]) { put(tag, BUS_X, y); sldSpans.set(get(tag).assetId, BUS_SPAN); }
   col(['DS-490', 'COUPLER-400', 'DS-491'], 280, 1180, 30);
   col(['DS-581', 'CB-581', 'CT-581', 'LA-581', 'REACTOR-400'], 505, 1180, 98);
   for (const tr of electrical.filter(a => a.subtype === 'autotransformer')) {
     const n = tr.tag.endsWith('1') ? 0 : 1, x = n ? 410 : 150, code = 510 + n * 10;
     col(['DS-' + code, 'CB-' + code, 'CT-' + code, 'LA-' + code, tr.tag, 'CB-' + (code + 1), 'CT-' + (code + 1), 'DS-' + (code + 1)], x, 1180, 98);
   }
-  for (const [tag, y] of [['BUS-154-A', 1950], ['BUS-154-B', 2010]]) { put(tag, BUS_X, y); get(tag).sldSpan = BUS_SPAN; }
+  for (const [tag, y] of [['BUS-154-A', 1950], ['BUS-154-B', 2010]]) { put(tag, BUS_X, y); sldSpans.set(get(tag).assetId, BUS_SPAN); }
   col(['DS-290', 'COUPLER-154', 'DS-291'], 280, 1950, 30);
   col(['DS-681', 'CB-681', 'CT-681', 'CAP-154'], 505, 1950, 98);
   // 154 kV hat fiderleri: bara üstte, hat alta iner.
@@ -48,7 +51,7 @@ function buildSLD() {
   for (let i = 0; i < 3; i++) {
     const letter = 'ABC'[i], x = txs[i];
     col(['CB-33-IN' + (i + 1), 'VT-33-' + letter], x, 3500, 92);
-    put('BUS-33-' + letter, x, 3684); get('BUS-33-' + letter).sldSpan = [-60, 60];
+    put('BUS-33-' + letter, x, 3684); sldSpans.set(get('BUS-33-' + letter).assetId, [-60, 60]);
     for (let j = 1; j <= 2; j++) {
       const n = i * 2 + j, ox = x + (j === 1 ? -38 : 38), oy = 3760 + (j === 1 ? 0 : 44);
       col(['CB-33-OUT' + n, 'CABLE-33-OUT' + n], ox, oy, 76);
@@ -60,7 +63,7 @@ function buildSLD() {
   svg.setAttribute('viewBox', '0 0 560 4080');
   svg.setAttribute('preserveAspectRatio', 'xMidYMin meet');
   let html = '';
-  const anchor = (asset, p, other) => asset.sldSpan ? { x: clamp(other.x, p.x + asset.sldSpan[0], p.x + asset.sldSpan[1]), y: p.y } : p;
+  const anchor = (asset, p, other) => { const span = sldSpanOf(asset); return span ? { x: clamp(other.x, p.x + span[0], p.x + span[1]), y: p.y } : p; };
   edges.forEach((e, i) => {
     const aa = get(e.a), bb = get(e.b), ap = sldPositions.get(e.a), bp = sldPositions.get(e.b);
     if (!ap || !bp) return;
@@ -70,8 +73,8 @@ function buildSLD() {
     else if (a.y === b.y) d = `M${a.x} ${a.y} H${b.x}`;
     else d = `M${a.x} ${a.y} V${b.y} H${b.x}`;
     html += `<path d="${d}" stroke="#111b23" stroke-width="5" fill="none"/><path class="wire" data-edge="${i}" d="${d}"/>`;
-    if (aa.sldSpan) html += `<circle cx="${a.x}" cy="${a.y}" r="3" fill="#829f99"/>`;
-    if (bb.sldSpan) html += `<circle cx="${b.x}" cy="${b.y}" r="3" fill="#829f99"/>`;
+    if (sldSpanOf(aa)) html += `<circle cx="${a.x}" cy="${a.y}" r="3" fill="#829f99"/>`;
+    if (sldSpanOf(bb)) html += `<circle cx="${b.x}" cy="${b.y}" r="3" fill="#829f99"/>`;
   });
   for (const a of electrical.filter(a => a.type === 'line')) {
     for (const [from, to] of [[a.terminalTower, a.portal], [a.portal, a.tag]]) {
@@ -84,9 +87,10 @@ function buildSLD() {
     if (!p) continue;
     const words = a.name.split(' '), lines = [''];
     for (const word of words) { const i = lines.length - 1; if ((lines[i] + ' ' + word).length > 19 && lines.length < 2) lines.push(word); else lines[i] += (lines[i] ? ' ' : '') + word; }
-    const vertical = !a.sldSpan && a.type !== 'structure';
-    const symbolMarkup = a.sldSpan ? `<path d="M${a.sldSpan[0]} 0H${a.sldSpan[1]}" stroke-width="5"/>` : symbol(a);
-    html += `<g class="asset" data-asset="${a.assetId}" transform="translate(${p.x},${p.y})" role="button" tabindex="0"><title>${esc(a.name + ' · ' + a.tag)}</title><rect class="hit" x="-30" y="-56" width="60" height="124"/><g class="symbol"${vertical ? ' transform="rotate(90)"' : ''}>${symbolMarkup}${a.subtype === 'autotransformer' ? '<path d="M-12 10L13 -12M7 -12H13V-6"/>' : ''}</g><text y="-40" class="sld-tag">${esc(a.tag)}</text>${a.sldSpan ? '' : `<text y="34" class="sld-name">${lines.map((l, i) => `<tspan x="0" dy="${i ? 13 : 0}">${esc(l)}</tspan>`).join('')}</text>`}</g>`;
+    const span = sldSpanOf(a);
+    const vertical = !span && a.type !== 'structure';
+    const symbolMarkup = span ? `<path d="M${span[0]} 0H${span[1]}" stroke-width="5"/>` : symbol(a);
+    html += `<g class="asset" data-asset="${a.assetId}" transform="translate(${p.x},${p.y})" role="button" tabindex="0"><title>${esc(a.name + ' · ' + a.tag)}</title><rect class="hit" x="-30" y="-56" width="60" height="124"/><g class="symbol"${vertical ? ' transform="rotate(90)"' : ''}>${symbolMarkup}${a.subtype === 'autotransformer' ? '<path d="M-12 10L13 -12M7 -12H13V-6"/>' : ''}</g><text y="-40" class="sld-tag">${esc(a.tag)}</text>${span ? '' : `<text y="34" class="sld-name">${lines.map((l, i) => `<tspan x="0" dy="${i ? 13 : 0}">${esc(l)}</tspan>`).join('')}</text>`}</g>`;
   }
   svg.innerHTML = html;
 }
@@ -108,4 +112,13 @@ function symbol(a) {
 }
 function updateSymbol(el, a) { const contact = el.querySelector('.contact'); if (contact) contact.setAttribute('d', a.state === 'OPEN' || a.state === 'OPENING' ? 'M-7 0L5 -9' : 'M-7 0H7'); }
 
-export { sldPositions, sldPosition, buildSLD, symbol, updateSymbol };
+function scrollSldIntoView({ assetId } = {}) {
+  if (!assetId) return;
+  const a = get(assetId);
+  if (!a) return;
+  const sldEl = $('#sld [data-asset="' + (a.parent || a.assetId) + '"]');
+  if (sldEl) sldEl.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+}
+on(Events.ASSET_SELECTED, scrollSldIntoView);
+
+export { sldPositions, sldPosition, buildSLD, symbol, updateSymbol, scrollSldIntoView };

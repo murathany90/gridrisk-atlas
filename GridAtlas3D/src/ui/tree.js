@@ -2,7 +2,8 @@
 // Faz 1: v0.3 tek dosyanin moduler karsiligi. Davranis korunur, gorsel degisiklik yok.
 import { $, bayName, esc } from '../core/utils.js';
 import { layers } from '../core/state.js';
-import { assets, electrical, voltageLevels, voltageProfiles } from '../data/station.js';
+import { get, assets, electrical, voltageLevels, voltageProfiles } from '../data/station.js';
+import { on, Events } from '../core/bus.js';
 
 // UI — tree, overview, inspector, trends and synchronized selection.
 function renderTree(){
@@ -11,4 +12,14 @@ function renderTree(){
 }
 function renderLayers(){const names={...Object.fromEntries(voltageLevels.map(k=>[voltageProfiles[k].layer,k+' kV'])),autotransformer:'Ototrafolar · 400/154 kV',powerTransformer:'Güç Trafoları · 154/33 kV',reactor:'Şönt Reaktörler',capacitor:'Şönt Kapasitör Bankları',circuitBreaker:'Kesiciler',disconnector:'Ayırıcılar',earthSwitch:'Toprak Ayırıcıları',currentTransformer:'Akım Trafoları',voltageTransformer:'Gerilim Trafoları / CVT',arrester:'Parafudrlar',busbar:'Baralar',line:'Havai Hatlar',cable:'Güç Kabloları',lineTrap:'Hat Tıkaçları',structure:'Direk, Portal ve Binalar',grounding:'Topraklama',trenches:'Kablo Kanalları',protection:'Koruma Bölgeleri',measurements:'Ölçümler'};$('#layers-section').innerHTML='<div class="eyebrow">GÖRÜNÜRLÜK</div>'+Object.entries(names).map(([k,label])=>`<label><input type="checkbox" data-layer="${k}" ${layers[k]?'checked':''}>${label}</label>`).join('');}
 
-export { renderTree, renderLayers };
+function syncTreeSelection({ assetId } = {}) {
+  if (!assetId) return;
+  const tree = $(`.tree-item[data-asset="${assetId}"]`);
+  if (!tree) return;
+  let p = tree.parentElement;
+  while (p && p !== $('#asset-tree')) { if (p.tagName === 'DETAILS') p.open = true; p = p.parentElement; }
+  tree.scrollIntoView({ block: 'nearest' });
+}
+on(Events.ASSET_SELECTED, syncTreeSelection);
+
+export { renderTree, renderLayers, syncTreeSelection };

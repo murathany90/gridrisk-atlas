@@ -3,6 +3,7 @@
 // Paneller mevcut veri ve hesapları salt okur; elektriksel model değişmez.
 import { $, $$, esc, clamp, bayName } from '../core/utils.js';
 import { state } from '../core/state.js';
+import { on, Events } from '../core/bus.js';
 import { get, rootAsset, electrical, edges, switchTypes, voltageText, stateText } from '../data/station.js';
 import { trainingConfig, formatSignal, signalSpec } from '../electrical/electrical.js';
 
@@ -98,13 +99,11 @@ function renderTrainEquipPanel() {
   el.innerHTML = `<div class="side-asset">${esc(a.name)} <span class="mono">${esc(a.tag)}</span></div><div class="state-strip${root.energized ? '' : ' off'}"><span>${root.energized ? '● ENERJİLİ' : '○ ENERJİSİZ'}</span><b class="mono">${stateText(root)}</b></div>` +
     (sw ? `<button data-action="switch" data-role="switch-command" id="switch-command-side">${sw.state === 'CLOSED' ? 'AÇ' : 'KAPAT'} · ${sw.tag}</button>` : `<p class="muted">Seçili ekipman kumanda edilebilir tipte değil (kesici / ayırıcı seçin).</p>`);
 }
-const sideCache = { asset: undefined, mode: undefined, path: '' };
-function pathSig() { return (state.path ? '1' : '0') + ':' + state.pathIds.size; }
+const sideCache = { asset: undefined, mode: undefined };
 function refreshSidePanels() {
   if (!$('#mode-tabs')) return;
   sideCache.asset = state.selected;
   sideCache.mode = state.mode;
-  sideCache.path = pathSig();
   renderMeasurePanel();
   renderLinksPanel();
   renderPathPanel();
@@ -112,10 +111,13 @@ function refreshSidePanels() {
 }
 function updateSideLive() {
   if (!$('#mode-tabs')) return;
-  if (sideCache.asset !== state.selected || sideCache.mode !== state.mode || sideCache.path !== pathSig()) { refreshSidePanels(); return; }
+  if (sideCache.asset !== state.selected || sideCache.mode !== state.mode) { refreshSidePanels(); return; }
   updateMeasureValues();
   updateTrainEquipLive();
 }
+on(Events.MODE_CHANGED, () => { renderSidebarTabs(); });
+on(Events.TOPOLOGY_CHANGED, () => { renderPathPanel(); });
+on(Events.MEASUREMENTS_UPDATED, () => { updateSideLive(); });
 function initSidebarResize() {
   const handle = document.querySelector('[data-resize="right"]');
   if (!handle || handle.dataset.bound) return;

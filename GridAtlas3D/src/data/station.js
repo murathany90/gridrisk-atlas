@@ -1,6 +1,7 @@
 // GridAtlas 3D v0.4 — src/data/station.js
 // Faz 1: v0.3 tek dosyanin moduler karsiligi. Davranis korunur, gorsel degisiklik yok.
 import { normalize } from '../core/utils.js';
+import { place, placementOf } from './placement.js';
 
 // DATA MODEL — assetId is the key shared by the topology, SLD, tree and meshes.
 const assets=[], byId=new Map(), byTag=new Map(), edges=[];
@@ -8,7 +9,8 @@ const typeNames={line:'Havai Hat',arrester:'Parafudr',voltageTransformer:'Gerili
 function add(tag,type,voltage,bay,x,z,extra={}){
  const prefix=['transformer','part'].includes(type)?'TR':voltage>0?String(voltage):'SITE';
  const assetId='TM01.'+prefix+'.'+bay.replace(/[^A-Z0-9]/g,'')+'.'+tag.replace(/[^A-Z0-9]/g,'');
- const a={assetId,tag,type,equipmentType:typeNames[type],name:typeNames[type],voltageLevel:voltage,bay,state:['circuitBreaker','disconnector'].includes(type)?'CLOSED':type==='earthSwitch'?'OPEN':'IN SERVICE',connections:[],x,z,measurements:{},energized:false,terminalEnergized:{in:false,out:false},...extra};
+ const a={assetId,tag,type,equipmentType:typeNames[type],name:typeNames[type],voltageLevel:voltage,bay,state:['circuitBreaker','disconnector'].includes(type)?'CLOSED':type==='earthSwitch'?'OPEN':'IN SERVICE',connections:[],measurements:{},energized:false,terminalEnergized:{in:false,out:false},...extra};
+ place(tag,x,z);
  assets.push(a);byId.set(assetId,a);byTag.set(tag,a);return a;
 }
 const get=key=>byId.get(key)||byTag.get(key);
@@ -33,7 +35,7 @@ function displayName(a){return a.name;}
 function searchAssets(query){const q=normalize(query);return assets.filter(a=>normalize([a.name,a.tag,a.assetId,a.type,a.subtype,a.equipmentType,a.bayLabel,a.bay,voltageText(a)+' kV',a.kind==='terminalTower'?'terminal tower son direk':a.kind==='portal'?'gantry hat portalı':'',a.enclosure?'OG kapalı şalt hücre metal clad':'',a.type==='transformer'?'trafo transformer '+transformerFamilies[a.subtype].english:''].join(' ')).includes(q));}
 function registerTransformer(a){
  a.name=a.hvKV+'/'+a.lvKV+' kV '+transformerFamilies[a.subtype].name;a.equipmentType=transformerFamilies[a.subtype].english+' / '+transformerFamilies[a.subtype].name;a.rating='DEMO · '+a.ratingMVA+' MVA';a.ratingSource='DEMO — tesis anma değeri değildir';a.parts={};
- for(const [key,name] of [['TANK','Ana Tank ve Aktif Kısım'],['HV',a.hvKV+' kV Buşingler'],['LV',a.lvKV===33?'33 kV Kablo Kutusu':a.lvKV+' kV Buşingler'],['RAD','Radyatör Bankaları'],['CONS','Konservatör'],['FAN','Soğutma Fanları'],['OLTC','Yük Altında Kademe Değiştirici'],['CTRL','Yerel Kontrol Kabini']]){const p=add(a.tag+'.'+key,'part',0,a.bay,a.x,a.z,{name,parent:a.assetId,partKey:key,bayLabel:a.tag+' Bileşenleri'});a.parts[key]=p.assetId;}
+ for(const [key,name] of [['TANK','Ana Tank ve Aktif Kısım'],['HV',a.hvKV+' kV Buşingler'],['LV',a.lvKV===33?'33 kV Kablo Kutusu':a.lvKV+' kV Buşingler'],['RAD','Radyatör Bankaları'],['CONS','Konservatör'],['FAN','Soğutma Fanları'],['OLTC','Yük Altında Kademe Değiştirici'],['CTRL','Yerel Kontrol Kabini']]){const pp=placementOf(a);const p=add(a.tag+'.'+key,'part',0,a.bay,pp.x,pp.z,{name,parent:a.assetId,partKey:key,bayLabel:a.tag+' Bileşenleri'});a.parts[key]=p.assetId;}
 }
 function registerBay(key,voltage,x,items,label){const bay={key,voltage,x,items:[],label};for(const item of items){const [tag,type,z,dx=0,extra={}]=item;const a=add(tag,type,voltage,key,x+dx,z,{bayLabel:label,ratedCurrent:voltageProfiles[voltage].ratedCurrent,ratingSource:'DEMO',...extra});bay.items.push(a.tag);}bays.push(bay);return bay;}
 function createLineBay(voltage,index,x){
@@ -70,7 +72,7 @@ function createIndoorComplex(){
   if(section<2)cells.push(['COUPLER-33-'+letter+'ABC'[section+1],'circuitBreaker','Bara '+letter+'–'+'ABC'[section+1]+' Kuplaj Hücresi','coupler','COUPLER']);
  }
  cells.forEach(([tag,type,name,role,bay],i)=>add(tag,type,33,bay,98+i*4.1,208,{name:'33 kV '+name,bayLabel:bay==='COUPLER'?'Bara Kuplajları':'33 kV Bölüm '+bay.slice(-1),enclosure:'metalClad',cubicleRole:role,phaseAxis:'z',ratedCurrent:role==='outgoing'?1250:2000,ratingSource:'DEMO',state:role==='coupler'?'OPEN':type==='circuitBreaker'?'CLOSED':'IN SERVICE',worldLabel:role==='bus'}));
- for(let i=1;i<=3;i++){const letter='ABC'[i-1],tr=get('TR-'+i);tr.lvBreaker='CB-33-IN'+i;chain(['CABLE-33-IN'+i,tr.lvBreaker,'VT-33-'+letter,'BUS-33-'+letter]);for(let j=1;j<=2;j++){const n=(i-1)*2+j,cb=get('CB-33-OUT'+n),c=add('CABLE-33-OUT'+n,'cable',33,'SECTION-'+letter,cb.x,233,{name:'33 kV Fider-'+n+' Çıkış Kablosu',bayLabel:'33 kV Bölüm '+letter,ratedCurrent:1250,demand:{p:[16,12,20,14,18,10][n-1],q:[6,4,7,5,6,4][n-1]}});chain(['BUS-33-'+letter,cb.tag,c.tag]);}}
+ for(let i=1;i<=3;i++){const letter='ABC'[i-1],tr=get('TR-'+i);tr.lvBreaker='CB-33-IN'+i;chain(['CABLE-33-IN'+i,tr.lvBreaker,'VT-33-'+letter,'BUS-33-'+letter]);for(let j=1;j<=2;j++){const n=(i-1)*2+j,cb=get('CB-33-OUT'+n),c=add('CABLE-33-OUT'+n,'cable',33,'SECTION-'+letter,placementOf(cb).x,233,{name:'33 kV Fider-'+n+' Çıkış Kablosu',bayLabel:'33 kV Bölüm '+letter,ratedCurrent:1250,demand:{p:[16,12,20,14,18,10][n-1],q:[6,4,7,5,6,4][n-1]}});chain(['BUS-33-'+letter,cb.tag,c.tag]);}}
  chain(['BUS-33-A','COUPLER-33-AB','BUS-33-B','COUPLER-33-BC','BUS-33-C']);
  add('CONTROL-154','structure',154,'COMPLEX',72,208,{name:'154 kV Kumanda Binası',kind:'controlBuilding',complexId:'CONTROL-OG-01',bayLabel:'Kumanda + OG Kompleksi',worldLabel:true});
  add('BUILDING-33','structure',33,'COMPLEX',132,208,{name:'33 kV OG Kapalı Şalt Ek Bloğu',kind:'switchgearBuilding',complexId:'CONTROL-OG-01',bayLabel:'Kumanda + OG Kompleksi',worldLabel:true});

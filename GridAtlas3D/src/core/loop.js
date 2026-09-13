@@ -7,7 +7,7 @@ import { updateCamera } from '../scene/scene.js';
 import { animateModels } from '../features/tools.js';
 import { updateReplay } from '../features/replay.js';
 import { animateFlows, updateWireVisibility } from '../scene/wires.js';
-import { updateLabels, updateDetailValues, updateStatus } from '../ui/detail.js';
+import { updateLabels } from '../ui/detail.js';
 import { updateMeasurements } from '../electrical/electrical.js';
 import { refreshVisuals } from '../scene/selection.js';
 import { isParentVisible } from '../integration/parentBridge.js';
@@ -19,6 +19,6 @@ function frame(now){
  if(!document.hidden&&isParentVisible()){updateCamera(dt);animateModels(dt);updateReplay(dt);animateFlows(now);updateLabels(now);ctx.renderer.render(ctx.scene,ctx.camera);frameCount++;}
  if(now-fpsTime>=1000){$('#status-fps').textContent=Math.round(frameCount*1000/(now-fpsTime))+' FPS';frameCount=0;fpsTime=now;}requestAnimationFrame(frame);
 }
-function tickData(){updateMeasurements();updateDetailValues();updateStatus();updateWireVisibility();if(state.mode==='analysis')refreshVisuals();if(!ctx.renderer)updateReplay(1);}
+function tickData(){updateMeasurements();updateWireVisibility();if(state.mode==='analysis')refreshVisuals();if(!ctx.renderer)updateReplay(1);}
 
 export { lastFrame, frameCount, fpsTime, lastMeasure, frame, tickData };

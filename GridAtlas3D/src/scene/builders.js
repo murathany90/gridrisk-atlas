@@ -6,10 +6,11 @@ import { PHASES } from '../core/utils.js';
 import { get, rootAsset, profileFor, site, network } from '../data/station.js';
 import { geometry, material, mesh, box, cyl, rod, insulator, base, phase, nameplate, colors, v } from './materials.js';
 import { owningAsset } from './visibility.js';
+import { placementOf } from '../data/placement.js';
 
 // 3D EQUIPMENT FACTORIES — metre-based parametric models with explicit terminals.
 function buildElectrical(a){
- const g=new THREE.Group();g.name='physical/'+a.tag;g.userData.assetId=a.assetId;g.position.set(a.x,0,a.z);g.userData.base=g.position.clone();ctx.assetGroups.set(a.assetId,g);ctx.scene.add(g);const m={steel:material(colors.steel),dark:material(colors.steelDark),porcelain:material(a.voltageLevel===400?0xa9b5ae:0x9fbcc0),base:material(colors.concrete),terminal:material(colors.terminal),tank:material(a.subtype==='autotransformer'?0x607b77:0x6f8786)};g.userData.materials=Object.values(m);const profile=profileFor(a),hv=profile.nominal===400,h=profile.equipmentHeight,s=profile.equipmentScale;a.terminals={in:[],out:[]};
+ const pl=placementOf(a),g=new THREE.Group();g.name='physical/'+a.tag;g.userData.assetId=a.assetId;g.position.set(pl.x,0,pl.z);g.userData.base=g.position.clone();ctx.assetGroups.set(a.assetId,g);ctx.scene.add(g);const m={steel:material(colors.steel),dark:material(colors.steelDark),porcelain:material(a.voltageLevel===400?0xa9b5ae:0x9fbcc0),base:material(colors.concrete),terminal:material(colors.terminal),tank:material(a.subtype==='autotransformer'?0x607b77:0x6f8786)};g.userData.materials=Object.values(m);const profile=profileFor(a),hv=profile.nominal===400,h=profile.equipmentHeight,s=profile.equipmentScale;a.terminals={in:[],out:[]};
  if(a.enclosure)return buildCubicle(a,g,m);if(a.type==='transformer')return buildTransformer(a,g,m);if(['reactor','capacitor'].includes(a.type))return buildShunt(a,g,m);if(a.type==='cable')return buildCable(a,g,m);if(a.type==='line')return buildLine(a,g,m);
  if(a.type==='busbar'){
   const height=profile.busHeight,spacing=profile.busSpacing;for(let i=0;i<3;i++){const p=new THREE.Group();p.position.z=(i-1)*spacing;p.userData={phase:PHASES[i],busPhase:true,baseZ:p.position.z};g.add(p);ctx.phaseGroups.push(p);rod(p,[-a.busWidth/2,height,0],[a.busWidth/2,height,0],hv?.16:.12,m.terminal);const supports=Math.ceil(a.busWidth/(hv?32:24));for(let j=0;j<=supports;j++){const x=-a.busWidth/2+a.busWidth*j/supports,sup=new THREE.Group();sup.position.x=x;p.add(sup);base(sup,2.2,2.2,m.base);for(const dx of [-.45,.45])rod(sup,[dx,.6,0],[dx,height-2.25,0],.15,m.dark);for(let yy=1;yy<height-3;yy+=2)rod(sup,[-.45,yy,0],[.45,yy+1.7,0],.07,m.dark);insulator(sup,2,.3,height-2.15,m.porcelain);box(sup,.7,.2,.4,0,height,0,m.dark);for(const dx of [-.23,.23])rod(sup,[dx,height-.1,-.26],[dx,height+.2,.26],.035,m.terminal);}a.terminals.in.push(v(-a.busWidth/2,height,(i-1)*spacing));a.terminals.out.push(v(a.busWidth/2,height,(i-1)*spacing));}return;
@@ -39,7 +40,7 @@ function buildElectrical(a){
 function buildTransformer(a,g,m){if(a.subtype==='autotransformer')buildAutotransformer(a,g,m);else if(a.subtype==='powerTransformer')buildPowerTransformer(a,g,m);else throw Error('Bilinmeyen trafo ailesi: '+a.tag);}
 // SUBSTATION BUILDER
 function buildStructure(a){
- const g=new THREE.Group();g.name='physical/'+a.tag;g.userData.assetId=a.assetId;g.position.set(a.x,0,a.z);g.userData.base=g.position.clone();ctx.structures.add(g);ctx.assetGroups.set(a.assetId,g);const m={steel:material(0x83969d),dark:material(0x405863),base:material(0x687371),porcelain:material(0xadc3bd)};g.userData.materials=Object.values(m);
+ const pl=placementOf(a),g=new THREE.Group();g.name='physical/'+a.tag;g.userData.assetId=a.assetId;g.position.set(pl.x,0,pl.z);g.userData.base=g.position.clone();ctx.structures.add(g);ctx.assetGroups.set(a.assetId,g);const m={steel:material(0x83969d),dark:material(0x405863),base:material(0x687371),porcelain:material(0xadc3bd)};g.userData.materials=Object.values(m);
  if(a.kind==='switchgearBuilding'){buildSwitchgearBuilding(a,g,m);return;}if(a.kind==='controlBuilding'){buildControlBuilding(a,g,m);return;}
  if(a.kind==='terminalTower'){
   const p=profileFor(a),hv=a.voltageLevel===400,h=hv?36:28,w=p.phaseSpacing*3.4;latticeColumn(g,0,0,h,7.2*(hv?1:.75),1.7,m.steel);for(const dx of [-1,1])for(const dz of [-1,1])box(g,2,.8,2,dx*(hv?3.6:2.7),.3,dz*(hv?3.6:2.7),m.base);latticeBeam(g,w,h-4,0,m.steel);latticeColumn(g,0,0,h+5,1.8,.2,m.dark);
@@ -145,7 +146,7 @@ function buildControlBuilding(a,g,m){
  for(let i=0;i<8;i++){box(g,1.7,3,.7,-15+i*4.1,1.9,-7,m.dark);box(g,1.3,1.2,.06,-15+i*4.1,2.55,-6.61,m.steel);}for(let i=0;i<4;i++){box(g,3.2,.12,1.8,-9+i*6,1.4,2,m.steel);box(g,1.3,.8,.1,-9+i*6,2,1.6,m.dark);}for(const x of [-12,12])box(g,3.7,.7,2.3,x,9.1,0,m.steel);
 }
 function buildLine(a,g,m){
- const profile=profileFor(a),tower=get(a.terminalTower),portal=get(a.portal),hv=a.voltageLevel===400,dir=a.lineDirection,yTower=(hv?36:28)-4,towerZ=tower.z-a.z+dir*(hv?4.4:3.3),portalZ=portal.z-a.z,y=profile.lineHeight,entryZ=dir*8;
+ const profile=profileFor(a),tower=get(a.terminalTower),portal=get(a.portal),hv=a.voltageLevel===400,dir=a.lineDirection,yTower=(hv?36:28)-4,towerZ=placementOf(tower).z-placementOf(a).z+dir*(hv?4.4:3.3),portalZ=placementOf(portal).z-placementOf(a).z,y=profile.lineHeight,entryZ=dir*8;
  a.leadPath=hv?[[0,yTower,towerZ],[0,y,portalZ],[0,y,entryZ]]:[[0,y,entryZ],[0,y,portalZ],[0,yTower,towerZ]];
  for(let i=0;i<3;i++){const p=phase(g,a,i),route=a.leadPath,pts=[];for(let j=0;j<route.length-1;j++){const start=v(...route[j]),end=v(...route[j+1]),sag=Math.min(2.4,start.distanceTo(end)*.045);for(let k=0;k<13;k++){const t=k/12,pt=start.clone().lerp(end,t);pt.y-=Math.sin(Math.PI*t)*sag;pts.push(pt);}}
   const key='line-lead:'+a.voltageLevel+':'+dir,curve=new THREE.CatmullRomCurve3(pts);mesh(p,geometry(key,()=>new THREE.TubeGeometry(curve,36,.065,4,false)),m.terminal);a.terminals.in.push(v(p.position.x,route[0][1],route[0][2]));a.terminals.out.push(v(p.position.x,route.at(-1)[1],route.at(-1)[2]));}

@@ -10,6 +10,7 @@ import { updateWireVisibility } from '../scene/wires.js';
 import { refreshVisuals } from '../scene/selection.js';
 import { renderDetail } from '../ui/detail.js';
 import { replay } from '../features/events.js';
+import { placementOf } from '../data/placement.js';
 
 // DETERMINISTIC MODEL CHECKS — snapshot/restore prevents changing the user's session.
 function runSelfTests(){
@@ -17,13 +18,13 @@ function runSelfTests(){
  const checks=[],check=(name,ok)=>checks.push({name,ok:!!ok}),saved={...state,pathIds:new Set(state.pathIds),sourceOutages:new Set(state.sourceOutages)},states=new Map(assets.map(a=>[a.assetId,a.state])),savedLayers={...layers},cameraState=ctx.camera?{target:orbit.wantedTarget.clone(),radius:orbit.wantedRadius,theta:orbit.wantedTheta,phi:orbit.wantedPhi}:null;
  try{
   const count=(type,kv)=>electrical.filter(a=>a.type===type&&a.voltageLevel===kv).length,atrs=electrical.filter(a=>a.subtype==='autotransformer'),trs=electrical.filter(a=>a.subtype==='powerTransformer');
-  check('Moduler yapi (v0.5) / paket Three.js / WebGL',!!ctx.renderer&&document.querySelectorAll('script[src^="http"],link[href^="http"],img[src^="http"]').length===0);
+  check('Moduler yapi (v0.6) / paket Three.js / WebGL',!!ctx.renderer&&document.querySelectorAll('script[src^="http"],link[href^="http"],img[src^="http"]').length===0);
   check('4 adet 400 kV hat fideri',count('line',400)===4);
   check('6 adet 154 kV hat fideri',count('line',154)===6);
   check('2 adet 400/154 kV ototrafo',atrs.length===2&&atrs.every(a=>a.hvKV===400&&a.lvKV===154&&a.terminals.in.length===3&&a.terminals.out.length===3));
   check('3 adet 154/33 kV güç trafosu',trs.length===3&&trs.every(a=>a.hvKV===154&&a.lvKV===33&&a.terminals.in.length===3&&a.terminals.out.length===3));
   check('Her hat için son direk + portal',assets.filter(a=>a.kind==='terminalTower').length===10&&assets.filter(a=>a.kind==='portal').length===10&&electrical.filter(a=>a.type==='line').every(a=>get(a.terminalTower)?.linkedAsset===a.assetId&&get(a.portal)?.linkedAsset===a.assetId&&a.leadPath.length===3));
-  const main=get('CONTROL-154'),og=get('BUILDING-33');check('Bitişik kumanda + 33 kV OG kompleksi',main.complexId===og.complexId&&main.x+21===og.x-39&&main.z===og.z&&electrical.filter(a=>a.cubicleRole==='incomer').length===3);
+  const main=get('CONTROL-154'),og=get('BUILDING-33'),mp=placementOf(main),op=placementOf(og);check('Bitişik kumanda + 33 kV OG kompleksi',main.complexId===og.complexId&&mp.x+21===op.x-39&&mp.z===op.z&&electrical.filter(a=>a.cubicleRole==='incomer').length===3);
   check('3D / ağaç / SLD / arama entegrasyonu',assets.every(a=>{const g=ctx.assetGroups.get(a.assetId);let meshFound=false;g?.traverse(o=>{if(o.isMesh)meshFound=true;});return meshFound&&!!$('.tree-item[data-asset="'+a.assetId+'"]')&&searchAssets(a.tag).includes(a);})&&electrical.every(a=>!!$('#sld [data-asset="'+a.assetId+'"]'))&&new Set(assets.map(a=>a.assetId)).size===assets.length&&new Set(assets.map(a=>a.tag)).size===assets.length);
   assets.forEach(a=>a.state=defaults.get(a.assetId));state.sourceActive=true;state.sourceOutages=new Set();state.reverseFlow=false;state.overload=false;state.voltage='all';state.phase='all';state.isolate=null;state.path=false;state.mode='analysis';state.flowP=true;state.flowQ=true;state.powerFlow=true;Object.keys(layers).forEach(k=>layers[k]=true);topology();
   const positive=[...atrs,...trs].every(a=>sampleValues(a).p>0),reactor=get('REACTOR-400'),cap=get('CAP-154'),qOK=sampleValues(reactor).q>0&&sampleValues(cap).q<0&&sampleValues(reactor).p===0&&sampleValues(cap).p===0;

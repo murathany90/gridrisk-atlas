@@ -8,10 +8,11 @@ import { get, rootAsset, electrical, edges, network, profileFor, switchTypes } f
 import { assetFlows, flowVisual } from '../electrical/electrical.js';
 import { isAssetVisible } from './visibility.js';
 import { v, geometry } from './materials.js';
+import { placementOf } from '../data/placement.js';
 
 function terminalWorld(asset,port,i,other){
  const a=rootAsset(asset),local=a.terminals[port][i].clone();
- if(a.enclosure){local.z*=ctx.spreadAmount;}else if(a.type==='busbar'){local.x=clamp(other?other.x-a.x:0,-a.busWidth/2,a.busWidth/2);local.z*=ctx.spreadAmount;}else{local.x*=ctx.spreadAmount;if(a.type==='transformer'){const part=ctx.assetGroups.get(a.parts[port==='in'?'HV':'LV']);if(part)local.add(part.position);}}
+ if(a.enclosure){local.z*=ctx.spreadAmount;}else if(a.type==='busbar'){const pa=placementOf(a);local.x=clamp(other?placementOf(other).x-pa.x:0,-a.busWidth/2,a.busWidth/2);local.z*=ctx.spreadAmount;}else{local.x*=ctx.spreadAmount;if(a.type==='transformer'){const part=ctx.assetGroups.get(a.parts[port==='in'?'HV':'LV']);if(part)local.add(part.position);}}
  return ctx.assetGroups.get(a.assetId).localToWorld(local);
 }
 function buildWires(){

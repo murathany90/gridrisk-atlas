@@ -1,6 +1,7 @@
 // GridAtlas 3D v0.4 — src/electrical/electrical.js
 // Faz 1: v0.3 tek dosyanin moduler karsiligi. Davranis korunur, gorsel degisiklik yok.
 import { config, state } from '../core/state.js';
+import { emit, Events } from '../core/bus.js';
 import { ctx } from '../core/context.js';
 import { clamp, node } from '../core/utils.js';
 import { assets, edges, electrical, get, network, rootAsset, profileFor, switchTypes, voltageLevels, voltageProfiles } from '../data/station.js';
@@ -17,7 +18,7 @@ function buildGraph(){
 }
 function traverse(graph,start){const seen=new Set(),queue=[...start];for(let i=0;i<queue.length;i++){const n=queue[i];if(seen.has(n))continue;seen.add(n);for(const next of graph.get(n)||[])if(!seen.has(next))queue.push(next);}return seen;}
 function topology(){
- ctx.adjacency=buildGraph();ctx.liveTerminals=traverse(ctx.adjacency,sourceNodes());electrical.forEach(a=>{a.terminalEnergized.in=ctx.liveTerminals.has(node(a.assetId,'in'));a.terminalEnergized.out=ctx.liveTerminals.has(node(a.assetId,'out'));a.energized=a.terminalEnergized.in||a.terminalEnergized.out;});assets.filter(a=>a.parent||a.linkedAsset).forEach(a=>a.energized=get(a.parent||a.linkedAsset).energized);prepareFlowNetwork();solveFlows();if(state.path)calculatePath();
+ ctx.adjacency=buildGraph();ctx.liveTerminals=traverse(ctx.adjacency,sourceNodes());electrical.forEach(a=>{a.terminalEnergized.in=ctx.liveTerminals.has(node(a.assetId,'in'));a.terminalEnergized.out=ctx.liveTerminals.has(node(a.assetId,'out'));a.energized=a.terminalEnergized.in||a.terminalEnergized.out;});assets.filter(a=>a.parent||a.linkedAsset).forEach(a=>a.energized=get(a.parent||a.linkedAsset).energized);prepareFlowNetwork();solveFlows();if(state.path)calculatePath();emit(Events.TOPOLOGY_CHANGED,{});
 }
 function calculatePath(){
  const selected=rootAsset(get(state.selected)),a=get(selected?.linkedAsset)||selected||get(network.sourceTag),start=node(a.assetId,'in'),roots=sourceNodes(),parents=new Map(roots.map(n=>[n,null])),queue=[...roots];for(let i=0;i<queue.length;i++){if(queue[i]===start)break;for(const n of ctx.adjacency.get(queue[i])||[])if(!parents.has(n)){parents.set(n,queue[i]);queue.push(n);}}
@@ -55,6 +56,7 @@ function updateMeasurements(initial=false){
  m.quality=quality;if(quality!=='STALE'){m.value=value;m.time=now;}
  if(m.history.at(-1)?.t===now)m.history.pop();m.history.push({t:now,v:quality==='INVALID'?null:m.value,quality});m.history=m.history.filter(p=>p.t>=now-config.historySeconds*1000);
  });});
+ emit(Events.MEASUREMENTS_UPDATED,{time:now});
 }
 function flowDirection(value){return value<0?-1:value>0?1:0;}
 function flowVisual(value,kind){const magnitude=Math.abs(value),threshold=.005;return{active:magnitude>threshold,direction:flowDirection(value),count:magnitude>threshold?clamp(Math.ceil(Math.sqrt(magnitude)*(kind==='q'?.9:.65)),2,18):0,speed:clamp(.022+Math.sqrt(magnitude)*.006,.025,.17)};}
