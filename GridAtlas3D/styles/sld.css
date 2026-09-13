@@ -4,7 +4,7 @@
 .bottom-title span{color:var(--muted)}
 .bottom-head .bottom-meta{font-size:9px;color:var(--muted);flex:1;white-space:nowrap}
 .bottom-head>button{padding:3px 6px;min-height:24px}
-#sld{display:block;width:100%;height:auto;min-width:280px}
+#sld{display:block;width:100%;height:auto;min-width:260px}
 #sld .wire{stroke:#596976;stroke-width:1.5;fill:none}
 #sld .wire.live{stroke:#80b4a4}
 #sld .asset{cursor:pointer;outline:none}

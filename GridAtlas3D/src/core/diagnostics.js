@@ -17,7 +17,7 @@ function runSelfTests(){
  const checks=[],check=(name,ok)=>checks.push({name,ok:!!ok}),saved={...state,pathIds:new Set(state.pathIds),sourceOutages:new Set(state.sourceOutages)},states=new Map(assets.map(a=>[a.assetId,a.state])),savedLayers={...layers},cameraState=ctx.camera?{target:orbit.wantedTarget.clone(),radius:orbit.wantedRadius,theta:orbit.wantedTheta,phi:orbit.wantedPhi}:null;
  try{
   const count=(type,kv)=>electrical.filter(a=>a.type===type&&a.voltageLevel===kv).length,atrs=electrical.filter(a=>a.subtype==='autotransformer'),trs=electrical.filter(a=>a.subtype==='powerTransformer');
-  check('Moduler yapi (v0.4) / paket Three.js / WebGL',!!ctx.renderer&&document.querySelectorAll('script[src^="http"],link[href^="http"],img[src^="http"]').length===0);
+  check('Moduler yapi (v0.5) / paket Three.js / WebGL',!!ctx.renderer&&document.querySelectorAll('script[src^="http"],link[href^="http"],img[src^="http"]').length===0);
   check('4 adet 400 kV hat fideri',count('line',400)===4);
   check('6 adet 154 kV hat fideri',count('line',154)===6);
   check('2 adet 400/154 kV ototrafo',atrs.length===2&&atrs.every(a=>a.hvKV===400&&a.lvKV===154&&a.terminals.in.length===3&&a.terminals.out.length===3));

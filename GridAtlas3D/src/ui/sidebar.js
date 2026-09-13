@@ -12,14 +12,13 @@ const TABS = {
   analysis: [['assets', 'Varlıklar'], ['analysis', 'Analiz'], ['measure', 'Ölçümler']],
   training: [['scenario', 'Senaryo'], ['steps', 'Adımlar'], ['trainequip', 'Ekipman']]
 };
-const DETAIL_TAB = { inspect: 'equipment', topology: 'links', analysis: 'measure', training: 'trainequip' };
-
 function tabsForMode() { return TABS[state.mode] || TABS.inspect; }
 function renderSidebarTabs() {
   const tabs = tabsForMode();
   if (!tabs.some(([k]) => k === state.leftTab)) state.leftTab = tabs[0][0];
   $('#mode-tabs').innerHTML = tabs.map(([k, label]) => `<button role="tab" data-left-tab="${k}" aria-selected="${k === state.leftTab}">${label}</button>`).join('');
   syncSidePanels();
+  renderScenarioPanel();
   refreshSidePanels();
 }
 function setLeftTab(name) {
@@ -32,20 +31,47 @@ function syncSidePanels() {
   $$('#mode-tabs [data-left-tab]').forEach(b => { const on = b.dataset.leftTab === state.leftTab; b.classList.toggle('active', on); b.setAttribute('aria-selected', String(on)); });
   $$('.left-body [data-left-panel]').forEach(p => p.classList.toggle('hidden', p.dataset.leftPanel !== state.leftTab));
 }
-function showDetailForMode() { setLeftTab(DETAIL_TAB[state.mode] || 'equipment'); }
-
 function sideHint(text) { return `<p class="muted side-hint">${text}</p>`; }
+function measureKeys(root) { return root.type === 'transformer' ? ['p', 'q', 'loading', 'tap'] : root.ratingMvar ? ['voltage', 'q', 'loading', 'current'] : ['voltage', 'current', 'p', 'q']; }
 function renderMeasurePanel() {
   const el = $('#side-measure'); if (!el) return;
   const a = get(state.selected), root = rootAsset(a);
   if (!root || !root.measurements.voltage) { el.innerHTML = sideHint('Ölçüm için bir ekipman seçin.'); return; }
-  const keys = root.type === 'transformer' ? ['p', 'q', 'loading', 'tap'] : root.ratingMvar ? ['voltage', 'q', 'loading', 'current'] : ['voltage', 'current', 'p', 'q'];
+  const keys = measureKeys(root);
   el.innerHTML = `<div class="side-asset">${esc(root.name)} <span class="mono">${esc(root.tag)}</span></div><div class="measure-rows">` + keys.map(k => {
-    const m = root.measurements[k], spec = signalSpec[k];
+    const spec = signalSpec[k];
+    return `<div class="measure-row" data-mkey="${k}"><span>${spec.label}</span><b class="mono">— <small>${spec.unit}</small></b><span class="quality">—</span></div>`;
+  }).join('') + `</div>`;
+  updateMeasureValues(root);
+}
+function updateMeasureValues(root) {
+  root = root || rootAsset(get(state.selected));
+  const el = $('#side-measure');
+  if (!el || !root || !root.measurements.voltage) return false;
+  const rows = [...el.querySelectorAll('.measure-row')];
+  const keys = measureKeys(root);
+  if (rows.length !== keys.length || !rows.every((r, i) => r.dataset.mkey === keys[i])) return false;
+  rows.forEach((r, i) => {
+    const k = keys[i], m = root.measurements[k], spec = signalSpec[k];
     const val = m && m.quality !== 'INVALID' ? m.value.toFixed(spec.digits) : '—';
     const q = m ? m.quality : '—';
-    return `<div class="measure-row"><span>${spec.label}</span><b class="mono">${val} <small>${spec.unit}</small></b><span class="quality ${q !== 'GOOD' ? 'bad' : ''}">${q}</span></div>`;
-  }).join('') + `</div>`;
+    r.querySelector('b').innerHTML = `${val} <small>${spec.unit}</small>`;
+    const qel = r.querySelector('.quality');
+    qel.textContent = q;
+    qel.classList.toggle('bad', q !== 'GOOD');
+  });
+  return true;
+}
+function updateTrainEquipLive() {
+  const el = $('#side-trainequip');
+  if (!el) return;
+  const a = get(state.selected), root = rootAsset(a);
+  if (!a || !root) return;
+  const strip = el.querySelector('.state-strip');
+  if (strip) {
+    strip.classList.toggle('off', !root.energized);
+    strip.innerHTML = `<span>${root.energized ? '● ENERJİLİ' : '○ ENERJİSİZ'}</span><b class="mono">${stateText(root)}</b>`;
+  }
 }
 function renderLinksPanel() {
   const el = $('#side-links'); if (!el) return;
@@ -72,13 +98,23 @@ function renderTrainEquipPanel() {
   el.innerHTML = `<div class="side-asset">${esc(a.name)} <span class="mono">${esc(a.tag)}</span></div><div class="state-strip${root.energized ? '' : ' off'}"><span>${root.energized ? '● ENERJİLİ' : '○ ENERJİSİZ'}</span><b class="mono">${stateText(root)}</b></div>` +
     (sw ? `<button data-action="switch" data-role="switch-command" id="switch-command-side">${sw.state === 'CLOSED' ? 'AÇ' : 'KAPAT'} · ${sw.tag}</button>` : `<p class="muted">Seçili ekipman kumanda edilebilir tipte değil (kesici / ayırıcı seçin).</p>`);
 }
+const sideCache = { asset: undefined, mode: undefined, path: '' };
+function pathSig() { return (state.path ? '1' : '0') + ':' + state.pathIds.size; }
 function refreshSidePanels() {
   if (!$('#mode-tabs')) return;
+  sideCache.asset = state.selected;
+  sideCache.mode = state.mode;
+  sideCache.path = pathSig();
   renderMeasurePanel();
   renderLinksPanel();
   renderPathPanel();
-  renderScenarioPanel();
   renderTrainEquipPanel();
+}
+function updateSideLive() {
+  if (!$('#mode-tabs')) return;
+  if (sideCache.asset !== state.selected || sideCache.mode !== state.mode || sideCache.path !== pathSig()) { refreshSidePanels(); return; }
+  updateMeasureValues();
+  updateTrainEquipLive();
 }
 function initSidebarResize() {
   const handle = document.querySelector('[data-resize="right"]');
@@ -88,7 +124,7 @@ function initSidebarResize() {
     if (innerWidth <= 900 || (e.button !== undefined && e.button !== 0)) return;
     e.preventDefault();
     const move = ev => {
-      const w = clamp(document.documentElement.clientWidth - ev.clientX, 240, 520);
+      const w = clamp(document.documentElement.clientWidth - ev.clientX, 300, 520);
       document.documentElement.style.setProperty('--right', w + 'px');
     };
     const up = () => { document.removeEventListener('pointermove', move); document.removeEventListener('pointerup', up); };
@@ -97,4 +133,4 @@ function initSidebarResize() {
   });
 }
 
-export { renderSidebarTabs, setLeftTab, syncSidePanels, showDetailForMode, refreshSidePanels, initSidebarResize };
+export { renderSidebarTabs, setLeftTab, syncSidePanels, refreshSidePanels, updateSideLive, initSidebarResize };
